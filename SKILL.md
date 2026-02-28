@@ -80,13 +80,19 @@ targeted yes/no questions rather than vague open-ended ones.
 ### 1.2 — SEO Essentials
 Fetch the HTML and check:
 - `<title>` tag exists and is 50-60 characters
+- No duplicate `<title>` tags (common CMS/framework bug)
 - `<meta name="description">` exists and is 150-160 characters
-- Only one `<h1>` per page
+- No duplicate meta descriptions
+- Only one `<h1>` per page, no empty heading tags
 - `<meta name="robots">` is not set to `noindex` (unless intentional)
-- `<link rel="canonical">` is present and correct
-- Open Graph tags (`og:title`, `og:description`, `og:image`) are present
+- `<link rel="canonical">` is present and correct, no duplicate canonicals
+- `<meta charset="UTF-8">` is present
+- `<meta name="viewport">` has `width=device-width` (not just present — validated)
+- Open Graph tags (`og:title`, `og:description`, `og:image`, `og:url`) are present
+- `og:image` URL is captured for validation
 - Twitter Card tags are present
 - Structured data / JSON-LD is present (check for `<script type="application/ld+json">`)
+- `<link rel="alternate" hreflang="...">` tags for multi-language sites
 - `sitemap.xml` exists (fetch `/sitemap.xml`)
 - `robots.txt` exists and is sensible (fetch `/robots.txt`)
 - Favicon exists (`<link rel="icon">`)
@@ -96,34 +102,43 @@ From the HTML response, check:
 - Total HTML size (flag if > 100KB)
 - Number of render-blocking scripts in `<head>`
 - Whether images use `loading="lazy"` where appropriate
+- Image optimisation: `srcset` attributes, `<picture>` elements, modern formats (WebP/AVIF)
+- Image dimensions: `width` and `height` attributes present (prevents CLS)
 - Whether CSS is inlined or external (and count external stylesheets)
+- Inline script/style size (flag if combined > 50KB — bypasses caching)
 - Check for `<link rel="preconnect">` or `<link rel="preload">` hints
-- Font loading strategy (font-display: swap?)
+- Font loading: `font-display: swap` in inline styles, Google Fonts preconnect, font preloads
 
 **Then suggest**: "For a deeper performance audit, I recommend running your URL
 through Google PageSpeed Insights — would you like me to search for your latest
 scores?"
 
-### 1.4 — Security Headers
+### 1.4 — Security Headers & Mixed Content
 Check response headers for:
 - `Strict-Transport-Security` (HSTS)
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options` or `Content-Security-Policy` frame-ancestors
 - `Referrer-Policy`
 - `Permissions-Policy`
-- HTTPS enforced (no mixed content warnings in HTML)
+
+From the HTML, check:
+- Mixed content: `http://` resources (images, scripts, stylesheets) loaded on an HTTPS page
+- External links with `target="_blank"` have `rel="noopener"` (security + performance)
 
 ### 1.5 — Accessibility Quick Scan
 From the HTML, check:
 - All `<img>` tags have `alt` attributes
+- Images have explicit `width` and `height` attributes (CLS prevention)
 - Form inputs have associated `<label>` elements or `aria-label`
-- Colour contrast cannot be checked from HTML alone — ask the user:
-  "Are you using low-contrast text anywhere (light grey on white, etc.)?"
 - `<html lang="...">` attribute is set
 - Skip links present for keyboard navigation
 - ARIA landmarks used (`<main>`, `<nav>`, `<header>`, `<footer>`)
-- Focus styles: ask user "Have you disabled the default focus outline on
-  interactive elements without adding a custom one?"
+- No empty heading tags (`<h2></h2>`, `<h3>   </h3>`)
+- Same-page anchor links (`href="#section"`) point to existing element IDs
+
+Ask the user:
+- "Are you using low-contrast text anywhere (light grey on white, etc.)?"
+- "Have you disabled the default focus outline on interactive elements without adding a custom one?"
 
 ### 1.6 — Functional Checks (User-Guided)
 These can't be automated — ask the user to verify:
@@ -139,13 +154,23 @@ These can't be automated — ask the user to verify:
 Present these as a checklist with the ask_user_input tool, grouped into batches
 of 3-4 so it's not overwhelming.
 
-### 1.7 — Content & Legal
+### 1.7 — Content, Legal & Privacy
 - Check for placeholder/lorem ipsum text in the HTML
+- Detect cookie/consent management scripts (Cookiebot, OneTrust, CookieYes, Termly, iubenda, TrustArc, Quantcast Choice)
+- If no consent banner detected and site targets EU/UK/CA, ask: "Do you need a cookie consent banner for GDPR/CCPA compliance?"
 - Ask: "Is your privacy policy linked in the footer?"
 - Ask: "Is your copyright year current?"
 - Ask: "Are all team photos, logos, and images final (no placeholders)?"
 
-### 1.8 — Analytics & Tracking
+### 1.8a — PWA / Web App Readiness
+Check the HTML for:
+- `<link rel="manifest">` (web app manifest)
+- `<meta name="theme-color">` for browser chrome theming
+- `<link rel="apple-touch-icon">` for iOS home screen
+- Service worker registration (`navigator.serviceWorker.register`)
+- If none found and the site is a web app, suggest adding these for "Add to Home Screen" support
+
+### 1.8b — Analytics & Tracking
 Check the HTML for:
 - Google Analytics / GA4 (`gtag` or `google-analytics`)
 - Google Tag Manager (`googletagmanager`)

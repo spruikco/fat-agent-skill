@@ -26,9 +26,11 @@ FAT Agent is a Claude Skill (not a standalone app). The core file is `SKILL.md` 
 ## Testing
 
 - `python scripts/analyse-html.py <file.html>` — outputs JSON report.
+- `python scripts/analyse-html.py --url https://example.com <file.html>` — enables mixed content detection.
 - `python scripts/analyse-html.py < file.html` — reads from stdin.
 - `python scripts/calculate-score.py <report.json>` — scores an analysis report.
 - Pipeline: `python scripts/analyse-html.py page.html | python scripts/calculate-score.py`
+- `python scripts/test_fat_agent.py` — runs the full test suite (152 tests).
 
 ## Adding Content
 

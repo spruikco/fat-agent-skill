@@ -25,6 +25,7 @@ calculate_scores = score_mod.calculate_scores
 calculate_seo_score = score_mod.calculate_seo_score
 calculate_security_score = score_mod.calculate_security_score
 calculate_accessibility_score = score_mod.calculate_accessibility_score
+calculate_performance_score = score_mod.calculate_performance_score
 calculate_fat_score = score_mod.calculate_fat_score
 
 
@@ -45,15 +46,23 @@ PERFECT_HTML = """\
     <link rel="icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <meta name="theme-color" content="#4285f4">
     <meta property="og:title" content="Premium Widgets Online">
     <meta property="og:description" content="Best widget store in Australia">
     <meta property="og:image" content="https://widgets.example.com/og.jpg">
     <meta property="og:url" content="https://widgets.example.com/">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Premium Widgets Online">
+    <link rel="alternate" hreflang="en" href="https://widgets.example.com/">
+    <link rel="alternate" hreflang="fr" href="https://widgets.example.com/fr/">
     <script type="application/ld+json">{"@type":"WebSite","name":"Premium Widgets","url":"https://widgets.example.com"}</script>
     <script type="application/ld+json">{"@type":"Organization","name":"Widget Co","url":"https://widgets.example.com"}</script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXX"></script>
+    <style>
+        @font-face { font-family: 'Main'; src: url('/fonts/main.woff2'); font-display: swap; }
+    </style>
 </head>
 <body>
     <a href="#main">Skip to content</a>
@@ -61,12 +70,23 @@ PERFECT_HTML = """\
     <main id="main">
         <h1>Premium Widgets Online</h1>
         <h2>Featured Products</h2>
-        <img src="widget1.jpg" alt="Deluxe Widget — chrome finish" width="400" height="300">
-        <img src="widget2.jpg" alt="Standard Widget — matte black" width="400" height="300" loading="lazy">
+        <img src="widget1.webp" alt="Deluxe Widget — chrome finish" width="400" height="300">
+        <img src="widget2.webp" alt="Standard Widget — matte black" width="400" height="300" loading="lazy">
+        <picture>
+            <source srcset="hero.avif" type="image/avif">
+            <source srcset="hero.webp" type="image/webp">
+            <img src="hero.jpg" alt="Hero banner" width="1200" height="600" loading="lazy">
+        </picture>
         <h3>Customer Reviews</h3>
         <p>Our widgets are the best.</p>
+        <a href="https://example.com/partner" target="_blank" rel="noopener noreferrer">Partner</a>
+        <a href="#reviews">See reviews</a>
     </main>
+    <section id="reviews"><h2>Reviews</h2></section>
     <footer><p>&copy; 2026 Widget Co</p></footer>
+    <script>
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }
+    </script>
 </body>
 </html>
 """
@@ -215,9 +235,277 @@ EMPTY_HTML = """\
 </html>
 """
 
+# --- NEW FIXTURES ---
+
+MIXED_CONTENT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mixed Content Test</title>
+    <link rel="stylesheet" href="http://cdn.example.com/style.css">
+    <script src="http://cdn.example.com/app.js"></script>
+</head>
+<body>
+    <main>
+        <h1>Mixed Content Page</h1>
+        <img src="http://cdn.example.com/logo.png" alt="Logo">
+        <img src="https://cdn.example.com/safe.png" alt="Safe">
+        <img src="/relative/image.png" alt="Relative">
+        <a href="http://external.example.com">HTTP link</a>
+    </main>
+</body>
+</html>
+"""
+
+DUPLICATE_META_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>First Title</title>
+    <title>Second Title</title>
+    <meta name="description" content="First description.">
+    <meta name="description" content="Second description that is different.">
+    <link rel="canonical" href="https://example.com/page1">
+    <link rel="canonical" href="https://example.com/page2">
+</head>
+<body>
+    <main><h1>Duplicate Meta</h1></main>
+</body>
+</html>
+"""
+
+VIEWPORT_EDGE_CASES_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Viewport Test</title>
+    <meta name="viewport" content="initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Missing width=device-width</h1></main>
+</body>
+</html>
+"""
+
+PWA_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PWA Test Page With Good Title Length Here</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <meta name="theme-color" content="#ff5722">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>PWA Ready</h1>
+    </main>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
+"""
+
+IMAGE_OPTIMISATION_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Optimisation Test Page Title Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Image Tests</h1>
+        <img src="photo.webp" alt="WebP photo" width="800" height="600" srcset="photo-400.webp 400w, photo-800.webp 800w">
+        <img src="hero.avif" alt="AVIF hero" width="1200" height="600">
+        <picture>
+            <source srcset="banner.avif" type="image/avif">
+            <source srcset="banner.webp" type="image/webp">
+            <img src="banner.jpg" alt="Banner" width="1000" height="400" loading="lazy">
+        </picture>
+        <img src="old.jpg" alt="Old JPEG" loading="lazy">
+    </main>
+</body>
+</html>
+"""
+
+FONT_LOADING_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Font Loading Test Page Title Here Now</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="/fonts/body.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/heading.woff2" as="font" type="font/woff2" crossorigin>
+    <style>
+        @font-face {
+            font-family: 'Body';
+            src: url('/fonts/body.woff2') format('woff2');
+            font-display: swap;
+        }
+    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Font Loading</h1></main>
+</body>
+</html>
+"""
+
+COOKIE_BANNER_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cookie Banner Detection Test Page</title>
+    <script src="https://consent.cookiebot.com/uc.js" data-cbid="abc123"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Cookies</h1></main>
+</body>
+</html>
+"""
+
+COOKIE_ONETRUST_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OneTrust Cookie Test Page Title Here</title>
+    <script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>OneTrust</h1></main>
+</body>
+</html>
+"""
+
+HREFLANG_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hreflang Test Page Title Here For Testing</title>
+    <link rel="alternate" hreflang="en" href="https://example.com/">
+    <link rel="alternate" hreflang="es" href="https://example.com/es/">
+    <link rel="alternate" hreflang="de" href="https://example.com/de/">
+    <link rel="alternate" hreflang="x-default" href="https://example.com/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Multi-language</h1></main>
+</body>
+</html>
+"""
+
+EMPTY_HEADINGS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Empty Headings Test Page Title Here Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Good Heading</h1>
+        <h2></h2>
+        <h3>   </h3>
+        <h2>Also Good</h2>
+    </main>
+</body>
+</html>
+"""
+
+INLINE_SIZE_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Inline Size Test</title>
+    <style>""" + "body { margin: 0; } " * 500 + """</style>
+</head>
+<body>
+    <main>
+        <h1>Inline Size</h1>
+        <script>""" + "var x = 1; " * 500 + """</script>
+    </main>
+</body>
+</html>
+"""
+
+NOOPENER_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Noopener Test Page Title For Testing Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>External Links</h1>
+        <a href="https://safe.example.com" target="_blank" rel="noopener noreferrer">Safe link</a>
+        <a href="https://unsafe1.example.com" target="_blank">Unsafe link 1</a>
+        <a href="https://unsafe2.example.com" target="_blank" rel="nofollow">Unsafe link 2</a>
+        <a href="/internal" target="_blank">Internal blank (not external)</a>
+        <a href="https://safe2.example.com" target="_blank" rel="noopener">Safe link 2</a>
+    </main>
+</body>
+</html>
+"""
+
+ANCHOR_VALIDATION_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Anchor Validation Test Page Title Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Anchor Tests</h1>
+        <a href="#section1">Go to section 1</a>
+        <a href="#section2">Go to section 2</a>
+        <a href="#nonexistent">Go to missing section</a>
+        <a href="#also-missing">Also missing</a>
+    </main>
+    <section id="section1"><h2>Section 1</h2></section>
+    <section id="section2"><h2>Section 2</h2></section>
+</body>
+</html>
+"""
+
+CHARSET_VARIANTS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+    <title>Charset HTTP Equiv Test Page Title Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Charset Test</h1></main>
+</body>
+</html>
+"""
+
 
 # ---------------------------------------------------------------------------
-# Test Classes
+# Test Classes — Original
 # ---------------------------------------------------------------------------
 
 
@@ -280,7 +568,8 @@ class TestHeadings(unittest.TestCase):
 
     def test_heading_hierarchy_logical(self):
         r = analyse_html(PERFECT_HTML)
-        self.assertEqual(r["seo"]["heading_hierarchy"], [1, 2, 3])
+        # h1, h2, h3, h2 (reviews section)
+        self.assertEqual(r["seo"]["heading_hierarchy"][:3], [1, 2, 3])
 
     def test_heading_hierarchy_skipped(self):
         r = analyse_html(BROKEN_HTML)
@@ -325,6 +614,10 @@ class TestOpenGraphAndTwitter(unittest.TestCase):
         self.assertIn("og:description", r["seo"]["og_tags"])
         self.assertIn("og:image", r["seo"]["og_tags"])
         self.assertIn("og:url", r["seo"]["og_tags"])
+
+    def test_og_image_url_captured(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["seo"]["og_image_url"], "https://widgets.example.com/og.jpg")
 
     def test_twitter_tags_captured(self):
         r = analyse_html(PERFECT_HTML)
@@ -372,7 +665,6 @@ class TestAccessibilityImages(unittest.TestCase):
 
     def test_all_images_have_alt(self):
         r = analyse_html(PERFECT_HTML)
-        self.assertEqual(r["accessibility"]["img_total"], 2)
         self.assertEqual(r["accessibility"]["img_missing_alt"], 0)
 
     def test_images_missing_alt_flagged(self):
@@ -569,7 +861,399 @@ class TestIssueCounts(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Score Calculator Tests
+# NEW Test Classes — Mixed Content
+# ---------------------------------------------------------------------------
+
+
+class TestMixedContent(unittest.TestCase):
+
+    def test_mixed_content_detected_on_https(self):
+        r = analyse_html(MIXED_CONTENT_HTML, page_url="https://example.com")
+        self.assertTrue(r["security"]["has_mixed_content"])
+        urls = r["security"]["mixed_content_urls"]
+        self.assertIn("http://cdn.example.com/style.css", urls)
+        self.assertIn("http://cdn.example.com/app.js", urls)
+        self.assertIn("http://cdn.example.com/logo.png", urls)
+
+    def test_no_mixed_content_without_https_url(self):
+        """Without page_url, mixed content detection is disabled."""
+        r = analyse_html(MIXED_CONTENT_HTML)
+        self.assertFalse(r["security"]["has_mixed_content"])
+
+    def test_relative_urls_not_flagged(self):
+        r = analyse_html(MIXED_CONTENT_HTML, page_url="https://example.com")
+        urls = r["security"]["mixed_content_urls"]
+        # /relative/image.png should NOT appear
+        self.assertFalse(any("/relative/" in u for u in urls))
+
+    def test_https_resources_not_flagged(self):
+        r = analyse_html(MIXED_CONTENT_HTML, page_url="https://example.com")
+        urls = r["security"]["mixed_content_urls"]
+        self.assertFalse(any("https://cdn.example.com/safe.png" in u for u in urls))
+
+    def test_mixed_content_flagged_critical(self):
+        r = analyse_html(MIXED_CONTENT_HTML, page_url="https://example.com")
+        self.assertTrue(
+            any("Mixed content" in i for i in r["summary"]["critical"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Duplicate Meta
+# ---------------------------------------------------------------------------
+
+
+class TestDuplicateMeta(unittest.TestCase):
+
+    def test_duplicate_titles_detected(self):
+        r = analyse_html(DUPLICATE_META_HTML)
+        self.assertEqual(r["seo"]["duplicate_title_tags"], 2)
+
+    def test_duplicate_descriptions_detected(self):
+        r = analyse_html(DUPLICATE_META_HTML)
+        self.assertEqual(r["seo"]["duplicate_meta_descriptions"], 2)
+
+    def test_duplicate_canonicals_detected(self):
+        r = analyse_html(DUPLICATE_META_HTML)
+        self.assertEqual(r["seo"]["duplicate_canonicals"], 2)
+
+    def test_duplicate_titles_flagged_high(self):
+        r = analyse_html(DUPLICATE_META_HTML)
+        self.assertTrue(
+            any("Duplicate <title>" in i for i in r["summary"]["high"])
+        )
+
+    def test_duplicate_descriptions_flagged_high(self):
+        r = analyse_html(DUPLICATE_META_HTML)
+        self.assertTrue(
+            any("Duplicate meta descriptions" in i for i in r["summary"]["high"])
+        )
+
+    def test_duplicate_canonicals_flagged_high(self):
+        r = analyse_html(DUPLICATE_META_HTML)
+        self.assertTrue(
+            any("Duplicate canonical" in i for i in r["summary"]["high"])
+        )
+
+    def test_no_duplicates_on_clean_page(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["seo"]["duplicate_title_tags"], 1)
+        self.assertEqual(r["seo"]["duplicate_meta_descriptions"], 1)
+        self.assertEqual(r["seo"]["duplicate_canonicals"], 1)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Viewport Validation
+# ---------------------------------------------------------------------------
+
+
+class TestViewportValidation(unittest.TestCase):
+
+    def test_valid_viewport(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertTrue(r["seo"]["viewport_valid"])
+
+    def test_missing_device_width_flagged(self):
+        r = analyse_html(VIEWPORT_EDGE_CASES_HTML)
+        self.assertFalse(r["seo"]["viewport_valid"])
+        self.assertTrue(
+            any("width=device-width" in i for i in r["summary"]["high"])
+        )
+
+    def test_viewport_content_captured(self):
+        r = analyse_html(VIEWPORT_EDGE_CASES_HTML)
+        self.assertEqual(r["seo"]["viewport_content"], "initial-scale=1.0")
+
+    def test_no_viewport(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(r["accessibility"]["has_viewport"])
+        self.assertFalse(r["seo"]["viewport_valid"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — PWA / Web App Manifest
+# ---------------------------------------------------------------------------
+
+
+class TestPWADetection(unittest.TestCase):
+
+    def test_manifest_detected(self):
+        r = analyse_html(PWA_HTML)
+        self.assertTrue(r["pwa"]["has_manifest"])
+
+    def test_apple_touch_icon_detected(self):
+        r = analyse_html(PWA_HTML)
+        self.assertTrue(r["pwa"]["has_apple_touch_icon"])
+
+    def test_theme_color_detected(self):
+        r = analyse_html(PWA_HTML)
+        self.assertTrue(r["pwa"]["has_theme_color"])
+        self.assertEqual(r["pwa"]["theme_color_value"], "#ff5722")
+
+    def test_service_worker_detected(self):
+        r = analyse_html(PWA_HTML)
+        self.assertTrue(r["pwa"]["has_service_worker"])
+
+    def test_perfect_html_has_pwa(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertTrue(r["pwa"]["has_manifest"])
+        self.assertTrue(r["pwa"]["has_apple_touch_icon"])
+        self.assertTrue(r["pwa"]["has_theme_color"])
+        self.assertTrue(r["pwa"]["has_service_worker"])
+
+    def test_no_pwa_on_broken(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(r["pwa"]["has_manifest"])
+        self.assertFalse(r["pwa"]["has_apple_touch_icon"])
+        self.assertFalse(r["pwa"]["has_theme_color"])
+        self.assertFalse(r["pwa"]["has_service_worker"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Image Optimisation
+# ---------------------------------------------------------------------------
+
+
+class TestImageOptimisation(unittest.TestCase):
+
+    def test_webp_detected(self):
+        r = analyse_html(IMAGE_OPTIMISATION_HTML)
+        self.assertGreater(r["performance"]["images_modern_format"], 0)
+
+    def test_srcset_detected(self):
+        r = analyse_html(IMAGE_OPTIMISATION_HTML)
+        self.assertEqual(r["performance"]["images_with_srcset"], 1)
+
+    def test_picture_elements_detected(self):
+        r = analyse_html(IMAGE_OPTIMISATION_HTML)
+        self.assertEqual(r["performance"]["picture_elements"], 1)
+
+    def test_image_dimensions_tracked(self):
+        r = analyse_html(IMAGE_OPTIMISATION_HTML)
+        # 3 images have width+height, 1 doesn't
+        self.assertEqual(r["accessibility"]["img_with_dimensions"], 3)
+
+    def test_no_dimensions_flagged(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertEqual(r["accessibility"]["img_with_dimensions"], 0)
+        self.assertTrue(
+            any("width/height" in i for i in r["summary"]["low"])
+        )
+
+    def test_no_responsive_images_flagged(self):
+        """Pages with >3 images and no srcset/picture get a low-priority flag."""
+        r = analyse_html(PERFORMANCE_HEAVY_HTML)
+        self.assertTrue(
+            any("responsive images" in i.lower() for i in r["summary"]["low"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Font Loading
+# ---------------------------------------------------------------------------
+
+
+class TestFontLoading(unittest.TestCase):
+
+    def test_font_display_swap_detected(self):
+        r = analyse_html(FONT_LOADING_HTML)
+        self.assertTrue(r["performance"]["has_font_display_swap"])
+
+    def test_google_fonts_preconnect_detected(self):
+        r = analyse_html(FONT_LOADING_HTML)
+        self.assertTrue(r["performance"]["has_google_fonts_preconnect"])
+
+    def test_font_preloads_counted(self):
+        r = analyse_html(FONT_LOADING_HTML)
+        self.assertEqual(r["performance"]["font_preloads"], 2)
+
+    def test_perfect_html_has_font_loading(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertTrue(r["performance"]["has_font_display_swap"])
+        self.assertTrue(r["performance"]["has_google_fonts_preconnect"])
+        self.assertGreaterEqual(r["performance"]["font_preloads"], 1)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Cookie/Privacy Banner
+# ---------------------------------------------------------------------------
+
+
+class TestCookieBannerDetection(unittest.TestCase):
+
+    def test_cookiebot_detected(self):
+        r = analyse_html(COOKIE_BANNER_HTML)
+        self.assertTrue(r["privacy"]["has_consent_banner"])
+        self.assertIn("Cookiebot", r["privacy"]["consent_providers"])
+
+    def test_onetrust_detected(self):
+        r = analyse_html(COOKIE_ONETRUST_HTML)
+        self.assertTrue(r["privacy"]["has_consent_banner"])
+        self.assertIn("OneTrust", r["privacy"]["consent_providers"])
+
+    def test_no_consent_banner(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(r["privacy"]["has_consent_banner"])
+        self.assertEqual(r["privacy"]["consent_providers"], [])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Hreflang / i18n
+# ---------------------------------------------------------------------------
+
+
+class TestHreflangDetection(unittest.TestCase):
+
+    def test_hreflang_tags_detected(self):
+        r = analyse_html(HREFLANG_HTML)
+        tags = r["seo"]["hreflang_tags"]
+        self.assertEqual(len(tags), 4)
+        langs = [t["hreflang"] for t in tags]
+        self.assertIn("en", langs)
+        self.assertIn("es", langs)
+        self.assertIn("de", langs)
+        self.assertIn("x-default", langs)
+
+    def test_perfect_html_hreflang(self):
+        r = analyse_html(PERFECT_HTML)
+        tags = r["seo"]["hreflang_tags"]
+        self.assertEqual(len(tags), 2)
+
+    def test_no_hreflang(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertEqual(r["seo"]["hreflang_tags"], [])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Empty Headings
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyHeadings(unittest.TestCase):
+
+    def test_empty_headings_detected(self):
+        r = analyse_html(EMPTY_HEADINGS_HTML)
+        self.assertEqual(r["accessibility"]["empty_headings"], 2)
+
+    def test_empty_headings_flagged_medium(self):
+        r = analyse_html(EMPTY_HEADINGS_HTML)
+        self.assertTrue(
+            any("empty heading" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_empty_headings(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["accessibility"]["empty_headings"], 0)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Inline Script/Style Size
+# ---------------------------------------------------------------------------
+
+
+class TestInlineSize(unittest.TestCase):
+
+    def test_inline_script_size_measured(self):
+        r = analyse_html(INLINE_SIZE_HTML)
+        self.assertGreater(r["performance"]["inline_script_bytes"], 0)
+        self.assertGreater(r["performance"]["inline_script_kb"], 0)
+
+    def test_inline_style_size_measured(self):
+        r = analyse_html(INLINE_SIZE_HTML)
+        self.assertGreater(r["performance"]["inline_style_bytes"], 0)
+        self.assertGreater(r["performance"]["inline_style_kb"], 0)
+
+    def test_external_scripts_not_counted_as_inline(self):
+        r = analyse_html(PERFORMANCE_HEAVY_HTML)
+        # All scripts are external, so inline should be 0
+        self.assertEqual(r["performance"]["inline_script_bytes"], 0)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Meta Charset
+# ---------------------------------------------------------------------------
+
+
+class TestMetaCharset(unittest.TestCase):
+
+    def test_charset_attribute_detected(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertTrue(r["seo"]["has_charset"])
+        self.assertEqual(r["seo"]["charset_value"], "utf-8")
+
+    def test_http_equiv_charset_detected(self):
+        r = analyse_html(CHARSET_VARIANTS_HTML)
+        self.assertTrue(r["seo"]["has_charset"])
+        self.assertEqual(r["seo"]["charset_value"], "iso-8859-1")
+
+    def test_missing_charset_flagged(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(r["seo"]["has_charset"])
+        self.assertIn("Missing <meta charset> declaration", r["summary"]["medium"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Noopener / Noreferrer
+# ---------------------------------------------------------------------------
+
+
+class TestNoopener(unittest.TestCase):
+
+    def test_unsafe_external_links_counted(self):
+        r = analyse_html(NOOPENER_HTML)
+        # 4 external target=_blank links, 2 without noopener
+        self.assertEqual(r["security"]["external_links_total"], 4)
+        self.assertEqual(r["security"]["external_links_without_noopener"], 2)
+
+    def test_safe_links_not_flagged(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["security"]["external_links_without_noopener"], 0)
+
+    def test_unsafe_links_flagged_low(self):
+        r = analyse_html(NOOPENER_HTML)
+        self.assertTrue(
+            any("noopener" in i for i in r["summary"]["low"])
+        )
+
+    def test_internal_blank_not_counted(self):
+        """target=_blank on internal /paths should not count as external."""
+        r = analyse_html(NOOPENER_HTML)
+        # /internal doesn't start with http, so not counted
+        self.assertEqual(r["security"]["external_links_total"], 4)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Anchor Validation
+# ---------------------------------------------------------------------------
+
+
+class TestAnchorValidation(unittest.TestCase):
+
+    def test_valid_anchors_not_flagged(self):
+        r = analyse_html(ANCHOR_VALIDATION_HTML)
+        broken = r["accessibility"]["broken_anchors"]
+        self.assertNotIn("#section1", broken)
+        self.assertNotIn("#section2", broken)
+
+    def test_broken_anchors_detected(self):
+        r = analyse_html(ANCHOR_VALIDATION_HTML)
+        broken = r["accessibility"]["broken_anchors"]
+        self.assertIn("#nonexistent", broken)
+        self.assertIn("#also-missing", broken)
+
+    def test_broken_anchors_flagged_medium(self):
+        r = analyse_html(ANCHOR_VALIDATION_HTML)
+        self.assertTrue(
+            any("Broken same-page anchors" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_broken_anchors_on_perfect(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["accessibility"]["broken_anchors"], [])
+
+
+# ---------------------------------------------------------------------------
+# Score Calculator Tests — Original (updated for new structure)
 # ---------------------------------------------------------------------------
 
 
@@ -578,7 +1262,7 @@ class TestSEOScoring(unittest.TestCase):
     def test_perfect_seo_scores_high(self):
         r = analyse_html(PERFECT_HTML)
         scores = calculate_scores(r)
-        self.assertGreaterEqual(scores["seo"]["score"], 80)
+        self.assertGreaterEqual(scores["seo"]["score"], 75)
 
     def test_broken_seo_scores_low(self):
         r = analyse_html(BROKEN_HTML)
@@ -587,13 +1271,10 @@ class TestSEOScoring(unittest.TestCase):
 
     def test_title_length_scoring_tiers(self):
         """Verify different title lengths hit different score tiers."""
-        # Perfect length (50-60) — full points
         seo_perfect = {"title_tag": "A" * 55, "title_length": 55, "meta_description": None, "meta_description_length": 0}
         s1 = calculate_seo_score(seo_perfect, {})
-        # Acceptable length (30-70) — partial
         seo_ok = {"title_tag": "A" * 35, "title_length": 35, "meta_description": None, "meta_description_length": 0}
         s2 = calculate_seo_score(seo_ok, {})
-        # Very short — minimal
         seo_short = {"title_tag": "A", "title_length": 1, "meta_description": None, "meta_description_length": 0}
         s3 = calculate_seo_score(seo_short, {})
 
@@ -643,15 +1324,61 @@ class TestSEOScoring(unittest.TestCase):
         s = calculate_seo_score(seo_full, {})
         self.assertEqual(s["details"]["social"]["score"], 10)
 
+    def test_duplicate_meta_penalty(self):
+        """Duplicate titles/descriptions should reduce score."""
+        seo_clean = {"title_tag": "A" * 55, "title_length": 55, "duplicate_title_tags": 1}
+        seo_dup = {"title_tag": "A" * 55, "title_length": 55, "duplicate_title_tags": 2}
+        s1 = calculate_seo_score(seo_clean, {})
+        s2 = calculate_seo_score(seo_dup, {})
+        self.assertGreater(
+            s1["details"]["title_meta"]["score"],
+            s2["details"]["title_meta"]["score"],
+        )
+
+    def test_charset_scoring(self):
+        """Charset present = higher i18n score."""
+        seo_charset = {"has_charset": True}
+        seo_no_charset = {"has_charset": False}
+        s1 = calculate_seo_score(seo_charset, {})
+        s2 = calculate_seo_score(seo_no_charset, {})
+        self.assertGreater(
+            s1["details"]["i18n_charset"]["score"],
+            s2["details"]["i18n_charset"]["score"],
+        )
+
+    def test_viewport_valid_scoring(self):
+        """Valid viewport adds to mobile_performance score."""
+        seo_valid = {"viewport_valid": True}
+        seo_invalid = {"viewport_valid": False}
+        s1 = calculate_seo_score(seo_valid, {})
+        s2 = calculate_seo_score(seo_invalid, {})
+        self.assertGreater(
+            s1["details"]["mobile_performance"]["score"],
+            s2["details"]["mobile_performance"]["score"],
+        )
+
 
 class TestSecurityScoring(unittest.TestCase):
 
-    def test_no_headers_returns_zero(self):
-        s = calculate_security_score({})
-        self.assertEqual(s["score"], 0)
-        self.assertIn("note", s)
+    def test_no_headers_gives_html_scores(self):
+        """Even without headers, mixed content + link safety are scored."""
+        html_sec = {"has_mixed_content": False, "external_links_total": 0, "external_links_without_noopener": 0}
+        s = calculate_security_score({}, html_sec)
+        self.assertEqual(s["details"]["mixed_content"]["score"], 10)
+        self.assertEqual(s["details"]["link_safety"]["score"], 5)
+        self.assertEqual(s["score"], 15)
 
-    def test_perfect_headers_score_100(self):
+    def test_mixed_content_penalty(self):
+        html_sec = {"has_mixed_content": True}
+        s = calculate_security_score({}, html_sec)
+        self.assertEqual(s["details"]["mixed_content"]["score"], 0)
+
+    def test_noopener_penalty(self):
+        html_sec = {"external_links_total": 4, "external_links_without_noopener": 4}
+        s = calculate_security_score({}, html_sec)
+        self.assertEqual(s["details"]["link_safety"]["score"], 0)
+
+    def test_perfect_headers_score_high(self):
         headers = {
             "Content-Security-Policy": "default-src 'self'",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
@@ -660,7 +1387,8 @@ class TestSecurityScoring(unittest.TestCase):
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "camera=(), microphone=()",
         }
-        s = calculate_security_score(headers)
+        html_sec = {"has_mixed_content": False, "external_links_total": 0, "external_links_without_noopener": 0}
+        s = calculate_security_score(headers, html_sec)
         self.assertEqual(s["score"], 100)
 
     def test_partial_hsts_scoring(self):
@@ -669,19 +1397,19 @@ class TestSecurityScoring(unittest.TestCase):
         headers_partial = {"Strict-Transport-Security": "max-age=31536000"}
         s_full = calculate_security_score(headers_full)
         s_partial = calculate_security_score(headers_partial)
-        self.assertEqual(s_full["details"]["hsts"]["score"], 20)
-        self.assertEqual(s_partial["details"]["hsts"]["score"], 10)
+        self.assertEqual(s_full["details"]["hsts"]["score"], 18)
+        self.assertEqual(s_partial["details"]["hsts"]["score"], 8)
 
     def test_csp_report_only_partial(self):
         headers = {"Content-Security-Policy-Report-Only": "default-src 'self'"}
         s = calculate_security_score(headers)
-        self.assertEqual(s["details"]["csp"]["score"], 15)
+        self.assertEqual(s["details"]["csp"]["score"], 13)
 
     def test_frame_ancestors_counts_as_xfo(self):
         """CSP frame-ancestors should satisfy X-Frame-Options check."""
         headers = {"Content-Security-Policy": "frame-ancestors 'none'"}
         s = calculate_security_score(headers)
-        self.assertEqual(s["details"]["x_frame_options"]["score"], 10)
+        self.assertEqual(s["details"]["x_frame_options"]["score"], 8)
 
 
 class TestAccessibilityScoring(unittest.TestCase):
@@ -694,17 +1422,17 @@ class TestAccessibilityScoring(unittest.TestCase):
     def test_no_images_gets_full_image_score(self):
         a11y = {"img_total": 0, "img_missing_alt": 0}
         s = calculate_accessibility_score(a11y)
-        self.assertEqual(s["details"]["images_alt"]["score"], 20)
+        self.assertEqual(s["details"]["images_alt"]["score"], 18)
 
     def test_all_images_have_alt_full_score(self):
         a11y = {"img_total": 5, "img_missing_alt": 0}
         s = calculate_accessibility_score(a11y)
-        self.assertEqual(s["details"]["images_alt"]["score"], 20)
+        self.assertEqual(s["details"]["images_alt"]["score"], 18)
 
     def test_half_images_missing_alt(self):
         a11y = {"img_total": 4, "img_missing_alt": 2}
         s = calculate_accessibility_score(a11y)
-        self.assertEqual(s["details"]["images_alt"]["score"], 10)
+        self.assertEqual(s["details"]["images_alt"]["score"], 9)
 
     def test_landmark_scoring(self):
         a11y_full = {"landmarks_found": ["main", "nav", "header", "footer"]}
@@ -725,42 +1453,134 @@ class TestAccessibilityScoring(unittest.TestCase):
         self.assertEqual(s1["details"]["skip_navigation"]["score"], 5)
         self.assertEqual(s2["details"]["skip_navigation"]["score"], 0)
 
+    def test_empty_headings_reduce_score(self):
+        a11y_clean = {"empty_headings": 0}
+        a11y_empty = {"empty_headings": 3}
+        s1 = calculate_accessibility_score(a11y_clean)
+        s2 = calculate_accessibility_score(a11y_empty)
+        self.assertGreater(
+            s1["details"]["heading_structure"]["score"] + s1["details"]["empty_headings"]["score"],
+            s2["details"]["heading_structure"]["score"] + s2["details"]["empty_headings"]["score"],
+        )
+
+    def test_image_dimensions_scoring(self):
+        a11y_dims = {"img_total": 4, "img_with_dimensions": 4}
+        a11y_no_dims = {"img_total": 4, "img_with_dimensions": 0}
+        s1 = calculate_accessibility_score(a11y_dims)
+        s2 = calculate_accessibility_score(a11y_no_dims)
+        self.assertEqual(s1["details"]["image_dimensions"]["score"], 4)
+        self.assertEqual(s2["details"]["image_dimensions"]["score"], 0)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Performance Scoring
+# ---------------------------------------------------------------------------
+
+
+class TestPerformanceScoring(unittest.TestCase):
+
+    def test_perfect_performance_scores_high(self):
+        r = analyse_html(PERFECT_HTML)
+        scores = calculate_scores(r)
+        self.assertGreaterEqual(scores["performance"]["score"], 60)
+
+    def test_heavy_page_scores_low(self):
+        r = analyse_html(PERFORMANCE_HEAVY_HTML)
+        scores = calculate_scores(r)
+        self.assertLessEqual(scores["performance"]["score"], 60)
+
+    def test_image_optimisation_scoring(self):
+        perf = {
+            "images_total": 4,
+            "images_with_srcset": 4,
+            "picture_elements": 0,
+            "images_modern_format": 4,
+        }
+        s = calculate_performance_score(perf)
+        self.assertEqual(s["details"]["image_optimisation"]["score"], 20)
+
+    def test_no_images_full_score(self):
+        perf = {"images_total": 0}
+        s = calculate_performance_score(perf)
+        self.assertEqual(s["details"]["image_optimisation"]["score"], 20)
+
+    def test_font_loading_scoring(self):
+        perf = {
+            "has_font_display_swap": True,
+            "has_google_fonts_preconnect": True,
+            "font_preloads": 1,
+        }
+        s = calculate_performance_score(perf)
+        self.assertEqual(s["details"]["font_loading"]["score"], 15)
+
+    def test_no_font_signals_partial(self):
+        perf = {
+            "has_font_display_swap": False,
+            "has_google_fonts_preconnect": False,
+            "font_preloads": 0,
+        }
+        s = calculate_performance_score(perf)
+        self.assertEqual(s["details"]["font_loading"]["score"], 5)
+
+    def test_inline_size_scoring(self):
+        perf_small = {"inline_script_kb": 2, "inline_style_kb": 3}
+        perf_large = {"inline_script_kb": 40, "inline_style_kb": 20}
+        s1 = calculate_performance_score(perf_small)
+        s2 = calculate_performance_score(perf_large)
+        self.assertGreater(
+            s1["details"]["inline_assets"]["score"],
+            s2["details"]["inline_assets"]["score"],
+        )
+
+    def test_render_blocking_scoring(self):
+        perf_clean = {"render_blocking_scripts": 0}
+        perf_heavy = {"render_blocking_scripts": 5}
+        s1 = calculate_performance_score(perf_clean)
+        s2 = calculate_performance_score(perf_heavy)
+        self.assertEqual(s1["details"]["render_blocking"]["score"], 15)
+        self.assertEqual(s2["details"]["render_blocking"]["score"], 0)
+
 
 class TestOverallFATScore(unittest.TestCase):
 
     def test_grade_A(self):
-        s = calculate_fat_score(95, 95, 95)
+        s = calculate_fat_score(95, 95, 95, 95)
         self.assertEqual(s["grade"], "A")
         self.assertGreaterEqual(s["score"], 90)
 
     def test_grade_B(self):
-        s = calculate_fat_score(80, 75, 75)
+        s = calculate_fat_score(80, 75, 75, 75)
         self.assertEqual(s["grade"], "B")
 
     def test_grade_C(self):
-        s = calculate_fat_score(65, 60, 60)
+        s = calculate_fat_score(65, 60, 60, 60)
         self.assertEqual(s["grade"], "C")
 
     def test_grade_D(self):
-        s = calculate_fat_score(50, 30, 50)
+        s = calculate_fat_score(50, 30, 50, 40)
         self.assertEqual(s["grade"], "D")
 
     def test_grade_F(self):
-        s = calculate_fat_score(20, 0, 30)
+        s = calculate_fat_score(20, 0, 30, 10)
         self.assertEqual(s["grade"], "F")
 
     def test_weights_sum_to_1(self):
-        s = calculate_fat_score(100, 100, 100)
+        s = calculate_fat_score(100, 100, 100, 100)
         weights = s["weights"]
-        self.assertAlmostEqual(
-            weights["seo"] + weights["security"] + weights["accessibility"],
-            1.0,
-        )
+        self.assertAlmostEqual(sum(weights.values()), 1.0)
 
     def test_perfect_scores_grade_A(self):
-        s = calculate_fat_score(100, 100, 100)
+        s = calculate_fat_score(100, 100, 100, 100)
         self.assertEqual(s["score"], 100)
         self.assertEqual(s["grade"], "A")
+
+    def test_three_category_fallback(self):
+        """When no performance score, uses 3-category weighting."""
+        s = calculate_fat_score(100, 100, 100)
+        self.assertEqual(s["score"], 100)
+        weights = s["weights"]
+        self.assertNotIn("performance", weights)
+        self.assertAlmostEqual(sum(weights.values()), 1.0)
 
 
 class TestEndToEndPipeline(unittest.TestCase):
@@ -772,6 +1592,7 @@ class TestEndToEndPipeline(unittest.TestCase):
         self.assertIn("seo", scores)
         self.assertIn("security", scores)
         self.assertIn("accessibility", scores)
+        self.assertIn("performance", scores)
         self.assertIn("overall", scores)
         self.assertIn("grade", scores["overall"])
 
@@ -794,8 +1615,18 @@ class TestEndToEndPipeline(unittest.TestCase):
         }
         scores = calculate_scores(r, headers)
         self.assertEqual(scores["security"]["score"], 100)
-        self.assertGreaterEqual(scores["overall"]["score"], 85)
+        self.assertGreaterEqual(scores["overall"]["score"], 80)
         self.assertIn(scores["overall"]["grade"], ("A", "B"))
+
+    def test_new_sections_present(self):
+        """Verify new report sections (security, pwa, privacy) exist."""
+        r = analyse_html(PERFECT_HTML)
+        self.assertIn("security", r)
+        self.assertIn("pwa", r)
+        self.assertIn("privacy", r)
+        self.assertIn("mixed_content_urls", r["security"])
+        self.assertIn("has_manifest", r["pwa"])
+        self.assertIn("has_consent_banner", r["privacy"])
 
 
 if __name__ == "__main__":

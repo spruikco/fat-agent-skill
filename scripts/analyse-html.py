@@ -20,8 +20,10 @@ from collections import defaultdict
 class FATHTMLAnalyser(HTMLParser):
     """Parses HTML and extracts audit signals."""
 
-    def __init__(self):
+    def __init__(self, page_url=None):
         super().__init__()
+        self.page_url = page_url or ""
+        self.is_https = self.page_url.startswith("https://")
         self.findings = {
             "seo": {},
             "accessibility": {},
@@ -34,7 +36,7 @@ class FATHTMLAnalyser(HTMLParser):
         self.tag_stack = []
         self.text_buffer = ""
 
-        # Counters
+        # Counters — original
         self.h1_count = 0
         self.img_count = 0
         self.img_missing_alt = 0
@@ -63,11 +65,79 @@ class FATHTMLAnalyser(HTMLParser):
         self.title_text = ""
         self.in_title = False
 
+        # New counters — mixed content
+        self.mixed_content_urls = []
+
+        # New counters — duplicate meta
+        self.title_count = 0
+        self.meta_description_count = 0
+        self.canonical_count = 0
+
+        # New counters — viewport validation
+        self.viewport_content = None
+
+        # New counters — PWA / web app manifest
+        self.has_manifest = False
+        self.has_theme_color = False
+        self.theme_color_value = None
+        self.has_apple_touch_icon = False
+        self.has_service_worker_registration = False
+
+        # New counters — image optimisation
+        self.img_with_dimensions = 0  # has both width and height
+        self.img_with_srcset = 0
+        self.picture_elements = 0
+        self.img_modern_format = 0  # src ends with .webp, .avif
+
+        # New counters — font loading
+        self.has_font_display_swap = False
+        self.has_google_fonts_preconnect = False
+        self.font_preloads = 0
+
+        # New counters — cookie/privacy banner
+        self.consent_scripts = []
+
+        # New counters — hreflang
+        self.hreflang_tags = []
+
+        # New counters — empty headings
+        self.empty_headings = 0
+        self.in_heading = False
+        self.heading_text = ""
+
+        # New counters — inline script/style size
+        self.inline_script_bytes = 0
+        self.inline_style_bytes = 0
+        self.in_script = False
+        self.in_style = False
+        self.script_has_src = False
+
+        # New counters — meta charset
+        self.has_charset = False
+        self.charset_value = None
+
+        # New counters — noopener / noreferrer
+        self.external_links_total = 0
+        self.external_links_without_noopener = 0
+
+        # New counters — anchor validation
+        self.anchor_hrefs = []  # internal #fragment links
+        self.element_ids = []   # all id= attributes found
+
+    def _check_mixed_content(self, url):
+        """Flag http:// URLs when page is served over HTTPS."""
+        if self.is_https and url.startswith("http://"):
+            self.mixed_content_urls.append(url)
+
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
         self.current_tag = tag
         self.current_attrs = attrs_dict
         self.tag_stack.append(tag)
+
+        # Track element IDs for anchor validation
+        if "id" in attrs_dict:
+            self.element_ids.append(attrs_dict["id"])
 
         if tag == "head":
             self.in_head = True
@@ -75,6 +145,7 @@ class FATHTMLAnalyser(HTMLParser):
         if tag == "title":
             self.in_title = True
             self.title_text = ""
+            self.title_count += 1
 
         if tag == "html":
             if "lang" in attrs_dict:
@@ -87,6 +158,8 @@ class FATHTMLAnalyser(HTMLParser):
             self.heading_hierarchy.append(level)
             if tag == "h1":
                 self.h1_count += 1
+            self.in_heading = True
+            self.heading_text = ""
 
         # Images
         if tag == "img":
@@ -95,12 +168,40 @@ class FATHTMLAnalyser(HTMLParser):
                 self.img_missing_alt += 1
             if attrs_dict.get("loading") == "lazy":
                 self.img_lazy_count += 1
+            # Image dimensions (CLS prevention)
+            if "width" in attrs_dict and "height" in attrs_dict:
+                self.img_with_dimensions += 1
+            # Srcset for responsive images
+            if "srcset" in attrs_dict:
+                self.img_with_srcset += 1
+            # Modern image formats
+            src = attrs_dict.get("src", "")
+            if src:
+                src_lower = src.lower().split("?")[0]  # strip query params
+                if src_lower.endswith(".webp") or src_lower.endswith(".avif"):
+                    self.img_modern_format += 1
+                self._check_mixed_content(src)
+
+        # Picture element
+        if tag == "picture":
+            self.picture_elements += 1
+
+        # Source element inside picture (for modern format detection)
+        if tag == "source":
+            srcset = attrs_dict.get("srcset", "")
+            stype = attrs_dict.get("type", "")
+            if "webp" in stype or "avif" in stype:
+                self.img_modern_format += 1
+            if srcset:
+                self._check_mixed_content(srcset.split(",")[0].strip().split(" ")[0])
 
         # Meta tags
         if tag == "meta":
             name = attrs_dict.get("name", "").lower()
             prop = attrs_dict.get("property", "").lower()
             content = attrs_dict.get("content", "")
+            charset = attrs_dict.get("charset", "")
+            http_equiv = attrs_dict.get("http-equiv", "").lower()
 
             if name:
                 self.meta_tags[name] = content
@@ -111,14 +212,56 @@ class FATHTMLAnalyser(HTMLParser):
                 self.twitter_tags[key] = content
             if name == "viewport":
                 self.has_viewport = True
+                self.viewport_content = content
+            if name == "description":
+                self.meta_description_count += 1
+            # Theme color
+            if name == "theme-color":
+                self.has_theme_color = True
+                self.theme_color_value = content
+            # Charset
+            if charset:
+                self.has_charset = True
+                self.charset_value = charset.lower()
+            if http_equiv == "content-type" and "charset" in content.lower():
+                self.has_charset = True
+                # Extract charset from content="text/html; charset=utf-8"
+                for part in content.split(";"):
+                    if "charset" in part.lower():
+                        self.charset_value = part.split("=")[-1].strip().lower()
 
         # Link tags
         if tag == "link":
             rel = attrs_dict.get("rel", "")
             href = attrs_dict.get("href", "")
+            hreflang = attrs_dict.get("hreflang", "")
+            as_attr = attrs_dict.get("as", "")
+            link_type = attrs_dict.get("type", "")
             self.link_tags.append({"rel": rel, "href": href})
             if rel == "stylesheet":
                 self.external_stylesheets += 1
+                self._check_mixed_content(href)
+            # Canonical count
+            if "canonical" in rel:
+                self.canonical_count += 1
+            # PWA manifest
+            if "manifest" in rel:
+                self.has_manifest = True
+            # Apple touch icon
+            if "apple-touch-icon" in rel:
+                self.has_apple_touch_icon = True
+            # Hreflang
+            if "alternate" in rel and hreflang:
+                self.hreflang_tags.append({"hreflang": hreflang, "href": href})
+            # Font preload
+            if "preload" in rel and as_attr == "font":
+                self.font_preloads += 1
+            # Google Fonts preconnect
+            if "preconnect" in rel and "fonts.googleapis.com" in href:
+                self.has_google_fonts_preconnect = True
+            # Mixed content on link href
+            if href:
+                self._check_mixed_content(href)
 
         # Scripts
         if tag == "script":
@@ -128,24 +271,52 @@ class FATHTMLAnalyser(HTMLParser):
             if script_type == "application/ld+json":
                 pass  # Will capture in handle_data
 
+            self.in_script = True
+            self.script_has_src = bool(src)
+
             if src:
                 self.external_scripts += 1
+                self._check_mixed_content(src)
                 if self.in_head and "async" not in attrs_dict and "defer" not in attrs_dict:
                     self.head_scripts += 1
 
+                src_lower = src.lower()
+
                 # Check for analytics
-                if "gtag" in src or "google-analytics" in src or "googletagmanager" in src:
+                if "gtag" in src_lower or "google-analytics" in src_lower or "googletagmanager" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Google Analytics / GTM")
-                if "fbq" in src or "facebook" in src:
+                if "fbq" in src_lower or "facebook" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Facebook Pixel")
-                if "hotjar" in src:
+                if "hotjar" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Hotjar")
-                if "plausible" in src:
+                if "plausible" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Plausible")
+
+                # Cookie/consent management scripts
+                if "cookiebot" in src_lower or "consent.cookiebot" in src_lower:
+                    self.consent_scripts.append("Cookiebot")
+                if "onetrust" in src_lower or "optanon" in src_lower or "cookielaw" in src_lower:
+                    self.consent_scripts.append("OneTrust")
+                if "cookieyes" in src_lower or "cookie-yes" in src_lower:
+                    self.consent_scripts.append("CookieYes")
+                if "termly" in src_lower:
+                    self.consent_scripts.append("Termly")
+                if "cookieconsent" in src_lower:
+                    self.consent_scripts.append("CookieConsent")
+                if "quantcast" in src_lower and "choice" in src_lower:
+                    self.consent_scripts.append("Quantcast Choice")
+                if "iubenda" in src_lower:
+                    self.consent_scripts.append("iubenda")
+                if "trustarc" in src_lower or "truste" in src_lower:
+                    self.consent_scripts.append("TrustArc")
+
+        # Style tag
+        if tag == "style":
+            self.in_style = True
 
         # Form inputs
         if tag in ("input", "select", "textarea"):
@@ -161,6 +332,26 @@ class FATHTMLAnalyser(HTMLParser):
             if href.startswith("#main") or href.startswith("#content"):
                 self.has_skip_link = True
 
+        # Anchor tag processing
+        if tag == "a":
+            href = attrs_dict.get("href", "")
+            target = attrs_dict.get("target", "")
+            rel = attrs_dict.get("rel", "")
+
+            # Same-page anchor tracking
+            if href.startswith("#") and len(href) > 1:
+                self.anchor_hrefs.append(href[1:])
+
+            # External link noopener check
+            if target == "_blank" and href.startswith("http"):
+                self.external_links_total += 1
+                if "noopener" not in rel:
+                    self.external_links_without_noopener += 1
+
+            # Mixed content on links
+            if href:
+                self._check_mixed_content(href)
+
         # Landmarks
         if tag in ("main", "nav", "header", "footer", "aside"):
             self.landmarks.add(tag)
@@ -172,6 +363,16 @@ class FATHTMLAnalyser(HTMLParser):
             self.in_head = False
         if tag == "title":
             self.in_title = False
+        if tag == "script":
+            self.in_script = False
+            self.script_has_src = False
+        if tag == "style":
+            self.in_style = False
+        # Empty heading detection
+        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            if self.in_heading and not self.heading_text.strip():
+                self.empty_headings += 1
+            self.in_heading = False
         if self.tag_stack and self.tag_stack[-1] == tag:
             self.tag_stack.pop()
 
@@ -179,6 +380,19 @@ class FATHTMLAnalyser(HTMLParser):
         # Capture <title> text content
         if self.in_title:
             self.title_text += data
+
+        # Capture heading text for empty heading detection
+        if self.in_heading:
+            self.heading_text += data
+
+        # Inline script/style size measurement
+        if self.in_script and not self.script_has_src:
+            self.inline_script_bytes += len(data.encode("utf-8"))
+        if self.in_style:
+            self.inline_style_bytes += len(data.encode("utf-8"))
+            # Font-display: swap detection in inline styles
+            if "font-display" in data and "swap" in data:
+                self.has_font_display_swap = True
 
         # Check for JSON-LD
         if self.current_tag == "script" and self.current_attrs.get("type") == "application/ld+json":
@@ -207,11 +421,30 @@ class FATHTMLAnalyser(HTMLParser):
                 if "Facebook Pixel" not in self.analytics_providers:
                     self.analytics_providers.append("Facebook Pixel")
 
+            # Service worker registration detection
+            if "serviceWorker" in data and "register" in data:
+                self.has_service_worker_registration = True
+
+            # Font-display: swap in inline script (e.g. WebFontLoader)
+            if "font-display" in data and "swap" in data:
+                self.has_font_display_swap = True
+
     def compile_report(self, html_length: int) -> dict:
         """Compile all findings into a structured report."""
 
         title = self.title_text.strip() or None
         description = self.meta_tags.get("description", None)
+
+        # Validate viewport content
+        viewport_valid = False
+        if self.viewport_content:
+            vc = self.viewport_content.lower().replace(" ", "")
+            viewport_valid = "width=device-width" in vc
+
+        # Anchor validation — find broken same-page anchors
+        broken_anchors = [
+            f"#{frag}" for frag in self.anchor_hrefs if frag not in self.element_ids
+        ]
 
         report = {
             "seo": {
@@ -227,6 +460,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "has_robots_meta": "robots" in self.meta_tags,
                 "robots_content": self.meta_tags.get("robots", ""),
                 "og_tags": self.og_tags,
+                "og_image_url": self.og_tags.get("og:image", None),
                 "twitter_tags": self.twitter_tags,
                 "json_ld_count": len(self.json_ld_blocks),
                 "json_ld_types": [
@@ -237,17 +471,28 @@ class FATHTMLAnalyser(HTMLParser):
                 "has_favicon": any(
                     "icon" in link.get("rel", "") for link in self.link_tags
                 ),
+                "has_charset": self.has_charset,
+                "charset_value": self.charset_value,
+                "hreflang_tags": self.hreflang_tags,
+                "duplicate_title_tags": self.title_count,
+                "duplicate_meta_descriptions": self.meta_description_count,
+                "duplicate_canonicals": self.canonical_count,
+                "viewport_valid": viewport_valid,
+                "viewport_content": self.viewport_content,
             },
             "accessibility": {
                 "has_lang_attribute": self.has_lang,
                 "lang_value": self.lang_value,
                 "img_total": self.img_count,
                 "img_missing_alt": self.img_missing_alt,
+                "img_with_dimensions": self.img_with_dimensions,
                 "form_inputs_total": self.form_inputs,
                 "form_inputs_without_label": self.form_inputs_without_label,
                 "has_skip_link": self.has_skip_link,
                 "landmarks_found": list(self.landmarks),
                 "has_viewport": self.has_viewport,
+                "empty_headings": self.empty_headings,
+                "broken_anchors": broken_anchors,
             },
             "performance": {
                 "html_size_bytes": html_length,
@@ -257,12 +502,39 @@ class FATHTMLAnalyser(HTMLParser):
                 "external_stylesheets": self.external_stylesheets,
                 "images_total": self.img_count,
                 "images_lazy_loaded": self.img_lazy_count,
+                "images_with_srcset": self.img_with_srcset,
+                "picture_elements": self.picture_elements,
+                "images_modern_format": self.img_modern_format,
                 "has_preconnect": any(
                     "preconnect" in link.get("rel", "") for link in self.link_tags
                 ),
                 "has_preload": any(
                     "preload" in link.get("rel", "") for link in self.link_tags
                 ),
+                "inline_script_bytes": self.inline_script_bytes,
+                "inline_style_bytes": self.inline_style_bytes,
+                "inline_script_kb": round(self.inline_script_bytes / 1024, 1),
+                "inline_style_kb": round(self.inline_style_bytes / 1024, 1),
+                "font_preloads": self.font_preloads,
+                "has_font_display_swap": self.has_font_display_swap,
+                "has_google_fonts_preconnect": self.has_google_fonts_preconnect,
+            },
+            "security": {
+                "mixed_content_urls": self.mixed_content_urls,
+                "has_mixed_content": len(self.mixed_content_urls) > 0,
+                "external_links_total": self.external_links_total,
+                "external_links_without_noopener": self.external_links_without_noopener,
+            },
+            "pwa": {
+                "has_manifest": self.has_manifest,
+                "has_theme_color": self.has_theme_color,
+                "theme_color_value": self.theme_color_value,
+                "has_apple_touch_icon": self.has_apple_touch_icon,
+                "has_service_worker": self.has_service_worker_registration,
+            },
+            "privacy": {
+                "has_consent_banner": len(self.consent_scripts) > 0,
+                "consent_providers": list(set(self.consent_scripts)),
             },
             "analytics": {
                 "has_analytics": self.has_analytics,
@@ -291,6 +563,9 @@ class FATHTMLAnalyser(HTMLParser):
             issues["critical"].append("No <h1> tag found")
         if not report["accessibility"]["has_lang_attribute"]:
             issues["critical"].append("Missing <html lang> attribute")
+        if report["security"]["has_mixed_content"]:
+            count = len(report["security"]["mixed_content_urls"])
+            issues["critical"].append(f"Mixed content: {count} HTTP resource(s) on HTTPS page")
 
         # High (P1)
         if not report["seo"]["meta_description"]:
@@ -305,6 +580,14 @@ class FATHTMLAnalyser(HTMLParser):
             issues["high"].append("Missing canonical URL")
         if not report["seo"]["og_tags"]:
             issues["high"].append("No Open Graph tags found")
+        if report["seo"]["duplicate_title_tags"] > 1:
+            issues["high"].append(f"Duplicate <title> tags ({report['seo']['duplicate_title_tags']})")
+        if report["seo"]["duplicate_meta_descriptions"] > 1:
+            issues["high"].append(f"Duplicate meta descriptions ({report['seo']['duplicate_meta_descriptions']})")
+        if report["seo"]["duplicate_canonicals"] > 1:
+            issues["high"].append(f"Duplicate canonical tags ({report['seo']['duplicate_canonicals']})")
+        if report["accessibility"]["has_viewport"] and not report["seo"]["viewport_valid"]:
+            issues["high"].append("Viewport meta tag present but missing width=device-width")
 
         # Medium (P2)
         if report["performance"]["render_blocking_scripts"] > 2:
@@ -321,6 +604,18 @@ class FATHTMLAnalyser(HTMLParser):
             issues["medium"].append("No skip navigation link")
         if report["content"]["has_placeholder_text"]:
             issues["medium"].append("Placeholder/Lorem Ipsum text detected")
+        if not report["seo"]["has_charset"]:
+            issues["medium"].append("Missing <meta charset> declaration")
+        if report["accessibility"]["empty_headings"] > 0:
+            issues["medium"].append(f"{report['accessibility']['empty_headings']} empty heading tag(s)")
+        if report["accessibility"]["broken_anchors"]:
+            issues["medium"].append(
+                f"Broken same-page anchors: {', '.join(report['accessibility']['broken_anchors'][:5])}"
+            )
+        if report["performance"]["inline_script_kb"] > 50:
+            issues["medium"].append(
+                f"Large inline scripts: {report['performance']['inline_script_kb']}KB"
+            )
 
         # Low (P3)
         if not report["seo"]["twitter_tags"]:
@@ -329,6 +624,15 @@ class FATHTMLAnalyser(HTMLParser):
             issues["low"].append("No analytics tracking detected")
         if not report["performance"]["has_preconnect"]:
             issues["low"].append("No preconnect hints found")
+        if report["security"]["external_links_without_noopener"] > 0:
+            issues["low"].append(
+                f"{report['security']['external_links_without_noopener']} external link(s) with target=\"_blank\" missing rel=\"noopener\""
+            )
+        img_total = report["performance"]["images_total"]
+        if img_total > 0 and report["accessibility"]["img_with_dimensions"] == 0:
+            issues["low"].append("No images have explicit width/height attributes (CLS risk)")
+        if img_total > 3 and report["performance"]["images_with_srcset"] == 0 and report["performance"]["picture_elements"] == 0:
+            issues["low"].append("No responsive images (srcset or <picture>) detected")
 
         issues["issues_found"] = (
             len(issues["critical"])
@@ -340,23 +644,34 @@ class FATHTMLAnalyser(HTMLParser):
         return report
 
 
-def analyse_html(html_content: str) -> dict:
+def analyse_html(html_content: str, page_url: str = "") -> dict:
     """Analyse HTML content and return a FAT report."""
-    analyser = FATHTMLAnalyser()
+    analyser = FATHTMLAnalyser(page_url=page_url)
     analyser.feed(html_content)
     return analyser.compile_report(len(html_content.encode("utf-8")))
 
 
 def main():
-    if len(sys.argv) < 2:
-        # Read from stdin
-        html_content = sys.stdin.read()
-    else:
-        filepath = sys.argv[1]
+    page_url = ""
+    filepath = None
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--url" and i + 1 < len(args):
+            page_url = args[i + 1]
+            i += 2
+        else:
+            filepath = args[i]
+            i += 1
+
+    if filepath:
         with open(filepath, "r", encoding="utf-8") as f:
             html_content = f.read()
+    else:
+        html_content = sys.stdin.read()
 
-    report = analyse_html(html_content)
+    report = analyse_html(html_content, page_url=page_url)
     print(json.dumps(report, indent=2))
 
 
