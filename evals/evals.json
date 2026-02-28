@@ -1,0 +1,35 @@
+{
+  "skill_name": "fat-agent",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run FAT agent on https://example.com",
+      "expected_output": "Claude should ask clarifying questions about site type and tech stack, then begin fetching the URL and running through audit categories systematically",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I just deployed my Next.js site to Netlify at https://mysite.netlify.app — can you check if everything looks good?",
+      "expected_output": "Claude should recognise this as a FAT trigger, note the tech stack (Next.js/Netlify), fetch the URL, and run the audit without needing to ask for the URL or stack",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Audit my site https://example.com — I only care about SEO",
+      "expected_output": "Claude should focus the audit on SEO checks (section 1.2) but briefly mention it can run a full audit if desired. Should check title, meta, headings, OG tags, sitemap, robots.txt, and structured data",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "What's left to fix from the FAT audit?",
+      "expected_output": "Claude should reference the current punch list status from the conversation, showing resolved vs remaining items with their priority levels",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "I've redeployed with the fixes — can you re-check?",
+      "expected_output": "Claude should re-fetch the URL, verify the specific issues that were previously flagged, and report which are resolved vs still present. Should update the punch list.",
+      "files": []
+    }
+  ]
+}
