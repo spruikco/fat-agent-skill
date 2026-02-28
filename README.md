@@ -33,29 +33,55 @@ After you deploy a site, say **"run FAT agent"** and it will:
 
 ## Installation
 
-### As a Claude Skill (Claude.ai / Claude Code)
+### Claude Code (CLI)
 
-1. Download or clone this repository
-2. Place the `fat-agent-skill` folder in your skills directory:
-   - **Claude Code**: `~/.claude/skills/fat-agent/`
-   - **Claude.ai**: Upload as a project skill
-3. The skill auto-triggers on phrases like "audit my site", "post-launch check", "run FAT agent"
+```bash
+git clone https://github.com/spruikco/fat-agent-skill ~/.claude/skills/fat-agent
+```
+
+That's it. Claude Code reads `SKILL.md` automatically and activates the skill when it detects trigger phrases.
+
+Then in any conversation:
+```
+You: Run FAT agent on https://mysite.com
+You: Audit my site
+You: I just deployed — is everything working?
+You: Post-launch check on https://example.com
+```
+
+### Claude.ai (Projects)
+
+1. Create a new **Project** in Claude.ai
+2. Upload `SKILL.md` as a project file — this is the core instruction set Claude follows
+3. Upload the reference files you want available:
+   - `references/security-headers.md`
+   - `references/seo-checklist.md`
+   - `references/accessibility-guide.md`
+   - Any relevant `references/platform-fixes/*.md` for your hosting platform
+   - Any relevant `references/framework-fixes/*.md` for your tech stack
+4. Start a conversation and say "audit my site" or "run FAT agent"
+
+> **Note:** The Python scripts (`analyse-html.py`, `calculate-score.py`) are designed for Claude Code, which can execute them directly. Claude.ai performs the same checks conversationally using `web_fetch`.
+
+### What Happens When You Trigger It
+
+1. **Phase 0 — Context** — FAT Agent asks for your live URL, site type, tech stack, and hosting platform
+2. **Phase 1 — Audit** — Fetches your URL, runs 9 check categories (SEO, security, accessibility, performance, analytics, content, functional, platform-specific), asks targeted yes/no questions for things that can't be automated
+3. **Phase 2 — Fix** — Generates a prioritised punch list (P0 Critical → P3 Low) with specific code/config fixes tailored to your stack and hosting platform
+4. **Phase 3 — Test** — After you redeploy with fixes, re-fetches the URL and verifies each issue is resolved
+
+Fix suggestions are loaded on-demand from the `references/platform-fixes/` and `references/framework-fixes/` directories based on what you told it in Phase 0. A Next.js site on Vercel gets different fix code than a WordPress site on Apache.
 
 ### Works With Any Hosting Platform
 
 FAT Agent is **platform-agnostic**. It audits the live URL regardless of where it's hosted:
 
-- Netlify
-- Vercel
-- Cloudflare Pages
-- AWS (S3, Amplify, EC2)
-- DigitalOcean
-- Shared hosting (cPanel, Plesk)
+- Netlify, Vercel, Cloudflare Pages
+- AWS (S3, CloudFront, Amplify, EC2)
+- DigitalOcean, shared hosting (cPanel, Plesk)
 - Self-hosted (Nginx, Apache)
 - WordPress hosting (WP Engine, Kinsta, etc.)
 - Any platform that serves a URL
-
-Fix suggestions are automatically tailored to your hosting platform and tech stack.
 
 ---
 
