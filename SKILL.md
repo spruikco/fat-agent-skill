@@ -309,6 +309,39 @@ Present a summary showing:
 - Remaining items (if any) with a note about when to address them
 - Overall FAT score: percentage of issues resolved weighted by priority
 
+### FAT Badge
+After presenting the final scorecard, generate a FAT badge and offer to add it
+to the project:
+
+1. **Generate the badge** — pipe the scores through the badge generator:
+   ```bash
+   python scripts/analyse-html.py page.html | python scripts/calculate-score.py | python scripts/generate-badge.py --image --output fat-badge.svg
+   ```
+   Save `fat-badge.svg` to the project root directory.
+
+2. **Offer to update the README** — ask the user:
+   > "Want me to add your FAT score badge to the README?"
+
+   If yes, insert the badge image reference near the top of the project's README
+   (after the title/heading, before the description). Use the format:
+   ```markdown
+   ![FAT Score](./fat-badge.svg)
+   ```
+   If the README already has a FAT badge reference, replace it (the score may
+   have changed). Don't duplicate it.
+
+3. **Offer to commit** — ask the user:
+   > "Want me to commit the badge and README update?"
+
+   If yes, stage `fat-badge.svg` and `README.md`, and commit with a message like:
+   `Add FAT audit badge — <grade> <score>/100`
+
+The badge includes the FAT Agent character with the overall grade bar and a
+colour-coded category breakdown (SEO, Security, A11y, Perf). It uses a compact
+128px icon (~23KB) so the SVG stays under ~35KB — safe for version control.
+
+If the user declines the badge, skip it and move on. Don't push it.
+
 ---
 
 ## Ongoing Behaviour
@@ -338,6 +371,7 @@ For extended check details, see:
 - `references/accessibility-guide.md` — WCAG 2.1 quick reference
 - `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
 - `scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
+- `scripts/generate-badge.py` — SVG badge generator (character image + score bars)
 
 ### Platform-Specific Fix References
 Load the relevant file based on the hosting platform from Phase 0:
