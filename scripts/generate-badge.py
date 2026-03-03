@@ -7,8 +7,8 @@ Usage:
     python generate-badge.py <scores.json>
     python generate-badge.py <scores.json> --output badge.svg
     python generate-badge.py <scores.json> --category seo
-    python generate-badge.py <scores.json> --image assets/social-preview.png
-    python generate-badge.py <scores.json> --image assets/social-preview.png --width 250
+    python generate-badge.py <scores.json> --image
+    python generate-badge.py <scores.json> --image path/to/custom.png --width 250
     python analyse-html.py page.html | python calculate-score.py | python generate-badge.py
 
 Options:
@@ -17,17 +17,23 @@ Options:
                     seo, security, accessibility, performance
                     (default: overall FAT score with grade)
     --style, -s     Badge style: flat (default), flat-square
-    --image, -i     Path to PNG image to display above the score bar
+    --image, -i     Include FAT Agent character above the score bar.
+                    Optionally pass a custom PNG path (default: built-in icon).
     --width, -w     Badge width in pixels (default: auto for text badges,
                     200 for image badges)
 
 Output: SVG badge string (or file).
 """
 
+import os
 import sys
 import json
 import base64
 import struct
+
+# Default badge icon — small (128x128) version of the FAT Agent character.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_ICON = os.path.join(_SCRIPT_DIR, "..", "assets", "fat-agent-badge-icon.png")
 
 # Shields.io-compatible colour palette
 GRADE_COLOURS = {
@@ -347,9 +353,14 @@ def main():
         elif args[i] in ("--style", "-s") and i + 1 < len(args):
             style = args[i + 1]
             i += 2
-        elif args[i] in ("--image", "-i") and i + 1 < len(args):
-            image = args[i + 1]
-            i += 2
+        elif args[i] in ("--image", "-i"):
+            # --image with no value or next arg is a flag → use default icon
+            if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                image = args[i + 1]
+                i += 2
+            else:
+                image = DEFAULT_ICON
+                i += 1
         elif args[i] in ("--width", "-w") and i + 1 < len(args):
             width = int(args[i + 1])
             i += 2

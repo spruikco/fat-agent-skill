@@ -38,6 +38,10 @@ GRADE_COLOURS = badge_mod.GRADE_COLOURS
 SOCIAL_PREVIEW_PATH = os.path.join(
     os.path.dirname(__file__), "..", "assets", "social-preview.png"
 )
+BADGE_ICON_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "assets", "fat-agent-badge-icon.png"
+)
+DEFAULT_ICON = badge_mod.DEFAULT_ICON
 
 
 # ---------------------------------------------------------------------------
@@ -2101,44 +2105,59 @@ class TestBadgeWithImage(unittest.TestCase):
     }
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
+    )
+    def test_default_icon_exists(self):
+        self.assertTrue(os.path.exists(DEFAULT_ICON))
+
+    @unittest.skipUnless(
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
+    )
+    def test_badge_icon_is_small(self):
+        size = os.path.getsize(BADGE_ICON_PATH)
+        self.assertLess(size, 50 * 1024, "Badge icon should be < 50KB")
+
+    @unittest.skipUnless(
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_valid_svg(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES, width=200
+            BADGE_ICON_PATH, self.SAMPLE_SCORES, width=200
         )
         self.assertTrue(svg.startswith("<svg"))
         self.assertTrue(svg.strip().endswith("</svg>"))
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_contains_base64(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
+            BADGE_ICON_PATH, self.SAMPLE_SCORES
         )
         self.assertIn("data:image/png;base64,", svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_contains_overall_text(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
+            BADGE_ICON_PATH, self.SAMPLE_SCORES
         )
         self.assertIn(">FAT<", svg)
         self.assertIn(">A 92<", svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_contains_category_scores(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
+            BADGE_ICON_PATH, self.SAMPLE_SCORES
         )
         self.assertIn(">SEO 95<", svg)
         self.assertIn(">Sec 100<", svg)
@@ -2146,42 +2165,42 @@ class TestBadgeWithImage(unittest.TestCase):
         self.assertIn(">Perf 74<", svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_custom_width(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES, width=300
+            BADGE_ICON_PATH, self.SAMPLE_SCORES, width=300
         )
         self.assertIn('width="300"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_flat_square(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES, style="flat-square"
+            BADGE_ICON_PATH, self.SAMPLE_SCORES, style="flat-square"
         )
         self.assertIn('rx="0"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_has_aria_with_categories(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
+            BADGE_ICON_PATH, self.SAMPLE_SCORES
         )
         self.assertIn('aria-label="FAT: A 92 (SEO 95, Sec 100, A11y 82, Perf 74)"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_low_scores_use_correct_colours(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, self.LOW_SCORES
+            BADGE_ICON_PATH, self.LOW_SCORES
         )
         # F grade overall
         self.assertIn(">F 30<", svg)
@@ -2189,17 +2208,28 @@ class TestBadgeWithImage(unittest.TestCase):
         self.assertIn(f'fill="{GRADE_COLOURS["F"]}"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(SOCIAL_PREVIEW_PATH),
-        "social-preview.png not found"
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
     )
     def test_generate_badge_routes_to_image(self):
         """generate_badge with image_path should produce embedded image."""
         svg = generate_badge(
-            self.SAMPLE_SCORES, image_path=SOCIAL_PREVIEW_PATH, width=200
+            self.SAMPLE_SCORES, image_path=BADGE_ICON_PATH, width=200
         )
         self.assertIn("data:image/png;base64,", svg)
         self.assertIn(">A 92<", svg)
         self.assertIn(">SEO 95<", svg)
+
+    @unittest.skipUnless(
+        os.path.exists(BADGE_ICON_PATH),
+        "fat-agent-badge-icon.png not found"
+    )
+    def test_image_badge_svg_size_reasonable(self):
+        """Badge with icon should be well under 100KB."""
+        svg = generate_badge_with_image(
+            BADGE_ICON_PATH, self.SAMPLE_SCORES
+        )
+        self.assertLess(len(svg), 100 * 1024)
 
 
 class TestBadgeEndToEnd(unittest.TestCase):
