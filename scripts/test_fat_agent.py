@@ -28,6 +28,17 @@ calculate_accessibility_score = score_mod.calculate_accessibility_score
 calculate_performance_score = score_mod.calculate_performance_score
 calculate_fat_score = score_mod.calculate_fat_score
 
+badge_mod = import_module("generate-badge")
+generate_badge = badge_mod.generate_badge
+generate_badge_svg = badge_mod.generate_badge_svg
+generate_badge_with_image = badge_mod.generate_badge_with_image
+score_to_colour = badge_mod.score_to_colour
+GRADE_COLOURS = badge_mod.GRADE_COLOURS
+
+SOCIAL_PREVIEW_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "assets", "social-preview.png"
+)
+
 
 # ---------------------------------------------------------------------------
 # HTML Fixtures
@@ -1939,6 +1950,244 @@ class TestDescriptionLengthWarnings(unittest.TestCase):
         self.assertFalse(
             any("Meta description is" in i for i in r["summary"]["medium"])
         )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Badge Generator
+# ---------------------------------------------------------------------------
+
+
+class TestScoreToColour(unittest.TestCase):
+
+    def test_grade_a_colour(self):
+        self.assertEqual(score_to_colour(95), GRADE_COLOURS["A"])
+        self.assertEqual(score_to_colour(90), GRADE_COLOURS["A"])
+
+    def test_grade_b_colour(self):
+        self.assertEqual(score_to_colour(85), GRADE_COLOURS["B"])
+        self.assertEqual(score_to_colour(75), GRADE_COLOURS["B"])
+
+    def test_grade_c_colour(self):
+        self.assertEqual(score_to_colour(65), GRADE_COLOURS["C"])
+        self.assertEqual(score_to_colour(60), GRADE_COLOURS["C"])
+
+    def test_grade_d_colour(self):
+        self.assertEqual(score_to_colour(50), GRADE_COLOURS["D"])
+        self.assertEqual(score_to_colour(40), GRADE_COLOURS["D"])
+
+    def test_grade_f_colour(self):
+        self.assertEqual(score_to_colour(30), GRADE_COLOURS["F"])
+        self.assertEqual(score_to_colour(0), GRADE_COLOURS["F"])
+
+
+class TestBadgeSVGGeneration(unittest.TestCase):
+
+    def test_svg_is_valid_xml(self):
+        svg = generate_badge_svg("FAT", "A 92", "#4c1")
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertTrue(svg.strip().endswith("</svg>"))
+
+    def test_svg_contains_label_and_value(self):
+        svg = generate_badge_svg("FAT", "A 92", "#4c1")
+        self.assertIn(">FAT<", svg)
+        self.assertIn(">A 92<", svg)
+
+    def test_svg_contains_colour(self):
+        svg = generate_badge_svg("FAT", "A 92", "#4c1")
+        self.assertIn('fill="#4c1"', svg)
+
+    def test_svg_has_aria_label(self):
+        svg = generate_badge_svg("SEO", "85", "#97ca00")
+        self.assertIn('aria-label="SEO: 85"', svg)
+
+    def test_svg_has_title(self):
+        svg = generate_badge_svg("SEO", "85", "#97ca00")
+        self.assertIn("<title>SEO: 85</title>", svg)
+
+    def test_flat_square_style(self):
+        svg = generate_badge_svg("FAT", "A 92", "#4c1", style="flat-square")
+        self.assertIn('rx="0"', svg)
+
+    def test_flat_style_rounded(self):
+        svg = generate_badge_svg("FAT", "A 92", "#4c1", style="flat")
+        self.assertIn('rx="3"', svg)
+
+
+class TestBadgeFromScores(unittest.TestCase):
+
+    def _make_scores(self, overall_score=85, grade="B",
+                     seo=80, security=90, a11y=75, perf=70):
+        return {
+            "seo": {"score": seo, "max": 100},
+            "security": {"score": security, "max": 100},
+            "accessibility": {"score": a11y, "max": 100},
+            "performance": {"score": perf, "max": 100},
+            "overall": {"score": overall_score, "grade": grade, "max": 100},
+        }
+
+    def test_overall_badge_shows_grade_and_score(self):
+        scores = self._make_scores(92, "A")
+        svg = generate_badge(scores)
+        self.assertIn(">A 92<", svg)
+        self.assertIn(">FAT<", svg)
+
+    def test_overall_badge_grade_colour(self):
+        scores = self._make_scores(92, "A")
+        svg = generate_badge(scores)
+        self.assertIn(f'fill="{GRADE_COLOURS["A"]}"', svg)
+
+    def test_seo_category_badge(self):
+        scores = self._make_scores(seo=85)
+        svg = generate_badge(scores, category="seo")
+        self.assertIn(">SEO<", svg)
+        self.assertIn(">85<", svg)
+
+    def test_security_category_badge(self):
+        scores = self._make_scores(security=100)
+        svg = generate_badge(scores, category="security")
+        self.assertIn(">Security<", svg)
+        self.assertIn(">100<", svg)
+
+    def test_accessibility_category_badge(self):
+        scores = self._make_scores(a11y=60)
+        svg = generate_badge(scores, category="accessibility")
+        self.assertIn(">A11y<", svg)
+        self.assertIn(">60<", svg)
+
+    def test_performance_category_badge(self):
+        scores = self._make_scores(perf=45)
+        svg = generate_badge(scores, category="performance")
+        self.assertIn(">Perf<", svg)
+        self.assertIn(">45<", svg)
+
+    def test_category_colour_matches_score(self):
+        scores = self._make_scores(seo=95)
+        svg = generate_badge(scores, category="seo")
+        self.assertIn(f'fill="{GRADE_COLOURS["A"]}"', svg)
+
+    def test_low_score_category_colour(self):
+        scores = self._make_scores(perf=25)
+        svg = generate_badge(scores, category="performance")
+        self.assertIn(f'fill="{GRADE_COLOURS["F"]}"', svg)
+
+    def test_invalid_category_raises(self):
+        scores = self._make_scores()
+        with self.assertRaises(ValueError):
+            generate_badge(scores, category="invalid")
+
+    def test_flat_square_style(self):
+        scores = self._make_scores(92, "A")
+        svg = generate_badge(scores, style="flat-square")
+        self.assertIn('rx="0"', svg)
+
+
+class TestBadgeWithImage(unittest.TestCase):
+    """Test badge generation with embedded character image."""
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_valid_svg(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1", width=200
+        )
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertTrue(svg.strip().endswith("</svg>"))
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_contains_base64(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1"
+        )
+        self.assertIn("data:image/png;base64,", svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_contains_score_text(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, "FAT", "B 78", "#97ca00"
+        )
+        self.assertIn(">FAT<", svg)
+        self.assertIn(">B 78<", svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_custom_width(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1", width=300
+        )
+        self.assertIn('width="300"', svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_flat_square(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1", style="flat-square"
+        )
+        self.assertIn('rx="0"', svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_has_aria(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, "FAT", "C 65", "#dfb317"
+        )
+        self.assertIn('aria-label="FAT: C 65"', svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_generate_badge_routes_to_image(self):
+        """generate_badge with image_path should produce embedded image."""
+        scores = {
+            "overall": {"score": 92, "grade": "A", "max": 100},
+            "seo": {"score": 90, "max": 100},
+        }
+        svg = generate_badge(scores, image_path=SOCIAL_PREVIEW_PATH, width=200)
+        self.assertIn("data:image/png;base64,", svg)
+        self.assertIn(">A 92<", svg)
+
+
+class TestBadgeEndToEnd(unittest.TestCase):
+    """Test the full analyse -> score -> badge pipeline."""
+
+    def test_perfect_html_badge(self):
+        r = analyse_html(PERFECT_HTML)
+        scores = calculate_scores(r)
+        svg = generate_badge(scores)
+        self.assertIn(">FAT<", svg)
+        self.assertIn(scores["overall"]["grade"], svg)
+
+    def test_broken_html_badge(self):
+        r = analyse_html(BROKEN_HTML)
+        scores = calculate_scores(r)
+        svg = generate_badge(scores)
+        self.assertIn(">FAT<", svg)
+        # Broken page should have D or F grade
+        self.assertTrue(
+            scores["overall"]["grade"] in ("D", "F")
+        )
+
+    def test_all_category_badges_from_pipeline(self):
+        r = analyse_html(PERFECT_HTML)
+        scores = calculate_scores(r)
+        for cat in ("seo", "security", "accessibility", "performance"):
+            svg = generate_badge(scores, category=cat)
+            self.assertTrue(svg.startswith("<svg"))
+            self.assertTrue(svg.strip().endswith("</svg>"))
 
 
 if __name__ == "__main__":

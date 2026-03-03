@@ -30,7 +30,11 @@ FAT Agent is a Claude Skill (not a standalone app). The core file is `SKILL.md` 
 - `python scripts/analyse-html.py < file.html` — reads from stdin.
 - `python scripts/calculate-score.py <report.json>` — scores an analysis report.
 - Pipeline: `python scripts/analyse-html.py page.html | python scripts/calculate-score.py`
-- `python scripts/test_fat_agent.py` — runs the full test suite (152 tests).
+- `python scripts/generate-badge.py <scores.json>` — generates an SVG score badge.
+- `python scripts/generate-badge.py scores.json --category seo` — badge for a specific category.
+- `python scripts/generate-badge.py scores.json --output badge.svg` — write to file.
+- Full pipeline: `python scripts/analyse-html.py page.html | python scripts/calculate-score.py | python scripts/generate-badge.py --output badge.svg`
+- `python scripts/test_fat_agent.py` — runs the full test suite (201 tests).
 
 ## Adding Content
 

@@ -96,7 +96,8 @@ fat-agent-skill/
 ├── .gitignore
 ├── scripts/
 │   ├── analyse-html.py              # HTML analysis helper
-│   └── calculate-score.py           # Scoring calculator (SEO, Security, A11y, FAT)
+│   ├── calculate-score.py           # Scoring calculator (SEO, Security, A11y, FAT)
+│   └── generate-badge.py            # SVG badge generator for READMEs
 ├── references/
 │   ├── security-headers.md          # Security header reference
 │   ├── seo-checklist.md             # Extended SEO criteria
@@ -174,7 +175,31 @@ FAT Agent generates scores across four dimensions:
 - **SEO Score** (0-100) — Based on meta tags, headings, structured data, sitemap, etc.
 - **Security Score** (0-100) — Based on presence and correctness of security headers
 - **Accessibility Score** (0-100) — Based on automated checks + user-reported items
-- **Overall FAT Score** — Weighted composite + percentage of issues resolved
+- **Performance Score** (0-100) — Based on HTML size, render-blocking scripts, images, fonts, lazy loading
+- **Overall FAT Score** — Weighted composite (SEO 30%, Security 25%, A11y 30%, Perf 15%)
+
+### FAT Badge
+
+Generate shields.io-style SVG badges from your audit scores:
+
+```bash
+# Overall FAT badge (grade + score)
+python scripts/analyse-html.py page.html | python scripts/calculate-score.py | python scripts/generate-badge.py --output badge.svg
+
+# Category badges
+python scripts/generate-badge.py scores.json --category seo --output seo-badge.svg
+python scripts/generate-badge.py scores.json --category security --output security-badge.svg
+python scripts/generate-badge.py scores.json --category accessibility --output a11y-badge.svg
+python scripts/generate-badge.py scores.json --category performance --output perf-badge.svg
+
+# Flat-square style
+python scripts/generate-badge.py scores.json --style flat-square --output badge.svg
+```
+
+Then embed in your README:
+```markdown
+![FAT Score](./badge.svg)
+```
 
 ---
 
@@ -202,7 +227,7 @@ PRs welcome! Areas that could use help:
 - [ ] Performance budget configuration
 - [ ] CI/CD integration examples
 - [ ] Additional analytics provider detection
-- [ ] FAT Badge generator (SVG score badge for READMEs)
+- [x] FAT Badge generator (SVG score badge for READMEs)
 - [ ] Historical audit tracking (compare scores over time)
 - [ ] Competitive analysis mode (audit two sites side-by-side)
 
