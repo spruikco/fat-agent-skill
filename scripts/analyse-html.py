@@ -124,6 +124,9 @@ class FATHTMLAnalyser(HTMLParser):
         self.anchor_hrefs = []  # internal #fragment links
         self.element_ids = []   # all id= attributes found
 
+        # SPA / client-side rendering framework detection
+        self.spa_indicators = []
+
     def _check_mixed_content(self, url):
         """Flag http:// URLs when page is served over HTTPS."""
         if self.is_https and url.startswith("http://"):
@@ -138,6 +141,27 @@ class FATHTMLAnalyser(HTMLParser):
         # Track element IDs for anchor validation
         if "id" in attrs_dict:
             self.element_ids.append(attrs_dict["id"])
+
+        # SPA / client-side rendering framework detection
+        element_id = attrs_dict.get("id", "")
+        if element_id == "__next":
+            if "Next.js" not in self.spa_indicators:
+                self.spa_indicators.append("Next.js")
+        if element_id == "__nuxt":
+            if "Nuxt" not in self.spa_indicators:
+                self.spa_indicators.append("Nuxt")
+        if "data-reactroot" in attrs_dict:
+            if "React" not in self.spa_indicators:
+                self.spa_indicators.append("React")
+        if "ng-version" in attrs_dict:
+            if "Angular" not in self.spa_indicators:
+                self.spa_indicators.append("Angular")
+        if any(k.startswith("data-svelte") for k in attrs_dict):
+            if "Svelte" not in self.spa_indicators:
+                self.spa_indicators.append("Svelte")
+        if any(k.startswith("data-astro") for k in attrs_dict):
+            if "Astro" not in self.spa_indicators:
+                self.spa_indicators.append("Astro")
 
         if tag == "head":
             self.in_head = True
@@ -274,6 +298,12 @@ class FATHTMLAnalyser(HTMLParser):
             self.in_script = True
             self.script_has_src = bool(src)
 
+            # SPA detection from script attributes
+            script_id = attrs_dict.get("id", "")
+            if script_id == "__NEXT_DATA__":
+                if "Next.js" not in self.spa_indicators:
+                    self.spa_indicators.append("Next.js")
+
             if src:
                 self.external_scripts += 1
                 self._check_mixed_content(src)
@@ -281,6 +311,14 @@ class FATHTMLAnalyser(HTMLParser):
                     self.head_scripts += 1
 
                 src_lower = src.lower()
+
+                # SPA detection from script src
+                if "/_next/" in src_lower:
+                    if "Next.js" not in self.spa_indicators:
+                        self.spa_indicators.append("Next.js")
+                if "/_nuxt/" in src_lower:
+                    if "Nuxt" not in self.spa_indicators:
+                        self.spa_indicators.append("Nuxt")
 
                 # Check for analytics
                 if "gtag" in src_lower or "google-analytics" in src_lower or "googletagmanager" in src_lower:
@@ -421,6 +459,11 @@ class FATHTMLAnalyser(HTMLParser):
                 if "Facebook Pixel" not in self.analytics_providers:
                     self.analytics_providers.append("Facebook Pixel")
 
+            # SPA detection from inline script content
+            if "__NUXT__" in data:
+                if "Nuxt" not in self.spa_indicators:
+                    self.spa_indicators.append("Nuxt")
+
             # Service worker registration detection
             if "serviceWorker" in data and "register" in data:
                 self.has_service_worker_registration = True
@@ -479,6 +522,8 @@ class FATHTMLAnalyser(HTMLParser):
                 "duplicate_canonicals": self.canonical_count,
                 "viewport_valid": viewport_valid,
                 "viewport_content": self.viewport_content,
+                "spa_detected": len(self.spa_indicators) > 0,
+                "spa_indicators": list(set(self.spa_indicators)),
             },
             "accessibility": {
                 "has_lang_attribute": self.has_lang,
@@ -560,7 +605,14 @@ class FATHTMLAnalyser(HTMLParser):
         if not report["seo"]["title_tag"]:
             issues["critical"].append("Missing <title> tag")
         if report["seo"]["h1_count"] == 0:
-            issues["critical"].append("No <h1> tag found")
+            if report["seo"]["spa_detected"]:
+                frameworks = ", ".join(report["seo"]["spa_indicators"])
+                issues["high"].append(
+                    f"No <h1> tag in server-rendered HTML ({frameworks} detected"
+                    " — may render client-side; verify in browser)"
+                )
+            else:
+                issues["critical"].append("No <h1> tag found")
         if not report["accessibility"]["has_lang_attribute"]:
             issues["critical"].append("Missing <html lang> attribute")
         if report["security"]["has_mixed_content"]:
@@ -616,6 +668,39 @@ class FATHTMLAnalyser(HTMLParser):
             issues["medium"].append(
                 f"Large inline scripts: {report['performance']['inline_script_kb']}KB"
             )
+        # Heading hierarchy skip detection
+        hierarchy = report["seo"]["heading_hierarchy"]
+        if len(hierarchy) > 1:
+            for i in range(1, len(hierarchy)):
+                if hierarchy[i] > hierarchy[i - 1] + 1:
+                    skipped_from = f"h{hierarchy[i - 1]}"
+                    skipped_to = f"h{hierarchy[i]}"
+                    issues["medium"].append(
+                        f"Heading hierarchy skips levels ({skipped_from} \u2192 {skipped_to})"
+                    )
+                    break
+        # Title length warnings
+        if report["seo"]["title_tag"]:
+            tlen = report["seo"]["title_length"]
+            if tlen > 60:
+                issues["medium"].append(
+                    f"Title tag is {tlen} characters (recommended: 50\u201360)"
+                )
+            elif tlen < 30:
+                issues["medium"].append(
+                    f"Title tag is only {tlen} character{'s' if tlen != 1 else ''} (recommended: 50\u201360)"
+                )
+        # Meta description length warnings
+        if report["seo"]["meta_description"]:
+            dlen = report["seo"]["meta_description_length"]
+            if dlen > 160:
+                issues["medium"].append(
+                    f"Meta description is {dlen} characters (recommended: 150\u2013160)"
+                )
+            elif dlen < 70:
+                issues["medium"].append(
+                    f"Meta description is only {dlen} characters (recommended: 150\u2013160)"
+                )
 
         # Low (P3)
         if not report["seo"]["twitter_tags"]:

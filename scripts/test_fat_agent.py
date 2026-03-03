@@ -503,6 +503,131 @@ CHARSET_VARIANTS_HTML = """\
 </html>
 """
 
+# --- SPA / Client-Side Rendering Fixtures ---
+
+SPA_NEXTJS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Next.js App — Home Page Title Here Now</title>
+    <meta name="description" content="A Next.js application with client-side rendering for dynamic content delivery and great user experience across all devices.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="canonical" href="https://example.com/">
+    <link rel="icon" href="/favicon.ico">
+    <script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
+</head>
+<body>
+    <div id="__next">
+        <nav>Navigation</nav>
+        <main>
+            <div class="hero-section">
+                <p>Welcome to our site</p>
+            </div>
+        </main>
+    </div>
+    <script src="/_next/static/chunks/main.js"></script>
+</body>
+</html>
+"""
+
+SPA_REACT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>React App With Good Title Length Here Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div id="root" data-reactroot>
+        <main><p>Loading...</p></main>
+    </div>
+</body>
+</html>
+"""
+
+SPA_ANGULAR_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Angular App With Proper Title Length Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <app-root ng-version="17.0.0">
+        <main><p>Loading...</p></main>
+    </app-root>
+</body>
+</html>
+"""
+
+SPA_NUXT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nuxt App With Good Enough Title Length</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div id="__nuxt">
+        <main><p>Loading...</p></main>
+    </div>
+    <script src="/_nuxt/entry.js"></script>
+    <script>window.__NUXT__={}</script>
+</body>
+</html>
+"""
+
+SPA_WITH_H1_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Next.js App With H1 Present In SSR Output</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
+</head>
+<body>
+    <div id="__next">
+        <main><h1>Server-Rendered H1</h1></main>
+    </div>
+</body>
+</html>
+"""
+
+TITLE_LENGTH_EDGE_CASES_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>This title is way too long and exceeds the recommended sixty character limit for search engine optimisation best practices</title>
+    <meta name="description" content="OK.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Title Length</h1></main>
+</body>
+</html>
+"""
+
+META_DESC_LONG_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Meta Description Length Test Page Title Here</title>
+    <meta name="description" content="This meta description is intentionally written to be extremely long so that it exceeds the recommended maximum of one hundred and sixty characters which is the generally accepted best practice for search engine optimisation.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Description Length</h1></main>
+</body>
+</html>
+"""
+
 
 # ---------------------------------------------------------------------------
 # Test Classes — Original
@@ -1627,6 +1752,193 @@ class TestEndToEndPipeline(unittest.TestCase):
         self.assertIn("mixed_content_urls", r["security"])
         self.assertIn("has_manifest", r["pwa"])
         self.assertIn("has_consent_banner", r["privacy"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — SPA / Client-Side Rendering Detection
+# ---------------------------------------------------------------------------
+
+
+class TestSPADetection(unittest.TestCase):
+
+    def test_nextjs_detected_by_div_id(self):
+        r = analyse_html(SPA_NEXTJS_HTML)
+        self.assertTrue(r["seo"]["spa_detected"])
+        self.assertIn("Next.js", r["seo"]["spa_indicators"])
+
+    def test_nextjs_detected_by_next_data(self):
+        r = analyse_html(SPA_WITH_H1_HTML)
+        self.assertTrue(r["seo"]["spa_detected"])
+        self.assertIn("Next.js", r["seo"]["spa_indicators"])
+
+    def test_react_detected(self):
+        r = analyse_html(SPA_REACT_HTML)
+        self.assertTrue(r["seo"]["spa_detected"])
+        self.assertIn("React", r["seo"]["spa_indicators"])
+
+    def test_angular_detected(self):
+        r = analyse_html(SPA_ANGULAR_HTML)
+        self.assertTrue(r["seo"]["spa_detected"])
+        self.assertIn("Angular", r["seo"]["spa_indicators"])
+
+    def test_nuxt_detected_by_div_id(self):
+        r = analyse_html(SPA_NUXT_HTML)
+        self.assertTrue(r["seo"]["spa_detected"])
+        self.assertIn("Nuxt", r["seo"]["spa_indicators"])
+
+    def test_no_spa_on_static_html(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertFalse(r["seo"]["spa_detected"])
+        self.assertEqual(r["seo"]["spa_indicators"], [])
+
+    def test_no_spa_on_broken_html(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(r["seo"]["spa_detected"])
+
+
+class TestSPAH1Softening(unittest.TestCase):
+    """H1 missing on SPA should be P1 High, not P0 Critical."""
+
+    def test_spa_missing_h1_is_high_not_critical(self):
+        r = analyse_html(SPA_NEXTJS_HTML)
+        self.assertEqual(r["seo"]["h1_count"], 0)
+        # Should NOT be in critical
+        self.assertFalse(
+            any("h1" in i.lower() for i in r["summary"]["critical"])
+        )
+        # Should be in high
+        self.assertTrue(
+            any("No <h1>" in i for i in r["summary"]["high"])
+        )
+
+    def test_spa_h1_message_includes_framework(self):
+        r = analyse_html(SPA_NEXTJS_HTML)
+        h1_issues = [i for i in r["summary"]["high"] if "No <h1>" in i]
+        self.assertEqual(len(h1_issues), 1)
+        self.assertIn("Next.js", h1_issues[0])
+        self.assertIn("verify in browser", h1_issues[0])
+
+    def test_spa_with_h1_no_issue(self):
+        r = analyse_html(SPA_WITH_H1_HTML)
+        self.assertEqual(r["seo"]["h1_count"], 1)
+        # No H1 issue in any priority level
+        all_issues = (
+            r["summary"]["critical"]
+            + r["summary"]["high"]
+            + r["summary"]["medium"]
+            + r["summary"]["low"]
+        )
+        self.assertFalse(any("h1" in i.lower() for i in all_issues))
+
+    def test_non_spa_missing_h1_still_critical(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertEqual(r["seo"]["h1_count"], 0)
+        self.assertIn("No <h1> tag found", r["summary"]["critical"])
+
+    def test_react_missing_h1_is_high(self):
+        r = analyse_html(SPA_REACT_HTML)
+        self.assertEqual(r["seo"]["h1_count"], 0)
+        self.assertTrue(
+            any("No <h1>" in i and "React" in i for i in r["summary"]["high"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Heading Hierarchy Skip Detection
+# ---------------------------------------------------------------------------
+
+
+class TestHeadingHierarchySkip(unittest.TestCase):
+
+    def test_skip_detected_as_medium(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertTrue(
+            any("Heading hierarchy skips" in i for i in r["summary"]["medium"])
+        )
+
+    def test_skip_message_shows_levels(self):
+        r = analyse_html(BROKEN_HTML)
+        skip_issues = [i for i in r["summary"]["medium"] if "Heading hierarchy skips" in i]
+        self.assertEqual(len(skip_issues), 1)
+        self.assertIn("h2", skip_issues[0])
+        self.assertIn("h4", skip_issues[0])
+
+    def test_no_skip_on_logical_hierarchy(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertFalse(
+            any("Heading hierarchy skips" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_skip_on_empty_page(self):
+        r = analyse_html(EMPTY_HTML)
+        self.assertFalse(
+            any("Heading hierarchy skips" in i for i in r["summary"]["medium"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Title & Description Length Warnings
+# ---------------------------------------------------------------------------
+
+
+class TestTitleLengthWarnings(unittest.TestCase):
+
+    def test_short_title_flagged(self):
+        r = analyse_html(SEO_EDGE_CASES_HTML)
+        self.assertTrue(
+            any("Title tag is only" in i for i in r["summary"]["medium"])
+        )
+
+    def test_long_title_flagged(self):
+        r = analyse_html(TITLE_LENGTH_EDGE_CASES_HTML)
+        tlen = r["seo"]["title_length"]
+        self.assertGreater(tlen, 60)
+        self.assertTrue(
+            any("Title tag is" in i and "characters" in i for i in r["summary"]["medium"])
+        )
+
+    def test_ideal_title_not_flagged(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertFalse(
+            any("Title tag is" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_title_not_length_flagged(self):
+        """Missing title triggers critical, not a length warning."""
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(
+            any("Title tag is" in i for i in r["summary"]["medium"])
+        )
+
+
+class TestDescriptionLengthWarnings(unittest.TestCase):
+
+    def test_short_description_flagged(self):
+        r = analyse_html(SEO_EDGE_CASES_HTML)
+        self.assertTrue(
+            any("Meta description is only" in i for i in r["summary"]["medium"])
+        )
+
+    def test_long_description_flagged(self):
+        r = analyse_html(META_DESC_LONG_HTML)
+        dlen = r["seo"]["meta_description_length"]
+        self.assertGreater(dlen, 160)
+        self.assertTrue(
+            any("Meta description is" in i and "characters" in i for i in r["summary"]["medium"])
+        )
+
+    def test_ideal_description_not_flagged(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertFalse(
+            any("Meta description is" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_description_not_length_flagged(self):
+        """Missing description triggers high, not a length warning."""
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(
+            any("Meta description is" in i for i in r["summary"]["medium"])
+        )
 
 
 if __name__ == "__main__":

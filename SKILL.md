@@ -79,11 +79,12 @@ targeted yes/no questions rather than vague open-ended ones.
 
 ### 1.2 — SEO Essentials
 Fetch the HTML and check:
-- `<title>` tag exists and is 50-60 characters
+- `<title>` tag exists and is 50-60 characters (flag if < 30 or > 60)
 - No duplicate `<title>` tags (common CMS/framework bug)
-- `<meta name="description">` exists and is 150-160 characters
+- `<meta name="description">` exists and is 150-160 characters (flag if < 70 or > 160)
 - No duplicate meta descriptions
 - Only one `<h1>` per page, no empty heading tags
+- Heading hierarchy is logical (no skipped levels, e.g. `h1` → `h3` missing `h2`)
 - `<meta name="robots">` is not set to `noindex` (unless intentional)
 - `<link rel="canonical">` is present and correct, no duplicate canonicals
 - `<meta charset="UTF-8">` is present
@@ -96,6 +97,17 @@ Fetch the HTML and check:
 - `sitemap.xml` exists (fetch `/sitemap.xml`)
 - `robots.txt` exists and is sensible (fetch `/robots.txt`)
 - Favicon exists (`<link rel="icon">`)
+
+**SPA / Client-Side Rendering Caveat:**
+Modern frameworks (Next.js, Nuxt, React, Angular, Svelte, Astro) often render
+headings and other semantic elements client-side after hydration. The
+`analyse-html.py` script detects common SPA indicators (`id="__next"`,
+`__NEXT_DATA__`, `data-reactroot`, etc.) and downgrades a missing `<h1>` from
+P0 Critical to P1 High when a framework is detected. Component libraries like
+Framer Motion (`<motion.h1>`) and styled-components also wrap native elements
+in ways the HTML parser cannot see. When an SPA is detected, recommend the user
+verify headings in DevTools or using the browser automation tools rather than
+treating a missing `<h1>` as a hard failure.
 
 ### 1.3 — Performance Indicators
 From the HTML response, check:
