@@ -1,5 +1,7 @@
 # 🍔 FAT Agent — Fix, Audit, Test
 
+![FAT Score](./fat-badge.svg)
+
 **A Claude skill that acts as your post-launch QA engineer.**
 
 FAT Agent systematically audits deployed websites for SEO, performance, security, accessibility, and content issues — then walks you through fixing every one.
