@@ -158,52 +158,97 @@ def generate_badge_svg(label, value, colour, style="flat"):
     )
 
 
-def generate_badge_with_image(image_path, label, value, colour,
-                              width=200, style="flat"):
-    """Generate an SVG badge with a character image above the score bar.
+def generate_badge_with_image(image_path, scores, width=200, style="flat"):
+    """Generate an SVG badge with character image, overall bar, and category breakdown.
 
-    The image sits on top and the shields.io-style score bar is flush
-    against the bottom.  Both share the same width and the whole badge
-    is clipped to a single rounded rectangle.
+    Layout (top to bottom):
+        1. Character image (scaled to *width*)
+        2. Overall bar  — "FAT | A 94"  (label + grade/score)
+        3. Category bar — "SEO 95 | Sec 100 | A11y 92 | Perf 88"
+           Each segment colour-coded by its own score.
+
+    The whole badge is clipped to a single rounded rectangle.
 
     Args:
         image_path: Path to a PNG file.
-        label: Left-hand bar text (e.g., "FAT").
-        value: Right-hand bar text (e.g., "A 94").
-        colour: Hex colour for the value background.
+        scores: Full scores dict from calculate-score.py.
         width: Badge width in pixels (image is scaled to fit).
         style: "flat" (rounded) or "flat-square".
 
     Returns:
         SVG string with embedded base64 image.
     """
+    # --- extract scores ---
+    overall = scores.get("overall", {})
+    grade = overall.get("grade", "F")
+    overall_score = overall.get("score", 0)
+    overall_colour = GRADE_COLOURS.get(grade, GRADE_COLOURS["F"])
+    label, value = "FAT", f"{grade} {overall_score}"
+
+    categories = [
+        ("SEO", scores.get("seo", {}).get("score", 0)),
+        ("Sec", scores.get("security", {}).get("score", 0)),
+        ("A11y", scores.get("accessibility", {}).get("score", 0)),
+        ("Perf", scores.get("performance", {}).get("score", 0)),
+    ]
+
+    # --- image ---
     with open(image_path, "rb") as f:
         img_bytes = f.read()
     img_b64 = base64.b64encode(img_bytes).decode("ascii")
-
     img_w, img_h = _png_dimensions(img_bytes)
     scale = width / img_w
     scaled_h = round(img_h * scale)
 
-    bar_height = 24
-    total_height = scaled_h + bar_height
+    # --- layout ---
+    main_bar_h = 24
+    cat_bar_h = 20
+    total_height = scaled_h + main_bar_h + cat_bar_h
 
+    # overall bar halves
     label_w, value_w, _ = _bar_halves(label, value, width)
     label_x = round(label_w / 2, 1)
     value_x = round(label_w + value_w / 2, 1)
+    main_y = scaled_h
+    main_text_y = main_y + round(main_bar_h * 0.67)
+    main_shadow_y = main_text_y + 1
 
-    bar_y = scaled_h
-    text_y = bar_y + round(bar_height * 0.67)
-    shadow_y = text_y + 1
+    # category bar — 4 equal segments
+    cat_y = main_y + main_bar_h
+    seg_w = width / len(categories)
+    cat_text_y = cat_y + round(cat_bar_h * 0.7)
+    cat_shadow_y = cat_text_y + 1
 
     rx = "0" if style == "flat-square" else "6"
+
+    # build aria description
+    cat_desc = ", ".join(f"{c[0]} {c[1]}" for c in categories)
+    aria = f"{label}: {value} ({cat_desc})"
+
+    # --- category segment rects + text ---
+    cat_rects = ""
+    cat_texts = ""
+    for i, (cat_label, cat_score) in enumerate(categories):
+        x = round(i * seg_w, 1)
+        w = round((i + 1) * seg_w) - round(i * seg_w)  # avoid sub-pixel gaps
+        colour = score_to_colour(cat_score)
+        cx = round(x + w / 2, 1)
+        txt = f"{cat_label} {cat_score}"
+        cat_rects += (
+            f'    <rect x="{x}" y="{cat_y}" width="{w}" '
+            f'height="{cat_bar_h}" fill="{colour}"/>\n'
+        )
+        cat_texts += (
+            f'    <text x="{cx}" y="{cat_shadow_y}" fill="#010101" fill-opacity=".3">{txt}</text>\n'
+            f'    <text x="{cx}" y="{cat_text_y}">{txt}</text>\n'
+        )
 
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg"\n'
         f'     xmlns:xlink="http://www.w3.org/1999/xlink"\n'
         f'     width="{width}" height="{total_height}"\n'
-        f'     role="img" aria-label="{label}: {value}">\n'
-        f"  <title>{label}: {value}</title>\n"
+        f'     role="img" aria-label="{aria}">\n'
+        f"  <title>{aria}</title>\n"
         f'  <linearGradient id="s" x2="0" y2="100%">\n'
         f'    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>\n'
         f'    <stop offset="1" stop-opacity=".1"/>\n'
@@ -215,16 +260,26 @@ def generate_badge_with_image(image_path, label, value, colour,
         f'    <image href="data:image/png;base64,{img_b64}"\n'
         f'           width="{width}" height="{scaled_h}"\n'
         f'           preserveAspectRatio="xMidYMid slice"/>\n'
-        f'    <rect y="{bar_y}" width="{label_w}" height="{bar_height}" fill="#555"/>\n'
-        f'    <rect x="{label_w}" y="{bar_y}" width="{value_w}" height="{bar_height}" fill="{colour}"/>\n'
-        f'    <rect y="{bar_y}" width="{width}" height="{bar_height}" fill="url(#s)"/>\n'
+        # overall bar
+        f'    <rect y="{main_y}" width="{label_w}" height="{main_bar_h}" fill="#555"/>\n'
+        f'    <rect x="{label_w}" y="{main_y}" width="{value_w}" height="{main_bar_h}" fill="{overall_colour}"/>\n'
+        f'    <rect y="{main_y}" width="{width}" height="{main_bar_h}" fill="url(#s)"/>\n'
+        # category segments
+        f"{cat_rects}"
+        f'    <rect y="{cat_y}" width="{width}" height="{cat_bar_h}" fill="url(#s)"/>\n'
         f"  </g>\n"
+        # overall text
         f'  <g fill="#fff" text-anchor="middle"\n'
         f'     font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">\n'
-        f'    <text x="{label_x}" y="{shadow_y}" fill="#010101" fill-opacity=".3">{label}</text>\n'
-        f'    <text x="{label_x}" y="{text_y}">{label}</text>\n'
-        f'    <text x="{value_x}" y="{shadow_y}" fill="#010101" fill-opacity=".3">{value}</text>\n'
-        f'    <text x="{value_x}" y="{text_y}">{value}</text>\n'
+        f'    <text x="{label_x}" y="{main_shadow_y}" fill="#010101" fill-opacity=".3">{label}</text>\n'
+        f'    <text x="{label_x}" y="{main_text_y}">{label}</text>\n'
+        f'    <text x="{value_x}" y="{main_shadow_y}" fill="#010101" fill-opacity=".3">{value}</text>\n'
+        f'    <text x="{value_x}" y="{main_text_y}">{value}</text>\n'
+        f"  </g>\n"
+        # category text
+        f'  <g fill="#fff" text-anchor="middle"\n'
+        f'     font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="10">\n'
+        f"{cat_texts}"
         f"  </g>\n"
         f"</svg>\n"
     )
@@ -266,7 +321,7 @@ def generate_badge(scores, category=None, style="flat",
 
     if image_path:
         return generate_badge_with_image(
-            image_path, label, value, colour,
+            image_path, scores,
             width=width or 200, style=style,
         )
     return generate_badge_svg(label, value, colour, style=style)

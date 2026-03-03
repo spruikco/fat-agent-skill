@@ -2082,7 +2082,23 @@ class TestBadgeFromScores(unittest.TestCase):
 
 
 class TestBadgeWithImage(unittest.TestCase):
-    """Test badge generation with embedded character image."""
+    """Test badge generation with embedded character image + category bar."""
+
+    SAMPLE_SCORES = {
+        "seo": {"score": 95, "max": 100},
+        "security": {"score": 100, "max": 100},
+        "accessibility": {"score": 82, "max": 100},
+        "performance": {"score": 74, "max": 100},
+        "overall": {"score": 92, "grade": "A", "max": 100},
+    }
+
+    LOW_SCORES = {
+        "seo": {"score": 35, "max": 100},
+        "security": {"score": 20, "max": 100},
+        "accessibility": {"score": 40, "max": 100},
+        "performance": {"score": 25, "max": 100},
+        "overall": {"score": 30, "grade": "F", "max": 100},
+    }
 
     @unittest.skipUnless(
         os.path.exists(SOCIAL_PREVIEW_PATH),
@@ -2090,7 +2106,7 @@ class TestBadgeWithImage(unittest.TestCase):
     )
     def test_image_badge_valid_svg(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1", width=200
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES, width=200
         )
         self.assertTrue(svg.startswith("<svg"))
         self.assertTrue(svg.strip().endswith("</svg>"))
@@ -2101,7 +2117,7 @@ class TestBadgeWithImage(unittest.TestCase):
     )
     def test_image_badge_contains_base64(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1"
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
         )
         self.assertIn("data:image/png;base64,", svg)
 
@@ -2109,12 +2125,25 @@ class TestBadgeWithImage(unittest.TestCase):
         os.path.exists(SOCIAL_PREVIEW_PATH),
         "social-preview.png not found"
     )
-    def test_image_badge_contains_score_text(self):
+    def test_image_badge_contains_overall_text(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, "FAT", "B 78", "#97ca00"
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
         )
         self.assertIn(">FAT<", svg)
-        self.assertIn(">B 78<", svg)
+        self.assertIn(">A 92<", svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_contains_category_scores(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
+        )
+        self.assertIn(">SEO 95<", svg)
+        self.assertIn(">Sec 100<", svg)
+        self.assertIn(">A11y 82<", svg)
+        self.assertIn(">Perf 74<", svg)
 
     @unittest.skipUnless(
         os.path.exists(SOCIAL_PREVIEW_PATH),
@@ -2122,7 +2151,7 @@ class TestBadgeWithImage(unittest.TestCase):
     )
     def test_image_badge_custom_width(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1", width=300
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES, width=300
         )
         self.assertIn('width="300"', svg)
 
@@ -2132,7 +2161,7 @@ class TestBadgeWithImage(unittest.TestCase):
     )
     def test_image_badge_flat_square(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, "FAT", "A 94", "#4c1", style="flat-square"
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES, style="flat-square"
         )
         self.assertIn('rx="0"', svg)
 
@@ -2140,11 +2169,24 @@ class TestBadgeWithImage(unittest.TestCase):
         os.path.exists(SOCIAL_PREVIEW_PATH),
         "social-preview.png not found"
     )
-    def test_image_badge_has_aria(self):
+    def test_image_badge_has_aria_with_categories(self):
         svg = generate_badge_with_image(
-            SOCIAL_PREVIEW_PATH, "FAT", "C 65", "#dfb317"
+            SOCIAL_PREVIEW_PATH, self.SAMPLE_SCORES
         )
-        self.assertIn('aria-label="FAT: C 65"', svg)
+        self.assertIn('aria-label="FAT: A 92 (SEO 95, Sec 100, A11y 82, Perf 74)"', svg)
+
+    @unittest.skipUnless(
+        os.path.exists(SOCIAL_PREVIEW_PATH),
+        "social-preview.png not found"
+    )
+    def test_image_badge_low_scores_use_correct_colours(self):
+        svg = generate_badge_with_image(
+            SOCIAL_PREVIEW_PATH, self.LOW_SCORES
+        )
+        # F grade overall
+        self.assertIn(">F 30<", svg)
+        # Should contain the F grade colour for overall
+        self.assertIn(f'fill="{GRADE_COLOURS["F"]}"', svg)
 
     @unittest.skipUnless(
         os.path.exists(SOCIAL_PREVIEW_PATH),
@@ -2152,13 +2194,12 @@ class TestBadgeWithImage(unittest.TestCase):
     )
     def test_generate_badge_routes_to_image(self):
         """generate_badge with image_path should produce embedded image."""
-        scores = {
-            "overall": {"score": 92, "grade": "A", "max": 100},
-            "seo": {"score": 90, "max": 100},
-        }
-        svg = generate_badge(scores, image_path=SOCIAL_PREVIEW_PATH, width=200)
+        svg = generate_badge(
+            self.SAMPLE_SCORES, image_path=SOCIAL_PREVIEW_PATH, width=200
+        )
         self.assertIn("data:image/png;base64,", svg)
         self.assertIn(">A 92<", svg)
+        self.assertIn(">SEO 95<", svg)
 
 
 class TestBadgeEndToEnd(unittest.TestCase):
