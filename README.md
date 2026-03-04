@@ -2,7 +2,7 @@
 
 ![FAT Score](./fat-badge.svg)
 
-**A Claude skill that acts as your post-launch QA engineer.**
+**A Claude plugin that acts as your post-launch QA engineer.**
 
 FAT Agent systematically audits deployed websites for SEO, performance, security, accessibility, and content issues — then walks you through fixing every one.
 
@@ -35,13 +35,21 @@ After you deploy a site, say **"run FAT agent"** and it will:
 
 ## Installation
 
-### Claude Code (CLI)
+### Claude Code Plugin (Recommended)
+
+```bash
+claude plugins add https://github.com/spruikco/fat-agent-skill
+```
+
+This installs the FAT Agent plugin with the `/fat-audit` slash command.
+
+### Claude Code (Manual)
 
 ```bash
 git clone https://github.com/spruikco/fat-agent-skill ~/.claude/skills/fat-agent
 ```
 
-That's it. Claude Code reads `SKILL.md` automatically and activates the skill when it detects trigger phrases.
+Claude Code reads `SKILL.md` automatically and activates the skill when it detects trigger phrases.
 
 Then in any conversation:
 ```
@@ -49,18 +57,19 @@ You: Run FAT agent on https://mysite.com
 You: Audit my site
 You: I just deployed — is everything working?
 You: Post-launch check on https://example.com
+You: /fat-audit https://example.com
 ```
 
 ### Claude.ai (Projects)
 
 1. Create a new **Project** in Claude.ai
-2. Upload `SKILL.md` as a project file — this is the core instruction set Claude follows
+2. Upload `plugins/fat-agent/skills/fat-agent/SKILL.md` as a project file — this is the core instruction set Claude follows
 3. Upload the reference files you want available:
-   - `references/security-headers.md`
-   - `references/seo-checklist.md`
-   - `references/accessibility-guide.md`
-   - Any relevant `references/platform-fixes/*.md` for your hosting platform
-   - Any relevant `references/framework-fixes/*.md` for your tech stack
+   - `plugins/fat-agent/references/security-headers.md`
+   - `plugins/fat-agent/references/seo-checklist.md`
+   - `plugins/fat-agent/references/accessibility-guide.md`
+   - Any relevant `plugins/fat-agent/references/platform-fixes/*.md` for your hosting platform
+   - Any relevant `plugins/fat-agent/references/framework-fixes/*.md` for your tech stack
 4. Start a conversation and say "audit my site" or "run FAT agent"
 
 > **Note:** The Python scripts (`analyse-html.py`, `calculate-score.py`) are designed for Claude Code, which can execute them directly. Claude.ai performs the same checks conversationally using `web_fetch`.
@@ -90,41 +99,56 @@ FAT Agent is **platform-agnostic**. It audits the live URL regardless of where i
 ## Project Structure
 
 ```
-fat-agent-skill/
-├── SKILL.md                          # Core skill instructions
-├── README.md                         # This file
-├── LICENSE                           # MIT License
-├── CLAUDE.md                         # Project conventions for Claude Code users
+fat-agent-skill/                          # Marketplace root
+├── .claude-plugin/
+│   └── marketplace.json                  # Marketplace manifest
+├── plugins/
+│   └── fat-agent/                        # The plugin
+│       ├── .claude-plugin/
+│       │   └── plugin.json               # Plugin manifest
+│       ├── skills/
+│       │   └── fat-agent/
+│       │       └── SKILL.md              # Core skill instructions
+│       ├── commands/
+│       │   └── fat-audit.md              # /fat-audit slash command
+│       ├── scripts/
+│       │   ├── analyse-html.py           # HTML analysis helper
+│       │   ├── calculate-score.py        # Scoring calculator (SEO, Security, A11y, FAT)
+│       │   ├── generate-badge.py         # SVG badge generator for READMEs
+│       │   └── test_fat_agent.py         # Full test suite (201 tests)
+│       ├── references/
+│       │   ├── security-headers.md       # Security header reference
+│       │   ├── seo-checklist.md          # Extended SEO criteria
+│       │   ├── accessibility-guide.md    # WCAG 2.1 quick reference
+│       │   ├── platform-fixes/           # Hosting platform config guides
+│       │   │   ├── netlify.md
+│       │   │   ├── vercel.md
+│       │   │   ├── cloudflare-pages.md
+│       │   │   ├── apache.md
+│       │   │   ├── nginx.md
+│       │   │   ├── wordpress.md
+│       │   │   └── aws.md
+│       │   └── framework-fixes/          # Framework-specific fix patterns
+│       │       ├── nextjs.md
+│       │       ├── astro.md
+│       │       ├── sveltekit.md
+│       │       ├── nuxt.md
+│       │       ├── gatsby.md
+│       │       ├── wordpress.md
+│       │       └── static-html.md
+│       ├── evals/
+│       │   └── evals.json                # Test cases for skill validation
+│       ├── assets/
+│       │   ├── fat-agent-badge-icon.png
+│       │   └── social-preview.png
+│       └── README.md                     # Plugin documentation
+├── fat-badge.svg                         # Generated FAT score badge
+├── README.md                             # This file
+├── CLAUDE.md                             # Project conventions for Claude Code
+├── LICENSE                               # MIT License
 ├── .gitignore
-├── scripts/
-│   ├── analyse-html.py              # HTML analysis helper
-│   ├── calculate-score.py           # Scoring calculator (SEO, Security, A11y, FAT)
-│   └── generate-badge.py            # SVG badge generator for READMEs
-├── references/
-│   ├── security-headers.md          # Security header reference
-│   ├── seo-checklist.md             # Extended SEO criteria
-│   ├── accessibility-guide.md       # WCAG 2.1 quick reference
-│   ├── platform-fixes/             # Hosting platform config guides
-│   │   ├── netlify.md
-│   │   ├── vercel.md
-│   │   ├── cloudflare-pages.md
-│   │   ├── apache.md
-│   │   ├── nginx.md
-│   │   ├── wordpress.md
-│   │   └── aws.md
-│   └── framework-fixes/            # Framework-specific fix patterns
-│       ├── nextjs.md
-│       ├── astro.md
-│       ├── sveltekit.md
-│       ├── nuxt.md
-│       ├── gatsby.md
-│       ├── wordpress.md
-│       └── static-html.md
-├── assets/                          # Templates and static assets
-├── evals/
-│   └── evals.json                   # Test cases for skill validation
 └── .github/
-    └── LLM-BRIEF.md                # Project brief for LLM continuation
+    └── LLM-BRIEF.md                     # Project brief for LLM continuation
 ```
 
 ---
@@ -147,6 +171,12 @@ Claude: Let me run a FAT audit on your site to check...
 ```
 User: Can you check the SEO on my new landing page?
 Claude: I'll focus the FAT audit on SEO — fetching your page now...
+```
+
+### Slash Command
+```
+User: /fat-audit https://mysite.com
+Claude: Running FAT Agent audit on https://mysite.com...
 ```
 
 ---
@@ -186,16 +216,16 @@ Generate shields.io-style SVG badges from your audit scores:
 
 ```bash
 # Overall FAT badge (grade + score)
-python scripts/analyse-html.py page.html | python scripts/calculate-score.py | python scripts/generate-badge.py --output badge.svg
+python plugins/fat-agent/scripts/analyse-html.py page.html | python plugins/fat-agent/scripts/calculate-score.py | python plugins/fat-agent/scripts/generate-badge.py --output badge.svg
 
 # Category badges
-python scripts/generate-badge.py scores.json --category seo --output seo-badge.svg
-python scripts/generate-badge.py scores.json --category security --output security-badge.svg
-python scripts/generate-badge.py scores.json --category accessibility --output a11y-badge.svg
-python scripts/generate-badge.py scores.json --category performance --output perf-badge.svg
+python plugins/fat-agent/scripts/generate-badge.py scores.json --category seo --output seo-badge.svg
+python plugins/fat-agent/scripts/generate-badge.py scores.json --category security --output security-badge.svg
+python plugins/fat-agent/scripts/generate-badge.py scores.json --category accessibility --output a11y-badge.svg
+python plugins/fat-agent/scripts/generate-badge.py scores.json --category performance --output perf-badge.svg
 
 # Flat-square style
-python scripts/generate-badge.py scores.json --style flat-square --output badge.svg
+python plugins/fat-agent/scripts/generate-badge.py scores.json --style flat-square --output badge.svg
 ```
 
 Then embed in your README:
@@ -209,7 +239,7 @@ Then embed in your README:
 
 ### Adding Check Categories
 
-Edit `SKILL.md` to add new audit sections. Follow the existing pattern:
+Edit `plugins/fat-agent/skills/fat-agent/SKILL.md` to add new audit sections. Follow the existing pattern:
 1. Add the check to the appropriate phase
 2. Specify whether it's automated or user-prompted
 3. Define the priority level for findings
@@ -217,7 +247,7 @@ Edit `SKILL.md` to add new audit sections. Follow the existing pattern:
 
 ### Extending References
 
-Drop additional `.md` files in `references/` and reference them from `SKILL.md`.
+Drop additional `.md` files in `plugins/fat-agent/references/` and reference them from `SKILL.md`.
 
 ---
 
