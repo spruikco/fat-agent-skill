@@ -202,7 +202,7 @@ or not listed, run the Generic checks.
 - Ask: "Are you using Netlify Forms? If so, is the `data-netlify="true"` attribute on your form tag?"
 - Ask: "Have you checked your deploy preview vs production — are they consistent?"
 - Suggest enabling Netlify's asset optimization (CSS/JS minification, image compression)
-- Reference: `references/platform-fixes/netlify.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/netlify.md`
 
 **Vercel:**
 - Check if response headers indicate Vercel (`x-vercel-id`, `server: Vercel`)
@@ -210,14 +210,14 @@ or not listed, run the Generic checks.
 - Ask: "Are you using Vercel Middleware for redirects or auth?"
 - Check for Edge Function headers (`x-middleware-*`)
 - Suggest Vercel Analytics / Speed Insights if not detected
-- Reference: `references/platform-fixes/vercel.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/vercel.md`
 
 **Cloudflare Pages:**
 - Check if response headers indicate Cloudflare (`cf-ray`, `server: cloudflare`)
 - Ask: "Do you have a `_headers` and `_redirects` file in your build output?"
 - Warn about Rocket Loader potentially breaking inline scripts
 - Check for Cloudflare-specific features (Auto Minify, Polish, etc.)
-- Reference: `references/platform-fixes/cloudflare-pages.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/cloudflare-pages.md`
 
 **WordPress:**
 - Check for `/wp-admin/` accessibility (should redirect to login, not expose admin)
@@ -225,27 +225,27 @@ or not listed, run the Generic checks.
 - Ask: "Are all your plugins and themes up to date?"
 - Check for `wp-json` REST API exposure
 - Check for user enumeration via `/?author=1`
-- Reference: `references/platform-fixes/wordpress.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/wordpress.md`
 
 **Apache:**
 - Ask: "Do you have a `.htaccess` file with security headers?"
 - Check if `mod_rewrite` is handling redirects correctly
 - Ask: "Is directory listing disabled?"
 - Check for server version exposure in headers (`Server: Apache/x.x.x`)
-- Reference: `references/platform-fixes/apache.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/apache.md`
 
 **Nginx:**
 - Check if server header exposes version (`Server: nginx/x.x.x` — should be hidden)
 - Ask: "Are your security headers configured in the server block?"
 - Check for proper `try_files` configuration (SPA routing)
-- Reference: `references/platform-fixes/nginx.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/nginx.md`
 
 **AWS (S3/CloudFront/Amplify):**
 - Check for CloudFront headers (`x-amz-cf-id`, `x-cache`)
 - Ask: "Do you have a CloudFront Response Headers Policy configured?"
 - Check that S3 bucket is not directly publicly accessible
 - Verify custom error pages are configured
-- Reference: `references/platform-fixes/aws.md`
+- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/aws.md`
 
 **Generic (any platform):**
 - Verify SSL certificate is valid and not expiring soon
@@ -315,7 +315,7 @@ to the project:
 
 1. **Generate the badge** — pipe the scores through the badge generator:
    ```bash
-   python scripts/analyse-html.py page.html | python scripts/calculate-score.py | python scripts/generate-badge.py --image --output fat-badge.svg
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/analyse-html.py page.html | python ${CLAUDE_PLUGIN_ROOT}/scripts/calculate-score.py | python ${CLAUDE_PLUGIN_ROOT}/scripts/generate-badge.py --image --output fat-badge.svg
    ```
    Save `fat-badge.svg` to the project root directory.
 
@@ -366,29 +366,29 @@ If the user declines the badge, skip it and move on. Don't push it.
 ## Reference Files
 
 For extended check details, see:
-- `references/security-headers.md` — Full security header recommendations
-- `references/seo-checklist.md` — Extended SEO audit criteria
-- `references/accessibility-guide.md` — WCAG 2.1 quick reference
-- `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
-- `scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
-- `scripts/generate-badge.py` — SVG badge generator (character image + score bars)
+- `${CLAUDE_PLUGIN_ROOT}/references/security-headers.md` — Full security header recommendations
+- `${CLAUDE_PLUGIN_ROOT}/references/seo-checklist.md` — Extended SEO audit criteria
+- `${CLAUDE_PLUGIN_ROOT}/references/accessibility-guide.md` — WCAG 2.1 quick reference
+- `${CLAUDE_PLUGIN_ROOT}/scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
+- `${CLAUDE_PLUGIN_ROOT}/scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
+- `${CLAUDE_PLUGIN_ROOT}/scripts/generate-badge.py` — SVG badge generator (character image + score bars)
 
 ### Platform-Specific Fix References
 Load the relevant file based on the hosting platform from Phase 0:
-- `references/platform-fixes/netlify.md` — Netlify config (_headers, netlify.toml, Forms)
-- `references/platform-fixes/vercel.md` — Vercel config (vercel.json, middleware)
-- `references/platform-fixes/cloudflare-pages.md` — Cloudflare Pages (_headers, Workers)
-- `references/platform-fixes/apache.md` — Apache config (.htaccess, mod_rewrite)
-- `references/platform-fixes/nginx.md` — Nginx config (server blocks, add_header)
-- `references/platform-fixes/wordpress.md` — WordPress config (wp-config.php, plugins)
-- `references/platform-fixes/aws.md` — AWS config (CloudFront, S3, Amplify)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/netlify.md` — Netlify config (_headers, netlify.toml, Forms)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/vercel.md` — Vercel config (vercel.json, middleware)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/cloudflare-pages.md` — Cloudflare Pages (_headers, Workers)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/apache.md` — Apache config (.htaccess, mod_rewrite)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/nginx.md` — Nginx config (server blocks, add_header)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/wordpress.md` — WordPress config (wp-config.php, plugins)
+- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/aws.md` — AWS config (CloudFront, S3, Amplify)
 
 ### Framework-Specific Fix References
 Load the relevant file based on the tech stack from Phase 0:
-- `references/framework-fixes/nextjs.md` — Next.js (App Router + Pages Router)
-- `references/framework-fixes/astro.md` — Astro (islands, content collections)
-- `references/framework-fixes/sveltekit.md` — SvelteKit (load functions, adapters)
-- `references/framework-fixes/nuxt.md` — Nuxt 3 (useHead, useSeoMeta)
-- `references/framework-fixes/gatsby.md` — Gatsby (Head API, gatsby-plugin-image)
-- `references/framework-fixes/wordpress.md` — WordPress themes (functions.php, hooks)
-- `references/framework-fixes/static-html.md` — Static HTML/CSS/JS (no framework)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/nextjs.md` — Next.js (App Router + Pages Router)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/astro.md` — Astro (islands, content collections)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/sveltekit.md` — SvelteKit (load functions, adapters)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/nuxt.md` — Nuxt 3 (useHead, useSeoMeta)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/gatsby.md` — Gatsby (Head API, gatsby-plugin-image)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/wordpress.md` — WordPress themes (functions.php, hooks)
+- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/static-html.md` — Static HTML/CSS/JS (no framework)
