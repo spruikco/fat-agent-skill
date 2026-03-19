@@ -97,6 +97,16 @@ These can be verified by analysing the HTML response:
 | ARIA on custom widgets | Custom interactive elements have `role`, `aria-*` attributes |
 | Table headers | `<table>` elements contain `<th>` |
 | Viewport meta | `<meta name="viewport">` doesn't disable zoom |
+| Zoom not disabled | No `user-scalable=no` or `maximum-scale=1` in viewport |
+| Tabindex | No `tabindex > 0` values (disrupts natural order) |
+| Autoplay media | `<video autoplay>` / `<audio autoplay>` has `muted` attribute |
+| ARIA roles | All `role` values are valid WAI-ARIA 1.2 roles |
+| Table headers | `<table>` elements contain `<th>` header cells |
+| SVG accessibility | `<svg>` has `<title>` child or `aria-label` attribute |
+| iframe titles | `<iframe>` has `title` attribute |
+| Button/link semantics | No `<a role="button">` pattern (use `<button>` instead) |
+| Reduced motion | `prefers-reduced-motion` media query present in styles |
+| Form error association | Form inputs use `aria-describedby` for error messages |
 
 ## User-Prompted Checks
 
@@ -109,6 +119,9 @@ These require user verification:
 | Keyboard navigation | "Can you Tab through your entire page and reach all interactive elements?" |
 | Screen reader testing | "Have you tested with a screen reader (VoiceOver, NVDA)?" |
 | Motion/animation | "Do you have animations that can't be paused or disabled?" |
+| Reduced motion | "Do you have reduced motion alternatives for animations?" |
+| Touch targets | "Are interactive elements at least 44x44px touch targets?" |
+| Form errors | "Do you have error messages associated with form fields using aria-describedby?" |
 | Auto-playing media | "Is there any auto-playing video or audio on the site?" |
 
 ## Scoring

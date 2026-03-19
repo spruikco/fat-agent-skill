@@ -97,6 +97,25 @@ Fetch the HTML and check:
 - `sitemap.xml` exists (fetch `/sitemap.xml`)
 - `robots.txt` exists and is sensible (fetch `/robots.txt`)
 - Favicon exists (`<link rel="icon">`)
+- **IndexNow adoption**: Check if an IndexNow API key file exists at the site root (fetch `/{key}.txt` or look for IndexNow references in `robots.txt`). IndexNow notifies Bing/Yandex of content changes for faster indexing. If missing, flag as P2 and suggest adding a key file + robots.txt reference.
+- **Meta descriptions on error paths**: If the site uses dynamic routes (Next.js, Nuxt, etc.), check that fallback/error metadata (e.g., "Product Not Found" pages) still includes a `description` — not just a `title`. Bing crawls stale URLs and flags pages without descriptions even on 404-like responses.
+- **Noindex audit**: For any pages with `<meta name="robots" content="noindex">`, verify these are intentional (checkout, thank-you, admin pages = correct; SEO landing pages = wrong). Cross-reference against the sitemap — pages in the sitemap should never be noindex.
+- **Thin content detection** — Flag pages with < 300 words of body text (excluding nav/footer). Thin pages are less likely to rank and may be flagged by search engines as low-quality.
+- **Keyword in title/h1** — Track whether the `<title>` and `<h1>` share key terms. If they don't overlap at all, flag as P3 Low.
+- **Internal link audit** — Count internal vs external links. Flag pages with zero internal links as P3.
+- **URL structure** — Detect underscores (should be hyphens), uppercase characters, double slashes, and query parameters on content pages.
+- **Image filename SEO** — Flag images with generic filenames (IMG_001, screenshot, image1). Descriptive filenames help image search.
+- **Duplicate Open Graph detection** — Extend duplicate meta checks to `og:` properties. Duplicate `og:image` or `og:title` tags confuse social sharing crawlers.
+- **robots.txt / sitemap cross-reference** — Check if `robots.txt` references the sitemap URL. If not, flag as P2.
+- **Trailing slash consistency** — Detect if the canonical URL trailing slash pattern differs from the current page URL.
+- **Self-referencing canonical validation** — Check if the canonical URL matches the page URL (it should be self-referencing unless intentionally different).
+- **Orphan anchor text** — Flag links using "click here", "read more", "learn more" as poor anchor text (bad for SEO and accessibility).
+- **rel=nofollow audit** — Count links with `nofollow`. Flag internal links with `nofollow` as a mistake (it wastes link equity).
+- **Core Web Vitals via PageSpeed Insights API** — Fetch `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url={URL}&strategy=mobile` (no API key needed for basic usage). Extract LCP, CLS, INP/FID, FCP, TTFB, Speed Index. Flag any metric in "poor" range as P1, "needs improvement" as P2. Fetch `strategy=desktop` for comparison. Display as a CWV summary table.
+
+Ask the user:
+- "Does your mobile content match your desktop content? (Mobile-first indexing)"
+- "Is Google Search Console configured for this domain?"
 
 **SPA / Client-Side Rendering Caveat:**
 Modern frameworks (Next.js, Nuxt, React, Angular, Svelte, Astro) often render
@@ -121,6 +140,14 @@ From the HTML response, check:
 - Check for `<link rel="preconnect">` or `<link rel="preload">` hints
 - Font loading: `font-display: swap` in inline styles, Google Fonts preconnect, font preloads
 
+**Performance Budgets:**
+If a `.fat-budget.json` file exists in the project root, use it to check custom
+thresholds. Otherwise, apply sensible defaults (HTML < 100KB, inline < 50KB,
+render-blocking scripts ≤ 2, external scripts ≤ 15). See `references/performance-budgets.md`
+for configuration details.
+
+Ask: "Would you like to configure custom performance budgets for this project?"
+
 **Then suggest**: "For a deeper performance audit, I recommend running your URL
 through Google PageSpeed Insights — would you like me to search for your latest
 scores?"
@@ -139,7 +166,8 @@ From the HTML, check:
 
 ### 1.5 — Accessibility Quick Scan
 From the HTML, check:
-- All `<img>` tags have `alt` attributes
+- All `<img>` tags have `alt` attributes (not just present — non-empty and meaningful)
+- **Dynamic alt text fallbacks**: If the codebase is available, check that Image components using dynamic data (e.g., `alt={product.name}`) include fallbacks like `alt={product.name || 'Product image'}`. Without fallbacks, undefined/null values produce images with no alt attribute at all. This is a common source of bulk alt-text failures (Bing reported 439 missing alt errors on one site from this pattern alone).
 - Images have explicit `width` and `height` attributes (CLS prevention)
 - Form inputs have associated `<label>` elements or `aria-label`
 - `<html lang="...">` attribute is set
@@ -148,9 +176,25 @@ From the HTML, check:
 - No empty heading tags (`<h2></h2>`, `<h3>   </h3>`)
 - Same-page anchor links (`href="#section"`) point to existing element IDs
 
+**Extended automated checks:**
+- **ARIA role validation** — Detect invalid or deprecated ARIA roles (e.g., `role="directory"` is deprecated)
+- **tabindex > 0 detection** — Flag positive tabindex values (disrupts natural tab order — bad practice)
+- **Autoplay media** — Detect `<video autoplay>` and `<audio autoplay>` without `muted` (P1 High)
+- **Zoom disabled** — Detect `user-scalable=no` or `maximum-scale=1` in viewport meta (P0 Critical — blocks assistive technology)
+- **Button vs link semantics** — Detect `<a>` with `role="button"` (flag for review)
+- **Table accessibility** — Detect `<table>` without `<th>` header cells
+- **SVG accessibility** — Detect `<svg>` without `<title>` or `aria-label`
+- **iframe titles** — Detect `<iframe>` without `title` attribute
+- **Form error association** — Check for `aria-describedby` / `aria-errormessage` usage
+- **Motion preference** — Detect `prefers-reduced-motion` in inline styles/media queries
+
 Ask the user:
 - "Are you using low-contrast text anywhere (light grey on white, etc.)?"
 - "Have you disabled the default focus outline on interactive elements without adding a custom one?"
+- "Do you have reduced motion alternatives for animations?"
+- "Have you tested with a screen reader?"
+- "Are interactive elements at least 44x44px touch targets?"
+- "Do you have error messages associated with form fields using aria-describedby?"
 
 ### 1.6 — Functional Checks (User-Guided)
 These can't be automated — ask the user to verify:
@@ -183,11 +227,13 @@ Check the HTML for:
 - If none found and the site is a web app, suggest adding these for "Add to Home Screen" support
 
 ### 1.8b — Analytics & Tracking
-Check the HTML for:
-- Google Analytics / GA4 (`gtag` or `google-analytics`)
-- Google Tag Manager (`googletagmanager`)
-- Facebook Pixel (`fbq`)
-- Other common tracking scripts
+Check the HTML for known analytics providers (detected automatically):
+- **Tier 1:** Google Analytics/GA4/GTM, Facebook Pixel, Hotjar, Plausible
+- **Privacy-focused:** Fathom Analytics, Umami, Matomo
+- **Product analytics:** Mixpanel, Heap, Segment, Amplitude, PostHog
+- **Platform-specific:** Vercel Analytics, Cloudflare Web Analytics, Adobe Analytics
+- **Ad pixels:** Snapchat Pixel, TikTok Pixel, LinkedIn Insight Tag, Pinterest Tag, Reddit Pixel
+- **Consent management:** Cookiebot, OneTrust, CookieYes, Termly, iubenda, TrustArc, Osano, CookieFirst, Complianz, Quantcast Choice, Microsoft Clarity
 - If none found, ask: "I don't see any analytics installed — is that intentional?"
 
 ### 1.9 — Platform-Specific Checks
@@ -202,7 +248,7 @@ or not listed, run the Generic checks.
 - Ask: "Are you using Netlify Forms? If so, is the `data-netlify="true"` attribute on your form tag?"
 - Ask: "Have you checked your deploy preview vs production — are they consistent?"
 - Suggest enabling Netlify's asset optimization (CSS/JS minification, image compression)
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/netlify.md`
+- Reference: `references/platform-fixes/netlify.md`
 
 **Vercel:**
 - Check if response headers indicate Vercel (`x-vercel-id`, `server: Vercel`)
@@ -210,14 +256,14 @@ or not listed, run the Generic checks.
 - Ask: "Are you using Vercel Middleware for redirects or auth?"
 - Check for Edge Function headers (`x-middleware-*`)
 - Suggest Vercel Analytics / Speed Insights if not detected
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/vercel.md`
+- Reference: `references/platform-fixes/vercel.md`
 
 **Cloudflare Pages:**
 - Check if response headers indicate Cloudflare (`cf-ray`, `server: cloudflare`)
 - Ask: "Do you have a `_headers` and `_redirects` file in your build output?"
 - Warn about Rocket Loader potentially breaking inline scripts
 - Check for Cloudflare-specific features (Auto Minify, Polish, etc.)
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/cloudflare-pages.md`
+- Reference: `references/platform-fixes/cloudflare-pages.md`
 
 **WordPress:**
 - Check for `/wp-admin/` accessibility (should redirect to login, not expose admin)
@@ -225,27 +271,27 @@ or not listed, run the Generic checks.
 - Ask: "Are all your plugins and themes up to date?"
 - Check for `wp-json` REST API exposure
 - Check for user enumeration via `/?author=1`
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/wordpress.md`
+- Reference: `references/platform-fixes/wordpress.md`
 
 **Apache:**
 - Ask: "Do you have a `.htaccess` file with security headers?"
 - Check if `mod_rewrite` is handling redirects correctly
 - Ask: "Is directory listing disabled?"
 - Check for server version exposure in headers (`Server: Apache/x.x.x`)
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/apache.md`
+- Reference: `references/platform-fixes/apache.md`
 
 **Nginx:**
 - Check if server header exposes version (`Server: nginx/x.x.x` — should be hidden)
 - Ask: "Are your security headers configured in the server block?"
 - Check for proper `try_files` configuration (SPA routing)
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/nginx.md`
+- Reference: `references/platform-fixes/nginx.md`
 
 **AWS (S3/CloudFront/Amplify):**
 - Check for CloudFront headers (`x-amz-cf-id`, `x-cache`)
 - Ask: "Do you have a CloudFront Response Headers Policy configured?"
 - Check that S3 bucket is not directly publicly accessible
 - Verify custom error pages are configured
-- Reference: `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/aws.md`
+- Reference: `references/platform-fixes/aws.md`
 
 **Generic (any platform):**
 - Verify SSL certificate is valid and not expiring soon
@@ -315,7 +361,7 @@ to the project:
 
 1. **Generate the badge** — pipe the scores through the badge generator:
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/analyse-html.py page.html | python ${CLAUDE_PLUGIN_ROOT}/scripts/calculate-score.py | python ${CLAUDE_PLUGIN_ROOT}/scripts/generate-badge.py --image --output fat-badge.svg
+   python scripts/analyse-html.py page.html | python scripts/calculate-score.py | python scripts/generate-badge.py --image --output fat-badge.svg
    ```
    Save `fat-badge.svg` to the project root directory.
 
@@ -342,6 +388,63 @@ colour-coded category breakdown (SEO, Security, A11y, Perf). It uses a compact
 
 If the user declines the badge, skip it and move on. Don't push it.
 
+### Historical Audit Tracking
+
+After presenting the final scorecard, save the results to the audit history:
+
+1. **Save to history** — Run:
+   ```bash
+   python scripts/track-history.py --save scores.json --url <URL>
+   ```
+   This appends the current scores to `.fat-history.json` in the project root.
+
+2. **Show comparison** — On subsequent audits, load history and show improvement:
+   ```bash
+   python scripts/track-history.py --diff
+   ```
+   Example: "Your SEO score improved from 72 to 91 (+19) since the last audit on 14 March"
+
+3. **Show trend** — Display score trajectory:
+   ```bash
+   python scripts/track-history.py --trend
+   ```
+
+4. **Offer to commit** — Ask if the user wants to commit `.fat-history.json` so the
+   team can see audit history tracked in version control.
+
+### CI/CD Integration
+
+At the end of Phase 3, offer: "Would you like to set up automated FAT checks in
+your CI/CD pipeline?" If yes, load `references/ci-cd-integration.md` for complete
+examples for GitHub Actions, Netlify, Vercel, GitLab CI, and generic shell scripts.
+
+---
+
+## Competitive Analysis Mode
+
+**Trigger:** User says "compare my site with [competitor URL]" or "competitive analysis"
+
+When triggered:
+
+1. **Run Phase 1 audit on both URLs** — Fetch both pages and run `analyse-html.py` + `calculate-score.py` on each
+2. **Generate side-by-side comparison**:
+   ```
+   | Category      | Your Site | Competitor | Delta |
+   |---------------|-----------|------------|-------|
+   | SEO           | 85        | 92         | -7    |
+   | Security      | 100       | 65         | +35   |
+   | Accessibility | 90        | 78         | +12   |
+   | Performance   | 72        | 88         | -16   |
+   | Overall       | 87        | 81         | +6    |
+   ```
+3. **Highlight areas where the user is behind** — Focus on categories with negative deltas
+4. **Suggest specific improvements** — For each area the competitor scores higher, suggest actionable fixes
+5. **Offer to generate fixes** — "Want me to help close the gap on SEO and Performance?"
+
+Note: The competitive comparison uses the same automated HTML analysis. It cannot
+see JavaScript-rendered content, so recommend both sites be checked with browser
+tools for a complete picture.
+
 ---
 
 ## Ongoing Behaviour
@@ -366,29 +469,32 @@ If the user declines the badge, skip it and move on. Don't push it.
 ## Reference Files
 
 For extended check details, see:
-- `${CLAUDE_PLUGIN_ROOT}/references/security-headers.md` — Full security header recommendations
-- `${CLAUDE_PLUGIN_ROOT}/references/seo-checklist.md` — Extended SEO audit criteria
-- `${CLAUDE_PLUGIN_ROOT}/references/accessibility-guide.md` — WCAG 2.1 quick reference
-- `${CLAUDE_PLUGIN_ROOT}/scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
-- `${CLAUDE_PLUGIN_ROOT}/scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
-- `${CLAUDE_PLUGIN_ROOT}/scripts/generate-badge.py` — SVG badge generator (character image + score bars)
+- `references/security-headers.md` — Full security header recommendations
+- `references/seo-checklist.md` — Extended SEO audit criteria
+- `references/accessibility-guide.md` — WCAG 2.1 quick reference
+- `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
+- `scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
+- `scripts/generate-badge.py` — SVG badge generator (character image + score bars)
+- `scripts/track-history.py` — Historical audit tracker (read/write `.fat-history.json`)
+- `references/performance-budgets.md` — Performance budget configuration guide
+- `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
 
 ### Platform-Specific Fix References
 Load the relevant file based on the hosting platform from Phase 0:
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/netlify.md` — Netlify config (_headers, netlify.toml, Forms)
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/vercel.md` — Vercel config (vercel.json, middleware)
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/cloudflare-pages.md` — Cloudflare Pages (_headers, Workers)
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/apache.md` — Apache config (.htaccess, mod_rewrite)
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/nginx.md` — Nginx config (server blocks, add_header)
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/wordpress.md` — WordPress config (wp-config.php, plugins)
-- `${CLAUDE_PLUGIN_ROOT}/references/platform-fixes/aws.md` — AWS config (CloudFront, S3, Amplify)
+- `references/platform-fixes/netlify.md` — Netlify config (_headers, netlify.toml, Forms)
+- `references/platform-fixes/vercel.md` — Vercel config (vercel.json, middleware)
+- `references/platform-fixes/cloudflare-pages.md` — Cloudflare Pages (_headers, Workers)
+- `references/platform-fixes/apache.md` — Apache config (.htaccess, mod_rewrite)
+- `references/platform-fixes/nginx.md` — Nginx config (server blocks, add_header)
+- `references/platform-fixes/wordpress.md` — WordPress config (wp-config.php, plugins)
+- `references/platform-fixes/aws.md` — AWS config (CloudFront, S3, Amplify)
 
 ### Framework-Specific Fix References
 Load the relevant file based on the tech stack from Phase 0:
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/nextjs.md` — Next.js (App Router + Pages Router)
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/astro.md` — Astro (islands, content collections)
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/sveltekit.md` — SvelteKit (load functions, adapters)
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/nuxt.md` — Nuxt 3 (useHead, useSeoMeta)
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/gatsby.md` — Gatsby (Head API, gatsby-plugin-image)
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/wordpress.md` — WordPress themes (functions.php, hooks)
-- `${CLAUDE_PLUGIN_ROOT}/references/framework-fixes/static-html.md` — Static HTML/CSS/JS (no framework)
+- `references/framework-fixes/nextjs.md` — Next.js (App Router + Pages Router)
+- `references/framework-fixes/astro.md` — Astro (islands, content collections)
+- `references/framework-fixes/sveltekit.md` — SvelteKit (load functions, adapters)
+- `references/framework-fixes/nuxt.md` — Nuxt 3 (useHead, useSeoMeta)
+- `references/framework-fixes/gatsby.md` — Gatsby (Head API, gatsby-plugin-image)
+- `references/framework-fixes/wordpress.md` — WordPress themes (functions.php, hooks)
+- `references/framework-fixes/static-html.md` — Static HTML/CSS/JS (no framework)

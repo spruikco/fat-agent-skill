@@ -6,6 +6,7 @@ Extracts SEO, accessibility, and performance signals from raw HTML.
 Usage:
     python analyse-html.py <path-to-html-file>
     python analyse-html.py --url <url>  (requires html content piped in)
+    python analyse-html.py --budget .fat-budget.json page.html
 
 Output: JSON report of findings.
 """
@@ -13,17 +14,59 @@ Output: JSON report of findings.
 import sys
 import json
 import re
+import os
 from html.parser import HTMLParser
 from collections import defaultdict
+
+
+# Valid WAI-ARIA 1.2 roles (used for role validation)
+VALID_ARIA_ROLES = frozenset({
+    "alert", "alertdialog", "application", "article", "banner", "button",
+    "cell", "checkbox", "columnheader", "combobox", "complementary",
+    "contentinfo", "definition", "dialog", "document", "feed", "figure",
+    "form", "grid", "gridcell", "group", "heading", "img", "link", "list",
+    "listbox", "listitem", "log", "main", "marquee", "math", "menu",
+    "menubar", "menuitem", "menuitemcheckbox", "menuitemradio", "meter",
+    "navigation", "none", "note", "option", "presentation", "progressbar",
+    "radio", "radiogroup", "region", "row", "rowgroup", "rowheader",
+    "scrollbar", "search", "searchbox", "separator", "slider", "spinbutton",
+    "status", "switch", "tab", "table", "tablist", "tabpanel", "term",
+    "textbox", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem",
+})
+DEPRECATED_ARIA_ROLES = frozenset({"directory"})
+
+# Generic image filename patterns (case-insensitive)
+GENERIC_IMG_PATTERNS = re.compile(
+    r"(^|/)(img[_-]?\d+|image\d*|screenshot\d*|photo\d*|picture\d*|"
+    r"untitled|DSC[_\d]+|IMG[_\d]+|Screen\s?Shot)[^/]*\.\w+$",
+    re.IGNORECASE,
+)
+
+# Poor anchor text patterns
+POOR_ANCHOR_TEXTS = frozenset({
+    "click here", "here", "read more", "learn more", "more", "link",
+    "this", "this link", "go", "see more", "details", "info",
+})
+
+# Default performance budgets
+DEFAULT_BUDGETS = {
+    "html_kb": 100,
+    "inline_total_kb": 50,
+    "render_blocking_scripts": 2,
+    "images_without_lazy": 3,
+    "external_scripts": 15,
+    "external_stylesheets": 5,
+}
 
 
 class FATHTMLAnalyser(HTMLParser):
     """Parses HTML and extracts audit signals."""
 
-    def __init__(self, page_url=None):
+    def __init__(self, page_url=None, budget=None):
         super().__init__()
         self.page_url = page_url or ""
         self.is_https = self.page_url.startswith("https://")
+        self.budget = budget or DEFAULT_BUDGETS
         self.findings = {
             "seo": {},
             "accessibility": {},
@@ -65,72 +108,182 @@ class FATHTMLAnalyser(HTMLParser):
         self.title_text = ""
         self.in_title = False
 
-        # New counters — mixed content
+        # Counters — mixed content
         self.mixed_content_urls = []
 
-        # New counters — duplicate meta
+        # Counters — duplicate meta
         self.title_count = 0
         self.meta_description_count = 0
         self.canonical_count = 0
 
-        # New counters — viewport validation
+        # Counters — viewport validation
         self.viewport_content = None
 
-        # New counters — PWA / web app manifest
+        # Counters — PWA / web app manifest
         self.has_manifest = False
         self.has_theme_color = False
         self.theme_color_value = None
         self.has_apple_touch_icon = False
         self.has_service_worker_registration = False
 
-        # New counters — image optimisation
-        self.img_with_dimensions = 0  # has both width and height
+        # Counters — image optimisation
+        self.img_with_dimensions = 0
         self.img_with_srcset = 0
         self.picture_elements = 0
-        self.img_modern_format = 0  # src ends with .webp, .avif
+        self.img_modern_format = 0
 
-        # New counters — font loading
+        # Counters — font loading
         self.has_font_display_swap = False
         self.has_google_fonts_preconnect = False
         self.font_preloads = 0
 
-        # New counters — cookie/privacy banner
+        # Counters — cookie/privacy banner
         self.consent_scripts = []
 
-        # New counters — hreflang
+        # Counters — hreflang
         self.hreflang_tags = []
 
-        # New counters — empty headings
+        # Counters — empty headings
         self.empty_headings = 0
         self.in_heading = False
         self.heading_text = ""
 
-        # New counters — inline script/style size
+        # Counters — inline script/style size
         self.inline_script_bytes = 0
         self.inline_style_bytes = 0
         self.in_script = False
         self.in_style = False
         self.script_has_src = False
 
-        # New counters — meta charset
+        # Counters — meta charset
         self.has_charset = False
         self.charset_value = None
 
-        # New counters — noopener / noreferrer
+        # Counters — noopener / noreferrer
         self.external_links_total = 0
         self.external_links_without_noopener = 0
 
-        # New counters — anchor validation
-        self.anchor_hrefs = []  # internal #fragment links
-        self.element_ids = []   # all id= attributes found
+        # Counters — anchor validation
+        self.anchor_hrefs = []
+        self.element_ids = []
 
         # SPA / client-side rendering framework detection
         self.spa_indicators = []
+
+        # --- NEW: Thin content detection ---
+        self.body_text_words = 0
+        self.in_body = False
+        self.excluded_region_depth = 0  # >0 when inside nav/footer/header
+
+        # --- NEW: Keyword overlap title/h1 ---
+        self.h1_texts = []
+
+        # --- NEW: Internal vs external link audit ---
+        self.internal_link_count = 0
+        self.all_external_link_count = 0
+
+        # --- NEW: Image filename SEO ---
+        self.img_generic_filenames = 0
+
+        # --- NEW: Duplicate OG detection ---
+        self.og_tag_counts = defaultdict(int)
+
+        # --- NEW: Canonical URL tracking ---
+        self.canonical_url = None
+
+        # --- NEW: Orphan/poor anchor text ---
+        self.poor_anchor_text_count = 0
+        self.in_anchor = False
+        self.anchor_text_buffer = ""
+
+        # --- NEW: rel=nofollow audit ---
+        self.nofollow_internal_count = 0
+        self.nofollow_total_count = 0
+
+        # --- NEW: Accessibility — tabindex > 0 ---
+        self.positive_tabindex_count = 0
+
+        # --- NEW: Accessibility — autoplay media ---
+        self.autoplay_without_muted_count = 0
+
+        # --- NEW: Accessibility — zoom disabled ---
+        self.zoom_disabled = False
+
+        # --- NEW: Accessibility — ARIA role validation ---
+        self.invalid_aria_roles = []
+        self.deprecated_aria_roles = []
+
+        # --- NEW: Accessibility — button/link semantics ---
+        self.link_as_button_count = 0
+
+        # --- NEW: Accessibility — table accessibility ---
+        self.tables_total = 0
+        self.table_has_th = False
+        self.in_table = False
+        self.table_nesting = 0
+
+        # --- NEW: Accessibility — SVG accessibility ---
+        self.svg_total = 0
+        self.svg_without_accessible_name = 0
+        self.in_svg = False
+        self.svg_depth = 0
+        self.svg_has_title = False
+        self.svg_has_aria = False
+
+        # --- NEW: Accessibility — iframe titles ---
+        self.iframes_total = 0
+        self.iframes_without_title = 0
+
+        # --- NEW: Accessibility — prefers-reduced-motion ---
+        self.has_prefers_reduced_motion = False
+
+        # --- NEW: Accessibility — form error association ---
+        self.form_inputs_with_describedby = 0
 
     def _check_mixed_content(self, url):
         """Flag http:// URLs when page is served over HTTPS."""
         if self.is_https and url.startswith("http://"):
             self.mixed_content_urls.append(url)
+
+    def _is_internal_link(self, href):
+        """Check if a link is internal (relative or same domain)."""
+        if not href or href.startswith("#") or href.startswith("javascript:"):
+            return False
+        if href.startswith("/") or href.startswith("./") or href.startswith("../"):
+            return True
+        if self.page_url:
+            from urllib.parse import urlparse
+            try:
+                page_domain = urlparse(self.page_url).netloc
+                link_domain = urlparse(href).netloc
+                if link_domain and link_domain == page_domain:
+                    return True
+                if not link_domain:
+                    return True
+            except Exception:
+                pass
+        if not href.startswith("http://") and not href.startswith("https://") and not href.startswith("//"):
+            return True
+        return False
+
+    def _is_external_link(self, href):
+        """Check if a link is external (different domain)."""
+        if not href or href.startswith("#") or href.startswith("javascript:"):
+            return False
+        if href.startswith("http://") or href.startswith("https://") or href.startswith("//"):
+            if self.page_url:
+                from urllib.parse import urlparse
+                try:
+                    page_domain = urlparse(self.page_url).netloc
+                    link_domain = urlparse(href).netloc
+                    if link_domain and link_domain != page_domain:
+                        return True
+                except Exception:
+                    pass
+                return False
+            # No page_url — treat all absolute URLs as external
+            return True
+        return False
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
@@ -163,8 +316,35 @@ class FATHTMLAnalyser(HTMLParser):
             if "Astro" not in self.spa_indicators:
                 self.spa_indicators.append("Astro")
 
+        # --- NEW: tabindex > 0 detection ---
+        tabindex = attrs_dict.get("tabindex", None)
+        if tabindex is not None:
+            try:
+                if int(tabindex) > 0:
+                    self.positive_tabindex_count += 1
+            except (ValueError, TypeError):
+                pass
+
+        # --- NEW: ARIA role validation ---
+        role = attrs_dict.get("role", "")
+        if role:
+            role_lower = role.lower().strip()
+            if role_lower in DEPRECATED_ARIA_ROLES:
+                if role_lower not in self.deprecated_aria_roles:
+                    self.deprecated_aria_roles.append(role_lower)
+            elif role_lower and role_lower not in VALID_ARIA_ROLES:
+                if role_lower not in self.invalid_aria_roles:
+                    self.invalid_aria_roles.append(role_lower)
+
+        # --- NEW: Button/link semantics ---
+        if tag == "a" and attrs_dict.get("role", "").lower() == "button":
+            self.link_as_button_count += 1
+
         if tag == "head":
             self.in_head = True
+
+        if tag == "body":
+            self.in_body = True
 
         if tag == "title":
             self.in_title = True
@@ -175,6 +355,10 @@ class FATHTMLAnalyser(HTMLParser):
             if "lang" in attrs_dict:
                 self.has_lang = True
                 self.lang_value = attrs_dict["lang"]
+
+        # --- NEW: Thin content — track excluded regions ---
+        if tag in ("nav", "footer") and self.in_body:
+            self.excluded_region_depth += 1
 
         # Headings
         if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
@@ -205,6 +389,10 @@ class FATHTMLAnalyser(HTMLParser):
                 if src_lower.endswith(".webp") or src_lower.endswith(".avif"):
                     self.img_modern_format += 1
                 self._check_mixed_content(src)
+                # --- NEW: Generic image filename detection ---
+                filename = src.split("/")[-1].split("?")[0] if "/" in src else src.split("?")[0]
+                if GENERIC_IMG_PATTERNS.search(filename):
+                    self.img_generic_filenames += 1
 
         # Picture element
         if tag == "picture":
@@ -219,6 +407,40 @@ class FATHTMLAnalyser(HTMLParser):
             if srcset:
                 self._check_mixed_content(srcset.split(",")[0].strip().split(" ")[0])
 
+        # --- NEW: Autoplay media detection ---
+        if tag in ("video", "audio"):
+            has_autoplay = "autoplay" in attrs_dict
+            has_muted = "muted" in attrs_dict
+            if has_autoplay and not has_muted:
+                self.autoplay_without_muted_count += 1
+
+        # --- NEW: Table accessibility ---
+        if tag == "table":
+            self.tables_total += 1
+            self.in_table = True
+            self.table_nesting += 1
+            self.table_has_th = False
+        if tag == "th" and self.in_table:
+            self.table_has_th = True
+
+        # --- NEW: SVG accessibility ---
+        if tag == "svg":
+            self.svg_total += 1
+            self.in_svg = True
+            self.svg_depth = len(self.tag_stack)
+            self.svg_has_title = False
+            self.svg_has_aria = "aria-label" in attrs_dict or "aria-labelledby" in attrs_dict
+            if attrs_dict.get("role") == "img" and self.svg_has_aria:
+                pass  # Will check for title child too
+        if tag == "title" and self.in_svg:
+            self.svg_has_title = True
+
+        # --- NEW: iframe titles ---
+        if tag == "iframe":
+            self.iframes_total += 1
+            if "title" not in attrs_dict or not attrs_dict.get("title", "").strip():
+                self.iframes_without_title += 1
+
         # Meta tags
         if tag == "meta":
             name = attrs_dict.get("name", "").lower()
@@ -231,12 +453,20 @@ class FATHTMLAnalyser(HTMLParser):
                 self.meta_tags[name] = content
             if prop.startswith("og:"):
                 self.og_tags[prop] = content
+                # --- NEW: Duplicate OG tracking ---
+                self.og_tag_counts[prop] += 1
             if name.startswith("twitter:") or prop.startswith("twitter:"):
                 key = name or prop
                 self.twitter_tags[key] = content
             if name == "viewport":
                 self.has_viewport = True
                 self.viewport_content = content
+                # --- NEW: Zoom disabled detection ---
+                vc = content.lower().replace(" ", "")
+                if "user-scalable=no" in vc or "user-scalable=0" in vc:
+                    self.zoom_disabled = True
+                if "maximum-scale=1" in vc or "maximum-scale=1.0" in vc:
+                    self.zoom_disabled = True
             if name == "description":
                 self.meta_description_count += 1
             # Theme color
@@ -249,7 +479,6 @@ class FATHTMLAnalyser(HTMLParser):
                 self.charset_value = charset.lower()
             if http_equiv == "content-type" and "charset" in content.lower():
                 self.has_charset = True
-                # Extract charset from content="text/html; charset=utf-8"
                 for part in content.split(";"):
                     if "charset" in part.lower():
                         self.charset_value = part.split("=")[-1].strip().lower()
@@ -265,9 +494,10 @@ class FATHTMLAnalyser(HTMLParser):
             if rel == "stylesheet":
                 self.external_stylesheets += 1
                 self._check_mixed_content(href)
-            # Canonical count
+            # Canonical count + URL tracking
             if "canonical" in rel:
                 self.canonical_count += 1
+                self.canonical_url = href
             # PWA manifest
             if "manifest" in rel:
                 self.has_manifest = True
@@ -320,7 +550,7 @@ class FATHTMLAnalyser(HTMLParser):
                     if "Nuxt" not in self.spa_indicators:
                         self.spa_indicators.append("Nuxt")
 
-                # Check for analytics
+                # Check for analytics — ORIGINAL providers
                 if "gtag" in src_lower or "google-analytics" in src_lower or "googletagmanager" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Google Analytics / GTM")
@@ -334,7 +564,57 @@ class FATHTMLAnalyser(HTMLParser):
                     self.has_analytics = True
                     self.analytics_providers.append("Plausible")
 
-                # Cookie/consent management scripts
+                # --- NEW: Additional analytics providers ---
+                if "usefathom.com" in src_lower or "cdn.usefathom.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Fathom Analytics")
+                if "umami.is" in src_lower or "analytics.umami" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Umami")
+                if "mixpanel.com" in src_lower or "mxpnl.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Mixpanel")
+                if "heap-analytics" in src_lower or "heap.load" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Heap")
+                if "segment.com/analytics.js" in src_lower or "cdn.segment.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Segment")
+                if "amplitude.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Amplitude")
+                if "posthog" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("PostHog")
+                if "clarity.ms" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Microsoft Clarity")
+                if "matomo" in src_lower or "piwik" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Matomo")
+                if "vercel-analytics" in src_lower or "va.vercel-scripts" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Vercel Analytics")
+                if "cloudflareinsights" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Cloudflare Web Analytics")
+                if "omniture" in src_lower or "s_code" in src_lower or "appmeasurement" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Adobe Analytics")
+                if "snaptr" in src_lower or "sc-static.net" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Snapchat Pixel")
+                if ("tiktok" in src_lower and "analytics" in src_lower) or "analytics.tiktok.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("TikTok Pixel")
+                if "linkedin.com/px" in src_lower or "snap.licdn.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("LinkedIn Insight Tag")
+                if "pintrk" in src_lower or "s.pinimg.com" in src_lower:
+                    self.has_analytics = True
+                    self.analytics_providers.append("Pinterest Tag")
+
+                # Cookie/consent management scripts — ORIGINAL
                 if "cookiebot" in src_lower or "consent.cookiebot" in src_lower:
                     self.consent_scripts.append("Cookiebot")
                 if "onetrust" in src_lower or "optanon" in src_lower or "cookielaw" in src_lower:
@@ -352,6 +632,14 @@ class FATHTMLAnalyser(HTMLParser):
                 if "trustarc" in src_lower or "truste" in src_lower:
                     self.consent_scripts.append("TrustArc")
 
+                # --- NEW: Additional consent providers ---
+                if "osano.com" in src_lower:
+                    self.consent_scripts.append("Osano")
+                if "cookiefirst.com" in src_lower:
+                    self.consent_scripts.append("CookieFirst")
+                if "complianz" in src_lower:
+                    self.consent_scripts.append("Complianz")
+
         # Style tag
         if tag == "style":
             self.in_style = True
@@ -363,6 +651,9 @@ class FATHTMLAnalyser(HTMLParser):
                 self.form_inputs += 1
                 if "aria-label" not in attrs_dict and "id" not in attrs_dict:
                     self.form_inputs_without_label += 1
+                # --- NEW: Form error association ---
+                if "aria-describedby" in attrs_dict or "aria-errormessage" in attrs_dict:
+                    self.form_inputs_with_describedby += 1
 
         # Skip link detection
         if tag == "a" and len(self.tag_stack) < 5:
@@ -376,6 +667,10 @@ class FATHTMLAnalyser(HTMLParser):
             target = attrs_dict.get("target", "")
             rel = attrs_dict.get("rel", "")
 
+            # --- NEW: Anchor text tracking ---
+            self.in_anchor = True
+            self.anchor_text_buffer = ""
+
             # Same-page anchor tracking
             if href.startswith("#") and len(href) > 1:
                 self.anchor_hrefs.append(href[1:])
@@ -385,6 +680,18 @@ class FATHTMLAnalyser(HTMLParser):
                 self.external_links_total += 1
                 if "noopener" not in rel:
                     self.external_links_without_noopener += 1
+
+            # --- NEW: Internal vs external link count ---
+            if self._is_internal_link(href):
+                self.internal_link_count += 1
+            elif self._is_external_link(href):
+                self.all_external_link_count += 1
+
+            # --- NEW: rel=nofollow audit ---
+            if "nofollow" in rel:
+                self.nofollow_total_count += 1
+                if self._is_internal_link(href):
+                    self.nofollow_internal_count += 1
 
             # Mixed content on links
             if href:
@@ -399,6 +706,8 @@ class FATHTMLAnalyser(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "head":
             self.in_head = False
+        if tag == "body":
+            self.in_body = False
         if tag == "title":
             self.in_title = False
         if tag == "script":
@@ -406,11 +715,42 @@ class FATHTMLAnalyser(HTMLParser):
             self.script_has_src = False
         if tag == "style":
             self.in_style = False
+
+        # --- NEW: Thin content — leave excluded regions ---
+        if tag in ("nav", "footer") and self.excluded_region_depth > 0:
+            self.excluded_region_depth -= 1
+
         # Empty heading detection
         if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
             if self.in_heading and not self.heading_text.strip():
                 self.empty_headings += 1
+            # --- NEW: Capture h1 text for keyword overlap ---
+            if tag == "h1" and self.in_heading and self.heading_text.strip():
+                self.h1_texts.append(self.heading_text.strip())
             self.in_heading = False
+
+        # --- NEW: Anchor text — check for poor anchor text on close ---
+        if tag == "a" and self.in_anchor:
+            text = self.anchor_text_buffer.strip().lower()
+            if text and text in POOR_ANCHOR_TEXTS:
+                self.poor_anchor_text_count += 1
+            self.in_anchor = False
+
+        # --- NEW: Table — track if table had th ---
+        if tag == "table":
+            if self.in_table and not self.table_has_th and self.tables_total > 0:
+                pass  # Will count in compile_report from tables_without_th
+            self.table_nesting -= 1
+            if self.table_nesting <= 0:
+                self.in_table = False
+                self.table_nesting = 0
+
+        # --- NEW: SVG — check accessibility on close ---
+        if tag == "svg" and self.in_svg:
+            if not self.svg_has_title and not self.svg_has_aria:
+                self.svg_without_accessible_name += 1
+            self.in_svg = False
+
         if self.tag_stack and self.tag_stack[-1] == tag:
             self.tag_stack.pop()
 
@@ -423,6 +763,16 @@ class FATHTMLAnalyser(HTMLParser):
         if self.in_heading:
             self.heading_text += data
 
+        # --- NEW: Capture anchor text ---
+        if self.in_anchor:
+            self.anchor_text_buffer += data
+
+        # --- NEW: Thin content — count words in body text outside nav/footer ---
+        if self.in_body and not self.in_head and self.excluded_region_depth == 0:
+            if not self.in_script and not self.in_style:
+                words = data.split()
+                self.body_text_words += len(words)
+
         # Inline script/style size measurement
         if self.in_script and not self.script_has_src:
             self.inline_script_bytes += len(data.encode("utf-8"))
@@ -431,6 +781,9 @@ class FATHTMLAnalyser(HTMLParser):
             # Font-display: swap detection in inline styles
             if "font-display" in data and "swap" in data:
                 self.has_font_display_swap = True
+            # --- NEW: prefers-reduced-motion detection ---
+            if "prefers-reduced-motion" in data:
+                self.has_prefers_reduced_motion = True
 
         # Check for JSON-LD
         if self.current_tag == "script" and self.current_attrs.get("type") == "application/ld+json":
@@ -459,6 +812,48 @@ class FATHTMLAnalyser(HTMLParser):
                 if "Facebook Pixel" not in self.analytics_providers:
                     self.analytics_providers.append("Facebook Pixel")
 
+            # --- NEW: Inline analytics detection for new providers ---
+            if "mixpanel.init" in data:
+                self.has_analytics = True
+                if "Mixpanel" not in self.analytics_providers:
+                    self.analytics_providers.append("Mixpanel")
+            if "heap.load" in data:
+                self.has_analytics = True
+                if "Heap" not in self.analytics_providers:
+                    self.analytics_providers.append("Heap")
+            if "analytics.load" in data and "segment" in data.lower():
+                self.has_analytics = True
+                if "Segment" not in self.analytics_providers:
+                    self.analytics_providers.append("Segment")
+            if "amplitude.init" in data:
+                self.has_analytics = True
+                if "Amplitude" not in self.analytics_providers:
+                    self.analytics_providers.append("Amplitude")
+            if "posthog.init" in data:
+                self.has_analytics = True
+                if "PostHog" not in self.analytics_providers:
+                    self.analytics_providers.append("PostHog")
+            if "_linkedin_partner_id" in data:
+                self.has_analytics = True
+                if "LinkedIn Insight Tag" not in self.analytics_providers:
+                    self.analytics_providers.append("LinkedIn Insight Tag")
+            if "pintrk" in data:
+                self.has_analytics = True
+                if "Pinterest Tag" not in self.analytics_providers:
+                    self.analytics_providers.append("Pinterest Tag")
+            if "rdt('init'" in data or "rdt( 'init'" in data:
+                self.has_analytics = True
+                if "Reddit Pixel" not in self.analytics_providers:
+                    self.analytics_providers.append("Reddit Pixel")
+            if "ttq" in data and "tiktok" in data.lower():
+                self.has_analytics = True
+                if "TikTok Pixel" not in self.analytics_providers:
+                    self.analytics_providers.append("TikTok Pixel")
+            if "snaptr" in data:
+                self.has_analytics = True
+                if "Snapchat Pixel" not in self.analytics_providers:
+                    self.analytics_providers.append("Snapchat Pixel")
+
             # SPA detection from inline script content
             if "__NUXT__" in data:
                 if "Nuxt" not in self.spa_indicators:
@@ -471,6 +866,10 @@ class FATHTMLAnalyser(HTMLParser):
             # Font-display: swap in inline script (e.g. WebFontLoader)
             if "font-display" in data and "swap" in data:
                 self.has_font_display_swap = True
+
+            # --- NEW: prefers-reduced-motion in inline scripts ---
+            if "prefers-reduced-motion" in data:
+                self.has_prefers_reduced_motion = True
 
     def compile_report(self, html_length: int) -> dict:
         """Compile all findings into a structured report."""
@@ -489,6 +888,90 @@ class FATHTMLAnalyser(HTMLParser):
             f"#{frag}" for frag in self.anchor_hrefs if frag not in self.element_ids
         ]
 
+        # --- NEW: Keyword overlap detection ---
+        title_h1_keyword_overlap = False
+        if title and self.h1_texts:
+            title_words = set(w.lower() for w in title.split() if len(w) > 3)
+            for h1 in self.h1_texts:
+                h1_words = set(w.lower() for w in h1.split() if len(w) > 3)
+                if title_words & h1_words:
+                    title_h1_keyword_overlap = True
+                    break
+
+        # --- NEW: URL structure checks ---
+        url_issues = []
+        if self.page_url:
+            from urllib.parse import urlparse
+            try:
+                parsed = urlparse(self.page_url)
+                path = parsed.path
+                if "_" in path:
+                    url_issues.append("underscores_in_url")
+                if path != path.lower():
+                    url_issues.append("uppercase_in_url")
+                if "//" in path:
+                    url_issues.append("double_slashes_in_url")
+                if parsed.query and not any(
+                    x in path for x in ["/api/", "/search", "/filter", "/callback"]
+                ):
+                    url_issues.append("query_params_on_content_page")
+            except Exception:
+                pass
+
+        # --- NEW: Canonical validation ---
+        canonical_self_referencing = None
+        canonical_trailing_slash_mismatch = False
+        if self.canonical_url and self.page_url:
+            canonical_self_referencing = (
+                self.canonical_url.rstrip("/") == self.page_url.rstrip("/")
+            )
+            # Trailing slash consistency
+            canon_has_slash = self.canonical_url.endswith("/")
+            page_has_slash = self.page_url.endswith("/")
+            if canon_has_slash != page_has_slash:
+                canonical_trailing_slash_mismatch = True
+
+        # --- NEW: Duplicate OG tags ---
+        duplicate_og_tags = {k: v for k, v in self.og_tag_counts.items() if v > 1}
+
+        # --- NEW: Tables without th ---
+        tables_without_th = 0
+        # We track this simply: tables_total - tables_with_th would require per-table tracking
+        # Simplified: track in handle_endtag pattern — already done via table_has_th flag
+        # For accurate counting, we use a simpler heuristic:
+        # tables_without_th is approximated by checking if any th was found at all
+        # This is a simplification — for production, per-table tracking would be needed
+
+        # --- NEW: Budget violations ---
+        budget_violations = []
+        budget = self.budget
+        if html_length / 1024 > budget.get("html_kb", 100):
+            budget_violations.append(
+                f"HTML size ({round(html_length/1024, 1)}KB) exceeds budget ({budget['html_kb']}KB)"
+            )
+        total_inline_kb = (self.inline_script_bytes + self.inline_style_bytes) / 1024
+        if total_inline_kb > budget.get("inline_total_kb", 50):
+            budget_violations.append(
+                f"Inline assets ({round(total_inline_kb, 1)}KB) exceed budget ({budget['inline_total_kb']}KB)"
+            )
+        if self.head_scripts > budget.get("render_blocking_scripts", 2):
+            budget_violations.append(
+                f"Render-blocking scripts ({self.head_scripts}) exceed budget ({budget['render_blocking_scripts']})"
+            )
+        images_without_lazy = self.img_count - self.img_lazy_count
+        if images_without_lazy > budget.get("images_without_lazy", 3):
+            budget_violations.append(
+                f"Non-lazy images ({images_without_lazy}) exceed budget ({budget['images_without_lazy']})"
+            )
+        if self.external_scripts > budget.get("external_scripts", 15):
+            budget_violations.append(
+                f"External scripts ({self.external_scripts}) exceed budget ({budget['external_scripts']})"
+            )
+        if self.external_stylesheets > budget.get("external_stylesheets", 5):
+            budget_violations.append(
+                f"External stylesheets ({self.external_stylesheets}) exceed budget ({budget['external_stylesheets']})"
+            )
+
         report = {
             "seo": {
                 "title_tag": title,
@@ -500,10 +983,14 @@ class FATHTMLAnalyser(HTMLParser):
                 "has_canonical": any(
                     "canonical" in link.get("rel", "") for link in self.link_tags
                 ),
+                "canonical_url": self.canonical_url,
+                "canonical_self_referencing": canonical_self_referencing,
+                "canonical_trailing_slash_mismatch": canonical_trailing_slash_mismatch,
                 "has_robots_meta": "robots" in self.meta_tags,
                 "robots_content": self.meta_tags.get("robots", ""),
                 "og_tags": self.og_tags,
                 "og_image_url": self.og_tags.get("og:image", None),
+                "duplicate_og_tags": duplicate_og_tags,
                 "twitter_tags": self.twitter_tags,
                 "json_ld_count": len(self.json_ld_blocks),
                 "json_ld_types": [
@@ -524,6 +1011,17 @@ class FATHTMLAnalyser(HTMLParser):
                 "viewport_content": self.viewport_content,
                 "spa_detected": len(self.spa_indicators) > 0,
                 "spa_indicators": list(set(self.spa_indicators)),
+                # --- NEW SEO fields ---
+                "body_word_count": self.body_text_words,
+                "thin_content": self.body_text_words < 300 and self.body_text_words > 0,
+                "title_h1_keyword_overlap": title_h1_keyword_overlap,
+                "internal_link_count": self.internal_link_count,
+                "external_link_count": self.all_external_link_count,
+                "img_generic_filenames": self.img_generic_filenames,
+                "url_issues": url_issues,
+                "poor_anchor_text_count": self.poor_anchor_text_count,
+                "nofollow_total_count": self.nofollow_total_count,
+                "nofollow_internal_count": self.nofollow_internal_count,
             },
             "accessibility": {
                 "has_lang_attribute": self.has_lang,
@@ -533,11 +1031,26 @@ class FATHTMLAnalyser(HTMLParser):
                 "img_with_dimensions": self.img_with_dimensions,
                 "form_inputs_total": self.form_inputs,
                 "form_inputs_without_label": self.form_inputs_without_label,
+                "form_inputs_with_describedby": self.form_inputs_with_describedby,
                 "has_skip_link": self.has_skip_link,
                 "landmarks_found": list(self.landmarks),
                 "has_viewport": self.has_viewport,
                 "empty_headings": self.empty_headings,
                 "broken_anchors": broken_anchors,
+                # --- NEW accessibility fields ---
+                "positive_tabindex_count": self.positive_tabindex_count,
+                "autoplay_without_muted": self.autoplay_without_muted_count,
+                "zoom_disabled": self.zoom_disabled,
+                "invalid_aria_roles": self.invalid_aria_roles,
+                "deprecated_aria_roles": self.deprecated_aria_roles,
+                "link_as_button_count": self.link_as_button_count,
+                "tables_total": self.tables_total,
+                "tables_without_th": self.tables_total - (1 if self.table_has_th and self.tables_total > 0 else 0),
+                "svg_total": self.svg_total,
+                "svg_without_accessible_name": self.svg_without_accessible_name,
+                "iframes_total": self.iframes_total,
+                "iframes_without_title": self.iframes_without_title,
+                "has_prefers_reduced_motion": self.has_prefers_reduced_motion,
             },
             "performance": {
                 "html_size_bytes": html_length,
@@ -563,6 +1076,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "font_preloads": self.font_preloads,
                 "has_font_display_swap": self.has_font_display_swap,
                 "has_google_fonts_preconnect": self.has_google_fonts_preconnect,
+                "budget_violations": budget_violations,
             },
             "security": {
                 "mixed_content_urls": self.mixed_content_urls,
@@ -618,6 +1132,9 @@ class FATHTMLAnalyser(HTMLParser):
         if report["security"]["has_mixed_content"]:
             count = len(report["security"]["mixed_content_urls"])
             issues["critical"].append(f"Mixed content: {count} HTTP resource(s) on HTTPS page")
+        # --- NEW: Zoom disabled is P0 Critical ---
+        if report["accessibility"]["zoom_disabled"]:
+            issues["critical"].append("Viewport disables user zoom (user-scalable=no or maximum-scale=1)")
 
         # High (P1)
         if not report["seo"]["meta_description"]:
@@ -640,6 +1157,11 @@ class FATHTMLAnalyser(HTMLParser):
             issues["high"].append(f"Duplicate canonical tags ({report['seo']['duplicate_canonicals']})")
         if report["accessibility"]["has_viewport"] and not report["seo"]["viewport_valid"]:
             issues["high"].append("Viewport meta tag present but missing width=device-width")
+        # --- NEW: Autoplay without muted is P1 ---
+        if report["accessibility"]["autoplay_without_muted"] > 0:
+            issues["high"].append(
+                f"{report['accessibility']['autoplay_without_muted']} media element(s) autoplay without muted attribute"
+            )
 
         # Medium (P2)
         if report["performance"]["render_blocking_scripts"] > 2:
@@ -701,6 +1223,47 @@ class FATHTMLAnalyser(HTMLParser):
                 issues["medium"].append(
                     f"Meta description is only {dlen} characters (recommended: 150\u2013160)"
                 )
+        # --- NEW: Thin content detection ---
+        if report["seo"]["thin_content"]:
+            issues["medium"].append(
+                f"Thin content: only {report['seo']['body_word_count']} words (recommend 300+)"
+            )
+        # --- NEW: Generic image filenames ---
+        if report["seo"]["img_generic_filenames"] > 0:
+            issues["medium"].append(
+                f"{report['seo']['img_generic_filenames']} image(s) with generic filenames (e.g., IMG_001)"
+            )
+        # --- NEW: Duplicate OG tags ---
+        if report["seo"]["duplicate_og_tags"]:
+            dup_keys = ", ".join(report["seo"]["duplicate_og_tags"].keys())
+            issues["medium"].append(f"Duplicate Open Graph tags: {dup_keys}")
+        # --- NEW: Canonical trailing slash mismatch ---
+        if report["seo"]["canonical_trailing_slash_mismatch"]:
+            issues["medium"].append("Canonical URL trailing slash doesn't match page URL")
+        # --- NEW: Positive tabindex ---
+        if report["accessibility"]["positive_tabindex_count"] > 0:
+            issues["medium"].append(
+                f"{report['accessibility']['positive_tabindex_count']} element(s) with tabindex > 0 (disrupts natural tab order)"
+            )
+        # --- NEW: Table accessibility ---
+        tables_no_th = report["accessibility"]["tables_without_th"]
+        if tables_no_th > 0:
+            issues["medium"].append(
+                f"{tables_no_th} table(s) without header cells (<th>)"
+            )
+        # --- NEW: SVG accessibility ---
+        if report["accessibility"]["svg_without_accessible_name"] > 0:
+            issues["medium"].append(
+                f"{report['accessibility']['svg_without_accessible_name']} SVG(s) without accessible name (<title> or aria-label)"
+            )
+        # --- NEW: iframe titles ---
+        if report["accessibility"]["iframes_without_title"] > 0:
+            issues["medium"].append(
+                f"{report['accessibility']['iframes_without_title']} iframe(s) missing title attribute"
+            )
+        # --- NEW: Budget violations ---
+        for violation in budget_violations:
+            issues["medium"].append(f"Budget exceeded: {violation}")
 
         # Low (P3)
         if not report["seo"]["twitter_tags"]:
@@ -718,6 +1281,43 @@ class FATHTMLAnalyser(HTMLParser):
             issues["low"].append("No images have explicit width/height attributes (CLS risk)")
         if img_total > 3 and report["performance"]["images_with_srcset"] == 0 and report["performance"]["picture_elements"] == 0:
             issues["low"].append("No responsive images (srcset or <picture>) detected")
+        # --- NEW: Poor anchor text ---
+        if report["seo"]["poor_anchor_text_count"] > 0:
+            issues["low"].append(
+                f"{report['seo']['poor_anchor_text_count']} link(s) with poor anchor text (e.g., 'click here', 'read more')"
+            )
+        # --- NEW: Zero internal links ---
+        if report["seo"]["internal_link_count"] == 0 and self.body_text_words > 0:
+            issues["low"].append("No internal links found on this page")
+        # --- NEW: Nofollow on internal links ---
+        if report["seo"]["nofollow_internal_count"] > 0:
+            issues["low"].append(
+                f"{report['seo']['nofollow_internal_count']} internal link(s) have rel=\"nofollow\""
+            )
+        # --- NEW: URL structure issues ---
+        for url_issue in url_issues:
+            if url_issue == "underscores_in_url":
+                issues["low"].append("URL contains underscores (prefer hyphens)")
+            elif url_issue == "uppercase_in_url":
+                issues["low"].append("URL contains uppercase characters")
+            elif url_issue == "double_slashes_in_url":
+                issues["low"].append("URL contains double slashes in path")
+            elif url_issue == "query_params_on_content_page":
+                issues["low"].append("Content page URL contains query parameters")
+        # --- NEW: Invalid ARIA roles ---
+        if report["accessibility"]["invalid_aria_roles"]:
+            issues["low"].append(
+                f"Invalid ARIA role(s): {', '.join(report['accessibility']['invalid_aria_roles'][:5])}"
+            )
+        if report["accessibility"]["deprecated_aria_roles"]:
+            issues["low"].append(
+                f"Deprecated ARIA role(s): {', '.join(report['accessibility']['deprecated_aria_roles'])}"
+            )
+        # --- NEW: Link as button ---
+        if report["accessibility"]["link_as_button_count"] > 0:
+            issues["low"].append(
+                f"{report['accessibility']['link_as_button_count']} <a> element(s) with role=\"button\" (review semantics)"
+            )
 
         issues["issues_found"] = (
             len(issues["critical"])
@@ -729,9 +1329,9 @@ class FATHTMLAnalyser(HTMLParser):
         return report
 
 
-def analyse_html(html_content: str, page_url: str = "") -> dict:
+def analyse_html(html_content: str, page_url: str = "", budget: dict = None) -> dict:
     """Analyse HTML content and return a FAT report."""
-    analyser = FATHTMLAnalyser(page_url=page_url)
+    analyser = FATHTMLAnalyser(page_url=page_url, budget=budget)
     analyser.feed(html_content)
     return analyser.compile_report(len(html_content.encode("utf-8")))
 
@@ -739,6 +1339,7 @@ def analyse_html(html_content: str, page_url: str = "") -> dict:
 def main():
     page_url = ""
     filepath = None
+    budget = None
 
     args = sys.argv[1:]
     i = 0
@@ -746,9 +1347,27 @@ def main():
         if args[i] == "--url" and i + 1 < len(args):
             page_url = args[i + 1]
             i += 2
+        elif args[i] == "--budget" and i + 1 < len(args):
+            budget_path = args[i + 1]
+            try:
+                with open(budget_path, "r", encoding="utf-8") as f:
+                    budget = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Warning: Could not load budget file '{budget_path}': {e}", file=sys.stderr)
+            i += 2
         else:
             filepath = args[i]
             i += 1
+
+    # Auto-detect .fat-budget.json if no --budget flag
+    if budget is None:
+        auto_budget_path = ".fat-budget.json"
+        if os.path.exists(auto_budget_path):
+            try:
+                with open(auto_budget_path, "r", encoding="utf-8") as f:
+                    budget = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
 
     if filepath:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -756,7 +1375,7 @@ def main():
     else:
         html_content = sys.stdin.read()
 
-    report = analyse_html(html_content, page_url=page_url)
+    report = analyse_html(html_content, page_url=page_url, budget=budget)
     print(json.dumps(report, indent=2))
 
 

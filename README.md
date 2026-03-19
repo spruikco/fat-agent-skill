@@ -29,7 +29,7 @@ After you deploy a site, say **"run FAT agent"** and it will:
 | ♿ Accessibility | Partial | Alt text, labels, landmarks, skip links + targeted user questions |
 | 🧪 Functional Checks | 👤 User | Forms, navigation, mobile, 404 page, integrations |
 | 📝 Content & Legal | Partial | Placeholder text, privacy policy, copyright year |
-| 📊 Analytics & Tracking | ✅ | GA4, GTM, Facebook Pixel, Plausible, Hotjar |
+| 📊 Analytics & Tracking | ✅ | GA4, GTM, Facebook Pixel, Plausible, Hotjar, Fathom, Umami, Mixpanel, PostHog + 10 more |
 
 ---
 
@@ -113,13 +113,16 @@ fat-agent-skill/                          # Marketplace root
 │       │   └── fat-audit.md              # /fat-audit slash command
 │       ├── scripts/
 │       │   ├── analyse-html.py           # HTML analysis helper
-│       │   ├── calculate-score.py        # Scoring calculator (SEO, Security, A11y, FAT)
+│       │   ├── calculate-score.py        # Scoring calculator (SEO, Security, A11y, Perf, FAT)
 │       │   ├── generate-badge.py         # SVG badge generator for READMEs
-│       │   └── test_fat_agent.py         # Full test suite (201 tests)
+│       │   ├── track-history.py          # Historical audit tracking
+│       │   └── test_fat_agent.py         # Full test suite (285 tests)
 │       ├── references/
 │       │   ├── security-headers.md       # Security header reference
 │       │   ├── seo-checklist.md          # Extended SEO criteria
 │       │   ├── accessibility-guide.md    # WCAG 2.1 quick reference
+│       │   ├── performance-budgets.md   # Performance budget configuration
+│       │   ├── ci-cd-integration.md     # CI/CD integration examples
 │       │   ├── platform-fixes/           # Hosting platform config guides
 │       │   │   ├── netlify.md
 │       │   │   ├── vercel.md
@@ -253,15 +256,16 @@ Drop additional `.md` files in `plugins/fat-agent/references/` and reference the
 
 ## Contributing
 
-PRs welcome! Areas that could use help:
+PRs welcome! All roadmap items are now implemented:
 
-- [ ] More comprehensive accessibility checks
-- [ ] Performance budget configuration
-- [ ] CI/CD integration examples
-- [ ] Additional analytics provider detection
+- [x] More comprehensive accessibility checks (ARIA validation, tabindex, autoplay, zoom, tables, SVGs, iframes)
+- [x] Performance budget configuration (`.fat-budget.json` + `--budget` flag)
+- [x] CI/CD integration examples (GitHub Actions, Netlify, Vercel, GitLab CI, generic shell)
+- [x] Additional analytics provider detection (17+ new providers + 3 consent platforms)
 - [x] FAT Badge generator (SVG score badge for READMEs)
-- [ ] Historical audit tracking (compare scores over time)
-- [ ] Competitive analysis mode (audit two sites side-by-side)
+- [x] Historical audit tracking (`track-history.py` — save, show, diff, trend)
+- [x] Competitive analysis mode (side-by-side comparison in SKILL.md)
+- [x] Hardened SEO checks (thin content, anchor text, link audit, URL structure, image filenames, duplicate OG, canonical validation, CWV integration)
 
 ---
 

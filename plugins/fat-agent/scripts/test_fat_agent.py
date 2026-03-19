@@ -2261,5 +2261,706 @@ class TestBadgeEndToEnd(unittest.TestCase):
             self.assertTrue(svg.strip().endswith("</svg>"))
 
 
+# ---------------------------------------------------------------------------
+# NEW Test Fixtures — Enhanced Checks
+# ---------------------------------------------------------------------------
+
+NEW_ANALYTICS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Extended Analytics Test Page Title Here</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.usefathom.com/script.js" defer></script>
+    <script src="https://analytics.umami.is/script.js" defer></script>
+    <script src="https://cdn.mxpnl.com/libs/mixpanel.js"></script>
+    <script src="https://cdn.amplitude.com/libs/amplitude.js"></script>
+    <script src="https://app.posthog.com/static/array.js"></script>
+    <script src="https://www.clarity.ms/tag/xyz"></script>
+    <script src="https://cdn.matomo.cloud/example.matomo.cloud/matomo.js"></script>
+    <script src="https://cdn.vercel-analytics.com/v1/script.js"></script>
+    <script src="https://static.cloudflareinsights.com/beacon.min.js"></script>
+</head>
+<body>
+    <main><h1>Analytics</h1></main>
+    <script>
+        _linkedin_partner_id = "12345";
+        pintrk('init', '123');
+        rdt('init', 'a2_abc');
+        ttq.load('tiktok123');
+        snaptr('init', 'snap123');
+    </script>
+</body>
+</html>
+"""
+
+CONSENT_EXTENDED_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Consent Extended Test Page Title Here</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cmp.osano.com/AZ1234/osano.js"></script>
+    <script src="https://consent.cookiefirst.com/sites/example.com/consent.js"></script>
+</head>
+<body><main><h1>Consent</h1></main></body>
+</html>
+"""
+
+THIN_CONTENT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Thin Content Test Page Title Here Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/about">About</a></nav>
+    <main><h1>Short Page</h1><p>This page has very few words.</p></main>
+    <footer><p>Copyright 2026</p></footer>
+</body>
+</html>
+"""
+
+POOR_ANCHOR_TEXT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Anchor Text Test Page Title Here Right</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Anchor Text</h1>
+        <a href="/page1">click here</a>
+        <a href="/page2">Read More</a>
+        <a href="/page3">learn more</a>
+        <a href="/page4">View our detailed pricing plans</a>
+    </main>
+</body>
+</html>
+"""
+
+GENERIC_IMG_FILENAMES_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Filenames Test Page Title Here Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Images</h1>
+        <img src="/images/IMG_001.jpg" alt="Photo 1">
+        <img src="/images/screenshot.png" alt="Screenshot">
+        <img src="/images/blue-widget-front.webp" alt="Blue widget">
+        <img src="/images/image1.jpg" alt="Image">
+    </main>
+</body>
+</html>
+"""
+
+ACCESSIBILITY_EXTENDED_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Accessibility Extended Test Page Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+</head>
+<body>
+    <main>
+        <h1>A11y Extended</h1>
+        <div tabindex="5">Bad tabindex</div>
+        <div tabindex="10">Also bad</div>
+        <div tabindex="0">OK tabindex</div>
+        <div tabindex="-1">Negative is fine</div>
+        <video autoplay src="video.mp4"></video>
+        <audio autoplay src="audio.mp3"></audio>
+        <video autoplay muted src="muted.mp4"></video>
+        <a href="/action" role="button">Click me</a>
+        <a href="/another" role="button">Do thing</a>
+        <table><tr><td>No headers</td><td>Bad</td></tr></table>
+        <svg><rect width="100" height="100"/></svg>
+        <svg aria-label="Logo"><rect width="50" height="50"/></svg>
+        <iframe src="https://example.com/embed"></iframe>
+        <iframe src="https://example.com/video" title="Video player"></iframe>
+    </main>
+    <style>
+        @media (prefers-reduced-motion: reduce) { .animated { animation: none; } }
+    </style>
+</body>
+</html>
+"""
+
+NOFOLLOW_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nofollow Test Page Title Here Right Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Links</h1>
+        <a href="/internal1">Normal internal</a>
+        <a href="/internal2" rel="nofollow">Nofollowed internal</a>
+        <a href="https://external.com" rel="nofollow">Nofollowed external</a>
+        <a href="https://other.com">Normal external</a>
+    </main>
+</body>
+</html>
+"""
+
+DUPLICATE_OG_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Duplicate OG Test Page Title Here Right</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="First Title">
+    <meta property="og:title" content="Second Title">
+    <meta property="og:image" content="https://example.com/img1.jpg">
+    <meta property="og:image" content="https://example.com/img2.jpg">
+    <meta property="og:description" content="Only one">
+</head>
+<body><main><h1>Duplicate OG</h1></main></body>
+</html>
+"""
+
+CANONICAL_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Canonical Test Page Title Here Right Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="canonical" href="https://example.com/page/">
+</head>
+<body><main><h1>Canonical</h1></main></body>
+</html>
+"""
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Extended Analytics
+# ---------------------------------------------------------------------------
+
+
+class TestExtendedAnalytics(unittest.TestCase):
+
+    def test_fathom_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Fathom Analytics", r["analytics"]["providers"])
+
+    def test_umami_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Umami", r["analytics"]["providers"])
+
+    def test_mixpanel_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Mixpanel", r["analytics"]["providers"])
+
+    def test_amplitude_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Amplitude", r["analytics"]["providers"])
+
+    def test_posthog_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("PostHog", r["analytics"]["providers"])
+
+    def test_clarity_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Microsoft Clarity", r["analytics"]["providers"])
+
+    def test_matomo_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Matomo", r["analytics"]["providers"])
+
+    def test_vercel_analytics_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Vercel Analytics", r["analytics"]["providers"])
+
+    def test_cloudflare_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Cloudflare Web Analytics", r["analytics"]["providers"])
+
+    def test_inline_linkedin_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("LinkedIn Insight Tag", r["analytics"]["providers"])
+
+    def test_inline_pinterest_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Pinterest Tag", r["analytics"]["providers"])
+
+    def test_inline_reddit_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Reddit Pixel", r["analytics"]["providers"])
+
+    def test_inline_tiktok_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("TikTok Pixel", r["analytics"]["providers"])
+
+    def test_inline_snapchat_detected(self):
+        r = analyse_html(NEW_ANALYTICS_HTML)
+        self.assertIn("Snapchat Pixel", r["analytics"]["providers"])
+
+
+class TestExtendedConsent(unittest.TestCase):
+
+    def test_osano_detected(self):
+        r = analyse_html(CONSENT_EXTENDED_HTML)
+        self.assertIn("Osano", r["privacy"]["consent_providers"])
+
+    def test_cookiefirst_detected(self):
+        r = analyse_html(CONSENT_EXTENDED_HTML)
+        self.assertIn("CookieFirst", r["privacy"]["consent_providers"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Thin Content
+# ---------------------------------------------------------------------------
+
+
+class TestThinContent(unittest.TestCase):
+
+    def test_thin_content_detected(self):
+        r = analyse_html(THIN_CONTENT_HTML)
+        self.assertTrue(r["seo"]["thin_content"])
+        self.assertLess(r["seo"]["body_word_count"], 300)
+
+    def test_thin_content_flagged_medium(self):
+        r = analyse_html(THIN_CONTENT_HTML)
+        self.assertTrue(
+            any("Thin content" in i for i in r["summary"]["medium"])
+        )
+
+    def test_page_with_enough_content_not_thin(self):
+        """A page with 300+ body words should not be flagged as thin."""
+        words = " ".join(["word"] * 350)
+        html = f'<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><main><h1>Hi</h1><p>{words}</p></main></body></html>'
+        r = analyse_html(html)
+        self.assertFalse(r["seo"]["thin_content"])
+
+    def test_empty_page_not_thin(self):
+        """Empty page has 0 words but thin_content requires > 0 words."""
+        r = analyse_html(EMPTY_HTML)
+        self.assertFalse(r["seo"]["thin_content"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Poor Anchor Text
+# ---------------------------------------------------------------------------
+
+
+class TestPoorAnchorText(unittest.TestCase):
+
+    def test_poor_anchor_text_detected(self):
+        r = analyse_html(POOR_ANCHOR_TEXT_HTML)
+        self.assertEqual(r["seo"]["poor_anchor_text_count"], 3)
+
+    def test_poor_anchor_text_flagged_low(self):
+        r = analyse_html(POOR_ANCHOR_TEXT_HTML)
+        self.assertTrue(
+            any("poor anchor text" in i for i in r["summary"]["low"])
+        )
+
+    def test_good_anchor_text_not_flagged(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["seo"]["poor_anchor_text_count"], 0)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Generic Image Filenames
+# ---------------------------------------------------------------------------
+
+
+class TestGenericImageFilenames(unittest.TestCase):
+
+    def test_generic_filenames_detected(self):
+        r = analyse_html(GENERIC_IMG_FILENAMES_HTML)
+        self.assertEqual(r["seo"]["img_generic_filenames"], 3)
+
+    def test_generic_filenames_flagged_medium(self):
+        r = analyse_html(GENERIC_IMG_FILENAMES_HTML)
+        self.assertTrue(
+            any("generic filenames" in i for i in r["summary"]["medium"])
+        )
+
+    def test_good_filenames_not_flagged(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["seo"]["img_generic_filenames"], 0)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Extended Accessibility
+# ---------------------------------------------------------------------------
+
+
+class TestTabindex(unittest.TestCase):
+
+    def test_positive_tabindex_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertEqual(r["accessibility"]["positive_tabindex_count"], 2)
+
+    def test_positive_tabindex_flagged_medium(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("tabindex > 0" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_positive_tabindex_on_perfect(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["accessibility"]["positive_tabindex_count"], 0)
+
+
+class TestAutoplayMedia(unittest.TestCase):
+
+    def test_autoplay_without_muted_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        # video + audio without muted = 2, muted video not counted
+        self.assertEqual(r["accessibility"]["autoplay_without_muted"], 2)
+
+    def test_autoplay_flagged_high(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("autoplay without muted" in i for i in r["summary"]["high"])
+        )
+
+
+class TestZoomDisabled(unittest.TestCase):
+
+    def test_zoom_disabled_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(r["accessibility"]["zoom_disabled"])
+
+    def test_zoom_disabled_flagged_critical(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("zoom" in i.lower() for i in r["summary"]["critical"])
+        )
+
+    def test_zoom_not_disabled_on_perfect(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertFalse(r["accessibility"]["zoom_disabled"])
+
+
+class TestTableAccessibility(unittest.TestCase):
+
+    def test_table_without_th_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertEqual(r["accessibility"]["tables_total"], 1)
+        self.assertGreater(r["accessibility"]["tables_without_th"], 0)
+
+    def test_table_without_th_flagged_medium(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("table" in i.lower() and "header" in i.lower() for i in r["summary"]["medium"])
+        )
+
+
+class TestSVGAccessibility(unittest.TestCase):
+
+    def test_svg_without_accessible_name_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertEqual(r["accessibility"]["svg_total"], 2)
+        self.assertEqual(r["accessibility"]["svg_without_accessible_name"], 1)
+
+    def test_svg_without_name_flagged_medium(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("SVG" in i for i in r["summary"]["medium"])
+        )
+
+
+class TestIframeAccessibility(unittest.TestCase):
+
+    def test_iframe_without_title_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertEqual(r["accessibility"]["iframes_total"], 2)
+        self.assertEqual(r["accessibility"]["iframes_without_title"], 1)
+
+    def test_iframe_without_title_flagged_medium(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("iframe" in i for i in r["summary"]["medium"])
+        )
+
+
+class TestPrefersReducedMotion(unittest.TestCase):
+
+    def test_reduced_motion_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(r["accessibility"]["has_prefers_reduced_motion"])
+
+    def test_no_reduced_motion_on_broken(self):
+        r = analyse_html(BROKEN_HTML)
+        self.assertFalse(r["accessibility"]["has_prefers_reduced_motion"])
+
+
+class TestLinkAsButton(unittest.TestCase):
+
+    def test_link_as_button_detected(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertEqual(r["accessibility"]["link_as_button_count"], 2)
+
+    def test_link_as_button_flagged_low(self):
+        r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
+        self.assertTrue(
+            any("role=\"button\"" in i for i in r["summary"]["low"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Nofollow Audit
+# ---------------------------------------------------------------------------
+
+
+class TestNofollowAudit(unittest.TestCase):
+
+    def test_nofollow_counts(self):
+        r = analyse_html(NOFOLLOW_HTML)
+        self.assertEqual(r["seo"]["nofollow_total_count"], 2)
+        self.assertEqual(r["seo"]["nofollow_internal_count"], 1)
+
+    def test_nofollow_internal_flagged_low(self):
+        r = analyse_html(NOFOLLOW_HTML)
+        self.assertTrue(
+            any("nofollow" in i for i in r["summary"]["low"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Duplicate OG
+# ---------------------------------------------------------------------------
+
+
+class TestDuplicateOG(unittest.TestCase):
+
+    def test_duplicate_og_detected(self):
+        r = analyse_html(DUPLICATE_OG_HTML)
+        dup = r["seo"]["duplicate_og_tags"]
+        self.assertIn("og:title", dup)
+        self.assertIn("og:image", dup)
+        self.assertNotIn("og:description", dup)
+
+    def test_duplicate_og_flagged_medium(self):
+        r = analyse_html(DUPLICATE_OG_HTML)
+        self.assertTrue(
+            any("Duplicate Open Graph" in i for i in r["summary"]["medium"])
+        )
+
+    def test_no_duplicate_og_on_perfect(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["seo"]["duplicate_og_tags"], {})
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Canonical Validation
+# ---------------------------------------------------------------------------
+
+
+class TestCanonicalValidation(unittest.TestCase):
+
+    def test_canonical_url_captured(self):
+        r = analyse_html(CANONICAL_HTML)
+        self.assertEqual(r["seo"]["canonical_url"], "https://example.com/page/")
+
+    def test_self_referencing_canonical(self):
+        r = analyse_html(CANONICAL_HTML, page_url="https://example.com/page/")
+        self.assertTrue(r["seo"]["canonical_self_referencing"])
+        self.assertFalse(r["seo"]["canonical_trailing_slash_mismatch"])
+
+    def test_trailing_slash_mismatch(self):
+        r = analyse_html(CANONICAL_HTML, page_url="https://example.com/page")
+        self.assertTrue(r["seo"]["canonical_trailing_slash_mismatch"])
+
+    def test_trailing_slash_mismatch_flagged_medium(self):
+        r = analyse_html(CANONICAL_HTML, page_url="https://example.com/page")
+        self.assertTrue(
+            any("trailing slash" in i for i in r["summary"]["medium"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Performance Budgets
+# ---------------------------------------------------------------------------
+
+
+class TestPerformanceBudgets(unittest.TestCase):
+
+    def test_default_budgets_no_violations_on_perfect(self):
+        r = analyse_html(PERFECT_HTML)
+        self.assertEqual(r["performance"]["budget_violations"], [])
+
+    def test_custom_budget_flags_violations(self):
+        strict_budget = {
+            "html_kb": 0.1,
+            "render_blocking_scripts": 0,
+            "external_scripts": 1,
+        }
+        r = analyse_html(PERFORMANCE_HEAVY_HTML, budget=strict_budget)
+        violations = r["performance"]["budget_violations"]
+        self.assertGreater(len(violations), 0)
+
+    def test_budget_violations_flagged_medium(self):
+        strict_budget = {"html_kb": 0.001}
+        r = analyse_html(PERFECT_HTML, budget=strict_budget)
+        self.assertTrue(
+            any("Budget exceeded" in i for i in r["summary"]["medium"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Track History
+# ---------------------------------------------------------------------------
+
+
+track_mod = import_module("track-history")
+load_history = track_mod.load_history
+save_history = track_mod.save_history
+add_entry = track_mod.add_entry
+format_table = track_mod.format_table
+format_diff = track_mod.format_diff
+format_trend = track_mod.format_trend
+
+
+class TestTrackHistory(unittest.TestCase):
+
+    def _make_scores(self, overall=85, grade="B", seo=80, sec=90, a11y=75, perf=70, issues=5):
+        return {
+            "seo": {"score": seo},
+            "security": {"score": sec},
+            "accessibility": {"score": a11y},
+            "performance": {"score": perf},
+            "overall": {"score": overall, "grade": grade},
+            "summary": {"issues_found": issues},
+        }
+
+    def test_add_entry_creates_history(self):
+        history = {"url": "", "history": []}
+        scores = self._make_scores()
+        entry = add_entry(history, scores, url="https://example.com")
+        self.assertEqual(len(history["history"]), 1)
+        self.assertEqual(entry["grade"], "B")
+        self.assertEqual(entry["scores"]["overall"], 85)
+        self.assertEqual(history["url"], "https://example.com")
+
+    def test_add_entry_tracks_resolved(self):
+        history = {"url": "", "history": []}
+        add_entry(history, self._make_scores(issues=10))
+        entry2 = add_entry(history, self._make_scores(issues=5))
+        self.assertEqual(entry2["issues_resolved"], 5)
+
+    def test_format_table_output(self):
+        history = {"url": "https://example.com", "history": []}
+        add_entry(history, self._make_scores())
+        output = format_table(history)
+        self.assertIn("example.com", output)
+        self.assertIn("B", output)
+
+    def test_format_table_empty(self):
+        history = {"url": "", "history": []}
+        output = format_table(history)
+        self.assertIn("No audit history", output)
+
+    def test_format_diff_needs_two_entries(self):
+        history = {"url": "", "history": []}
+        add_entry(history, self._make_scores())
+        output = format_diff(history)
+        self.assertIn("at least 2", output)
+
+    def test_format_diff_shows_comparison(self):
+        history = {"url": "https://example.com", "history": []}
+        add_entry(history, self._make_scores(overall=70, grade="C"))
+        add_entry(history, self._make_scores(overall=85, grade="B"))
+        output = format_diff(history)
+        self.assertIn("example.com", output)
+
+    def test_format_trend_needs_two_entries(self):
+        history = {"url": "", "history": []}
+        add_entry(history, self._make_scores())
+        output = format_trend(history)
+        self.assertIn("at least 2", output)
+
+    def test_format_trend_shows_direction(self):
+        history = {"url": "https://example.com", "history": []}
+        add_entry(history, self._make_scores(overall=70))
+        add_entry(history, self._make_scores(overall=85))
+        output = format_trend(history)
+        self.assertIn("example.com", output)
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Internal/External Link Counts
+# ---------------------------------------------------------------------------
+
+
+class TestLinkAudit(unittest.TestCase):
+
+    def test_internal_links_counted(self):
+        r = analyse_html(POOR_ANCHOR_TEXT_HTML)
+        self.assertEqual(r["seo"]["internal_link_count"], 4)
+
+    def test_no_internal_links_flagged(self):
+        html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><main><h1>Hi</h1><p>Hello world this is a test with many words.</p></main></body></html>'
+        r = analyse_html(html)
+        self.assertTrue(
+            any("No internal links" in i for i in r["summary"]["low"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — URL Structure
+# ---------------------------------------------------------------------------
+
+
+class TestURLStructure(unittest.TestCase):
+
+    def test_underscores_flagged(self):
+        html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><h1>Hi</h1></body></html>'
+        r = analyse_html(html, page_url="https://example.com/my_page")
+        self.assertIn("underscores_in_url", r["seo"]["url_issues"])
+
+    def test_uppercase_flagged(self):
+        html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><h1>Hi</h1></body></html>'
+        r = analyse_html(html, page_url="https://example.com/MyPage")
+        self.assertIn("uppercase_in_url", r["seo"]["url_issues"])
+
+    def test_clean_url_no_issues(self):
+        html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><h1>Hi</h1></body></html>'
+        r = analyse_html(html, page_url="https://example.com/my-page")
+        self.assertEqual(r["seo"]["url_issues"], [])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — ARIA Role Validation
+# ---------------------------------------------------------------------------
+
+
+class TestARIAValidation(unittest.TestCase):
+
+    def test_invalid_role_detected(self):
+        html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><div role="notarole">X</div><main><h1>Hi</h1></main></body></html>'
+        r = analyse_html(html)
+        self.assertIn("notarole", r["accessibility"]["invalid_aria_roles"])
+
+    def test_valid_roles_not_flagged(self):
+        r = analyse_html(LANDMARKS_AND_ROLES_HTML)
+        self.assertEqual(r["accessibility"]["invalid_aria_roles"], [])
+
+    def test_deprecated_role_detected(self):
+        html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><div role="directory">X</div><main><h1>Hi</h1></main></body></html>'
+        r = analyse_html(html)
+        self.assertIn("directory", r["accessibility"]["deprecated_aria_roles"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

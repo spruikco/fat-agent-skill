@@ -7,7 +7,7 @@ Usage:
     python calculate-score.py <path-to-json-file>
     python analyse-html.py index.html | python calculate-score.py
 
-Output: JSON report with SEO, Security, Accessibility, and Overall FAT scores.
+Output: JSON report with SEO, Security, Accessibility, Performance, and Overall FAT scores.
 """
 
 import sys
@@ -75,6 +75,9 @@ def calculate_seo_score(seo: dict, performance: dict) -> dict:
             headings += 5
         else:
             headings += 2
+    # --- NEW: Thin content penalty ---
+    if seo.get("thin_content"):
+        headings = max(headings - 3, 0)
     details["headings_content"] = {"score": headings, "max": 13}
     score += headings
 
@@ -133,6 +136,10 @@ def calculate_seo_score(seo: dict, performance: dict) -> dict:
     social += min(og_present * 2, 6)
     if twitter:
         social += 4
+    # --- NEW: Penalise duplicate OG tags ---
+    duplicate_og = seo.get("duplicate_og_tags", {})
+    if duplicate_og:
+        social = max(social - 2, 0)
     details["social"] = {"score": social, "max": 10}
     score += social
 
@@ -291,6 +298,8 @@ def calculate_accessibility_score(a11y: dict) -> dict:
       Keyboard accessibility (user):    12 points — defaults to partial
       Focus visibility (user):          9 points — defaults to partial
       Contrast (user):                  9 points — defaults to partial
+
+    New signals applied as penalties/bonuses within existing categories.
     """
     score = 0
     details = {}
@@ -369,6 +378,10 @@ def calculate_accessibility_score(a11y: dict) -> dict:
 
     # User-reported scores default to partial credit (not tested)
     keyboard = a11y.get("keyboard_score", 7)
+    # --- NEW: Penalise positive tabindex within keyboard score ---
+    pos_tab = a11y.get("positive_tabindex_count", 0)
+    if pos_tab > 0:
+        keyboard = max(keyboard - min(pos_tab * 2, 4), 0)
     details["keyboard"] = {"score": keyboard, "max": 12, "note": "user-reported or default"}
     score += keyboard
 
