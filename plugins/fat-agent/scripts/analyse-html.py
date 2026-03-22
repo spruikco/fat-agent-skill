@@ -949,11 +949,21 @@ class FATHTMLAnalyser(HTMLParser):
             canonical_self_referencing = (
                 self.canonical_url.rstrip("/") == self.page_url.rstrip("/")
             )
-            # Trailing slash consistency
-            canon_has_slash = self.canonical_url.endswith("/")
-            page_has_slash = self.page_url.endswith("/")
-            if canon_has_slash != page_has_slash:
-                canonical_trailing_slash_mismatch = True
+            # Trailing slash consistency — only flag if the canonical differs
+            # from the page URL beyond just a trailing slash on the root path.
+            # Don't flag when --url was typed without slash but canonical has one
+            # (e.g., https://example.com vs https://example.com/) as these are
+            # semantically identical.
+            canon_norm = self.canonical_url.rstrip("/")
+            page_norm = self.page_url.rstrip("/")
+            if canon_norm == page_norm:
+                # Same URL, just trailing slash difference — not a real issue
+                canonical_trailing_slash_mismatch = False
+            else:
+                canon_has_slash = self.canonical_url.endswith("/")
+                page_has_slash = self.page_url.endswith("/")
+                if canon_has_slash != page_has_slash:
+                    canonical_trailing_slash_mismatch = True
 
         # --- NEW: Duplicate OG tags ---
         duplicate_og_tags = {k: v for k, v in self.og_tag_counts.items() if v > 1}
