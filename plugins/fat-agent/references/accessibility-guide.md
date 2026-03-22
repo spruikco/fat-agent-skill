@@ -108,6 +108,32 @@ These can be verified by analysing the HTML response:
 | Reduced motion | `prefers-reduced-motion` media query present in styles |
 | Form error association | Form inputs use `aria-describedby` for error messages |
 
+## Fake Affordances
+
+A "fake affordance" is a non-interactive element (`<div>`, `<span>`) styled to look
+clickable — using `cursor: pointer`, hover effects, or CSS classes like `btn`,
+`button`, `link`, or `clickable` — but that has no `href`, `onclick`, or interactive
+ARIA role (`role="button"` / `role="link"`).
+
+**Why they're harmful:**
+- Users click expecting something to happen — nothing does. This erodes trust.
+- Screen readers announce no interactive role, so keyboard/AT users can't reach them.
+- Mobile users see tap-highlight feedback with no result — a classic UX trap.
+
+**How to detect (automated):**
+- Flag `<div>` or `<span>` with classes containing `hover`, `clickable`, `pointer`,
+  `btn`, `button`, or `link`, or with inline `cursor: pointer` / `cursor:pointer`.
+- Exclude elements that already have `onclick`, `role="button"`, or `role="link"`.
+
+**How to fix:**
+- If the element should be clickable, make it a `<button>` or `<a href="...">`.
+- If it triggers JavaScript, add `role="button"`, `tabindex="0"`, and a `keydown`
+  handler for Enter/Space.
+- If the styling is purely decorative (no intended interaction), remove the pointer
+  cursor and hover effects to avoid misleading users.
+
+---
+
 ## User-Prompted Checks
 
 These require user verification:

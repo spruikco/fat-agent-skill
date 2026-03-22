@@ -237,6 +237,9 @@ class FATHTMLAnalyser(HTMLParser):
         # --- NEW: Accessibility — prefers-reduced-motion ---
         self.has_prefers_reduced_motion = False
 
+        # --- NEW: Accessibility — fake affordances (non-interactive elements styled as interactive) ---
+        self.fake_affordance_count = 0
+
         # --- NEW: Accessibility — form error association ---
         self.form_inputs_with_describedby = 0
 
@@ -339,6 +342,21 @@ class FATHTMLAnalyser(HTMLParser):
         # --- NEW: Button/link semantics ---
         if tag == "a" and attrs_dict.get("role", "").lower() == "button":
             self.link_as_button_count += 1
+
+        # --- NEW: Fake affordance detection ---
+        # Non-interactive elements styled to look clickable (div/span with hover/pointer/btn classes
+        # or cursor:pointer style) but lacking href, onclick, or appropriate ARIA roles.
+        if tag in ("div", "span"):
+            has_onclick = "onclick" in attrs_dict
+            has_role_interactive = role.lower().strip() in ("button", "link") if role else False
+            if not has_onclick and not has_role_interactive:
+                classes = attrs_dict.get("class", "").lower()
+                style = attrs_dict.get("style", "").lower()
+                interactive_class_keywords = ("hover", "clickable", "pointer", "btn", "button", "link")
+                has_interactive_class = any(kw in classes for kw in interactive_class_keywords)
+                has_pointer_style = "cursor:pointer" in style.replace(" ", "") or "cursor: pointer" in style
+                if has_interactive_class or has_pointer_style:
+                    self.fake_affordance_count += 1
 
         if tag == "head":
             self.in_head = True
@@ -1051,6 +1069,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "iframes_total": self.iframes_total,
                 "iframes_without_title": self.iframes_without_title,
                 "has_prefers_reduced_motion": self.has_prefers_reduced_motion,
+                "fake_affordance_count": self.fake_affordance_count,
             },
             "performance": {
                 "html_size_bytes": html_length,
@@ -1260,6 +1279,11 @@ class FATHTMLAnalyser(HTMLParser):
         if report["accessibility"]["iframes_without_title"] > 0:
             issues["medium"].append(
                 f"{report['accessibility']['iframes_without_title']} iframe(s) missing title attribute"
+            )
+        # --- NEW: Fake affordances ---
+        if report["accessibility"]["fake_affordance_count"] > 0:
+            issues["medium"].append(
+                f"{report['accessibility']['fake_affordance_count']} non-interactive element(s) styled to look clickable (fake affordances)"
             )
         # --- NEW: Budget violations ---
         for violation in budget_violations:

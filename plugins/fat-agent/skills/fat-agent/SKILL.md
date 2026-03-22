@@ -187,6 +187,7 @@ From the HTML, check:
 - **iframe titles** — Detect `<iframe>` without `title` attribute
 - **Form error association** — Check for `aria-describedby` / `aria-errormessage` usage
 - **Motion preference** — Detect `prefers-reduced-motion` in inline styles/media queries
+- **Fake affordance detection** — Detect non-interactive elements (`<div>`, `<span>`) with interactive styling (hover effects, cursor:pointer, button/link CSS classes) that lack `href`, `onclick`, or appropriate ARIA roles. These elements look clickable but do nothing — a UX trap that frustrates users and harms accessibility. Flag as P1 High.
 
 Ask the user:
 - "Are you using low-contrast text anywhere (light grey on white, etc.)?"
@@ -206,6 +207,7 @@ These can't be automated — ask the user to verify:
 - [ ] Any third-party integrations are functioning (analytics, chat widgets, etc.)
 - [ ] 404 page is set up and styled
 - [ ] Cookies/GDPR banner appears if required for their region
+- [ ] All elements that look clickable are actually clickable (no fake affordances)
 
 Present these as a checklist with the ask_user_input tool, grouped into batches
 of 3-4 so it's not overwhelming.
