@@ -119,14 +119,21 @@ Ask the user:
 
 **SPA / Client-Side Rendering Caveat:**
 Modern frameworks (Next.js, Nuxt, React, Angular, Svelte, Astro) often render
-headings and other semantic elements client-side after hydration. The
-`analyse-html.py` script detects common SPA indicators (`id="__next"`,
-`__NEXT_DATA__`, `data-reactroot`, etc.) and downgrades a missing `<h1>` from
-P0 Critical to P1 High when a framework is detected. Component libraries like
-Framer Motion (`<motion.h1>`) and styled-components also wrap native elements
-in ways the HTML parser cannot see. When an SPA is detected, recommend the user
-verify headings in DevTools or using the browser automation tools rather than
-treating a missing `<h1>` as a hard failure.
+content client-side after hydration. The `analyse-html.py` script detects common
+SPA indicators and automatically downgrades several checks when a framework is
+detected:
+- **Missing `<h1>`**: Downgraded from P0 Critical to P1 High
+- **Skip navigation**: Downgraded from P2 Medium to P3 Low
+- **SVG accessibility**: Downgraded from P2 Medium to P3 Low
+- **Poor anchor text**: Annotated as possibly client-rendered
+
+Additionally, the script cannot see HTTP response headers from static HTML files.
+Use `--fetch --url <url>` to make a live HTTP request and score security headers
+(HSTS, CSP, X-Content-Type-Options, etc.). Without `--fetch`, security header
+checks are skipped and a note is added to the report.
+
+When an SPA is detected, recommend the user verify in DevTools or using browser
+automation tools rather than treating server-HTML-only findings as hard failures.
 
 ### 1.3 — Performance Indicators
 From the HTML response, check:

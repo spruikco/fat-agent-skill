@@ -7,6 +7,7 @@ Usage:
     python analyse-html.py <path-to-html-file>
     python analyse-html.py --url <url>  (requires html content piped in)
     python analyse-html.py --budget .fat-budget.json page.html
+    python analyse-html.py --fetch --url <url> page.html  (fetches HTTP headers + analyses HTML)
 
 Output: JSON report of findings.
 """
@@ -15,6 +16,8 @@ import sys
 import json
 import re
 import os
+import urllib.request
+import urllib.error
 from html.parser import HTMLParser
 from collections import defaultdict
 
@@ -242,6 +245,9 @@ class FATHTMLAnalyser(HTMLParser):
 
         # --- NEW: Accessibility — form error association ---
         self.form_inputs_with_describedby = 0
+
+        # HTTP response headers (populated when --fetch is used)
+        self.response_headers = {}
 
     def _check_mixed_content(self, url):
         """Flag http:// URLs when page is served over HTTPS."""
@@ -1102,6 +1108,13 @@ class FATHTMLAnalyser(HTMLParser):
                 "has_mixed_content": len(self.mixed_content_urls) > 0,
                 "external_links_total": self.external_links_total,
                 "external_links_without_noopener": self.external_links_without_noopener,
+                "response_headers_available": len(self.response_headers) > 0,
+                "has_hsts": "strict-transport-security" in self.response_headers,
+                "has_csp": "content-security-policy" in self.response_headers,
+                "has_x_content_type_options": "x-content-type-options" in self.response_headers,
+                "has_x_frame_options": "x-frame-options" in self.response_headers,
+                "has_referrer_policy": "referrer-policy" in self.response_headers,
+                "has_permissions_policy": "permissions-policy" in self.response_headers,
             },
             "pwa": {
                 "has_manifest": self.has_manifest,
@@ -1151,6 +1164,26 @@ class FATHTMLAnalyser(HTMLParser):
         if report["security"]["has_mixed_content"]:
             count = len(report["security"]["mixed_content_urls"])
             issues["critical"].append(f"Mixed content: {count} HTTP resource(s) on HTTPS page")
+        # Security headers (only when response headers are available)
+        if report["security"]["response_headers_available"]:
+            missing_headers = []
+            if not report["security"]["has_hsts"]:
+                missing_headers.append("Strict-Transport-Security")
+            if not report["security"]["has_csp"]:
+                missing_headers.append("Content-Security-Policy")
+            if not report["security"]["has_x_content_type_options"]:
+                missing_headers.append("X-Content-Type-Options")
+            if not report["security"]["has_x_frame_options"]:
+                missing_headers.append("X-Frame-Options")
+            if not report["security"]["has_referrer_policy"]:
+                missing_headers.append("Referrer-Policy")
+            if not report["security"]["has_permissions_policy"]:
+                missing_headers.append("Permissions-Policy")
+            if missing_headers:
+                for h in missing_headers:
+                    issues["high"].append(f"Missing security header: {h}")
+        else:
+            issues["low"].append("Response headers not available — run with --fetch --url <url> to check security headers")
         # --- NEW: Zoom disabled is P0 Critical ---
         if report["accessibility"]["zoom_disabled"]:
             issues["critical"].append("Viewport disables user zoom (user-scalable=no or maximum-scale=1)")
@@ -1194,7 +1227,14 @@ class FATHTMLAnalyser(HTMLParser):
         if not report["seo"]["has_favicon"]:
             issues["medium"].append("No favicon detected")
         if not report["accessibility"]["has_skip_link"]:
-            issues["medium"].append("No skip navigation link")
+            if report["seo"]["spa_detected"]:
+                frameworks = ", ".join(report["seo"]["spa_indicators"])
+                issues["low"].append(
+                    f"No skip navigation link in server-rendered HTML ({frameworks} detected"
+                    " — may render client-side; verify in browser)"
+                )
+            else:
+                issues["medium"].append("No skip navigation link")
         if report["content"]["has_placeholder_text"]:
             issues["medium"].append("Placeholder/Lorem Ipsum text detected")
         if not report["seo"]["has_charset"]:
@@ -1272,9 +1312,16 @@ class FATHTMLAnalyser(HTMLParser):
             )
         # --- NEW: SVG accessibility ---
         if report["accessibility"]["svg_without_accessible_name"] > 0:
-            issues["medium"].append(
-                f"{report['accessibility']['svg_without_accessible_name']} SVG(s) without accessible name (<title> or aria-label)"
-            )
+            if report["seo"]["spa_detected"]:
+                frameworks = ", ".join(report["seo"]["spa_indicators"])
+                issues["low"].append(
+                    f"{report['accessibility']['svg_without_accessible_name']} SVG(s) without accessible name in server HTML ({frameworks} detected"
+                    " — aria-hidden may render client-side; verify in browser)"
+                )
+            else:
+                issues["medium"].append(
+                    f"{report['accessibility']['svg_without_accessible_name']} SVG(s) without accessible name (<title> or aria-label)"
+                )
         # --- NEW: iframe titles ---
         if report["accessibility"]["iframes_without_title"] > 0:
             issues["medium"].append(
@@ -1307,9 +1354,16 @@ class FATHTMLAnalyser(HTMLParser):
             issues["low"].append("No responsive images (srcset or <picture>) detected")
         # --- NEW: Poor anchor text ---
         if report["seo"]["poor_anchor_text_count"] > 0:
-            issues["low"].append(
-                f"{report['seo']['poor_anchor_text_count']} link(s) with poor anchor text (e.g., 'click here', 'read more')"
-            )
+            if report["seo"]["spa_detected"]:
+                frameworks = ", ".join(report["seo"]["spa_indicators"])
+                issues["low"].append(
+                    f"{report['seo']['poor_anchor_text_count']} link(s) with poor anchor text in server HTML ({frameworks} detected"
+                    " — may differ after hydration; verify in browser)"
+                )
+            else:
+                issues["low"].append(
+                    f"{report['seo']['poor_anchor_text_count']} link(s) with poor anchor text (e.g., 'click here', 'read more')"
+                )
         # --- NEW: Zero internal links ---
         if report["seo"]["internal_link_count"] == 0 and self.body_text_words > 0:
             issues["low"].append("No internal links found on this page")
@@ -1353,9 +1407,10 @@ class FATHTMLAnalyser(HTMLParser):
         return report
 
 
-def analyse_html(html_content: str, page_url: str = "", budget: dict = None) -> dict:
+def analyse_html(html_content: str, page_url: str = "", budget: dict = None, response_headers: dict = None) -> dict:
     """Analyse HTML content and return a FAT report."""
     analyser = FATHTMLAnalyser(page_url=page_url, budget=budget)
+    analyser.response_headers = response_headers or {}
     analyser.feed(html_content)
     return analyser.compile_report(len(html_content.encode("utf-8")))
 
@@ -1364,6 +1419,7 @@ def main():
     page_url = ""
     filepath = None
     budget = None
+    fetch_headers = False
 
     args = sys.argv[1:]
     i = 0
@@ -1379,6 +1435,9 @@ def main():
             except (FileNotFoundError, json.JSONDecodeError) as e:
                 print(f"Warning: Could not load budget file '{budget_path}': {e}", file=sys.stderr)
             i += 2
+        elif args[i] == "--fetch":
+            fetch_headers = True
+            i += 1
         else:
             filepath = args[i]
             i += 1
@@ -1399,7 +1458,17 @@ def main():
     else:
         html_content = sys.stdin.read()
 
-    report = analyse_html(html_content, page_url=page_url, budget=budget)
+    response_headers = {}
+    if fetch_headers and page_url:
+        try:
+            req = urllib.request.Request(page_url, method='HEAD')
+            req.add_header('User-Agent', 'FAT-Agent/1.0')
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                response_headers = {k.lower(): v for k, v in resp.getheaders()}
+        except Exception as e:
+            print(f"Warning: Could not fetch headers from '{page_url}': {e}", file=sys.stderr)
+
+    report = analyse_html(html_content, page_url=page_url, budget=budget, response_headers=response_headers)
     print(json.dumps(report, indent=2))
 
 
