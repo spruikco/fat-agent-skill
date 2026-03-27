@@ -362,12 +362,13 @@ class FATHTMLAnalyser(HTMLParser):
             if not has_onclick and not has_role_interactive and not has_interactive_ancestor:
                 classes = attrs_dict.get("class", "").lower()
                 style = attrs_dict.get("style", "").lower()
-                interactive_class_keywords = ("clickable", "pointer", "btn", "button")
+                interactive_class_keywords = ("clickable", "cursor-pointer", "btn", "button")
                 has_interactive_class = any(kw in classes for kw in interactive_class_keywords)
+                # Exclude pointer-events-none — it prevents interaction, not a fake affordance
+                if "pointer-events-none" in classes or "pointer-events: none" in style:
+                    has_interactive_class = False
                 has_pointer_style = "cursor:pointer" in style.replace(" ", "") or "cursor: pointer" in style
-                # Tailwind group-hover / hover: classes inside links are not fake affordances
-                has_only_hover = not has_interactive_class and not has_pointer_style
-                if not has_only_hover and (has_interactive_class or has_pointer_style):
+                if has_interactive_class or has_pointer_style:
                     self.fake_affordance_count += 1
 
         if tag == "head":
@@ -417,6 +418,9 @@ class FATHTMLAnalyser(HTMLParser):
             if src:
                 src_lower = src.lower().split("?")[0]  # strip query params
                 if src_lower.endswith(".webp") or src_lower.endswith(".avif"):
+                    self.img_modern_format += 1
+                # Next.js /_next/image serves AVIF/WebP via content negotiation
+                elif "/_next/image" in src.lower():
                     self.img_modern_format += 1
                 self._check_mixed_content(src)
                 # --- NEW: Generic image filename detection ---
