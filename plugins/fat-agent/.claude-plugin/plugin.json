@@ -1,6 +1,6 @@
 {
   "name": "fat-agent",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "FAT Agent (Fix, Audit, Test) — a post-launch quality assurance skill that audits deployed websites for SEO, security, accessibility, performance, and content issues.",
   "author": "Spruik Co",
   "license": "MIT",

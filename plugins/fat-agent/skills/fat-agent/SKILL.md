@@ -341,7 +341,9 @@ Present findings grouped by priority, with each item containing:
 > ```
 > **Effort:** ⚡ 5 min
 
-After presenting the report, ask: "Want me to help fix any of these now? I can
+After presenting the report in the chat, ALWAYS generate Word (.docx) and
+PowerPoint (.pptx) reports using the Report & Chart Generation pipeline below.
+Then ask: "Want me to help fix any of these now? I can
 generate the code changes for the quick wins."
 
 ---
@@ -358,6 +360,8 @@ After fixes are applied and redeployed:
    > resolved. Here's your final scorecard."
 
 ### Final Scorecard
+nAfter presenting the final scorecard, regenerate the Word and PowerPoint reports
+with updated scores (re-run the Report & Chart Generation pipeline).
 Present a summary showing:
 - Total issues found → Total resolved
 - Breakdown by priority
@@ -514,101 +518,145 @@ Load the relevant file based on the tech stack from Phase 0:
 
 ## Report & Chart Generation
 
-After completing Phase 2 (FIX report), offer to generate professional reports:
+**IMPORTANT:** After completing Phase 2 (FIX report), ALWAYS generate Word and
+PowerPoint reports. Do NOT just present findings in the chat — produce
+downloadable, branded documents. This is a core deliverable of every FAT audit.
 
-> "Would you like me to generate a Word report and PowerPoint presentation
-> with your audit findings?"
+### Branding
 
-If yes, use the report generation pipeline:
+The FAT Agent brand image is bundled at `assets/fat-agent-brand.png`. **Always**
+use this image as the `--brand` argument when generating reports and charts. It
+appears on:
+- Word report cover page (large, centred)
+- Word report footer (small)
+- PowerPoint title slide (large, centred)
+- PowerPoint header bar on every slide (small, left-aligned)
+- PowerPoint closing slide (large, centred)
 
-### Chart Generation
-
-Generate data visualisations from the audit scores and optional SEMrush data:
-
-```bash
-# Generate all charts from scored audit data
-python scripts/analyse-html.py page.html | python scripts/calculate-score.py | \
-    python scripts/generate-charts.py --output-dir ./charts
-
-# With SEMrush data for traffic/keyword charts
-python scripts/generate-charts.py --scores scores.json --semrush semrush.json --output-dir ./charts
-
-# Specific charts only
-python scripts/generate-charts.py --scores scores.json --charts fat-scores,pagespeed
+Resolve the path relative to the plugin directory. For example:
+```python
+import os
+PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BRAND_IMAGE = os.path.join(PLUGIN_DIR, 'assets', 'fat-agent-brand.png')
 ```
 
-Available charts:
-- `chart_fat_scores.png` — FAT score bars + issues priority donut
-- `chart_pagespeed.png` — Mobile vs Desktop PageSpeed comparison
-- `chart_traffic_trend.png` — Organic traffic over time (requires SEMrush data)
-- `chart_keywords_trend.png` — Keywords trend + SERP position distribution (requires SEMrush data)
-- `chart_top_keywords.png` — Top keywords by search volume (requires SEMrush data)
-- `chart_overview.png` — Domain metrics dashboard (requires SEMrush data)
+### Workflow
 
-**Dependencies:** `pip install matplotlib` (Pillow optional for brand images)
+After Phase 2 findings are compiled:
 
-### Report Generation
+1. **Install dependencies** (if not already available):
+   ```bash
+   pip install matplotlib python-docx python-pptx Pillow
+   ```
 
-Generate branded Word (.docx) and PowerPoint (.pptx) reports:
+2. **Save the scored JSON** to a temp file:
+   ```bash
+   python scripts/analyse-html.py --headers headers.json page.html | \
+       python scripts/calculate-score.py > /tmp/scores.json
+   ```
 
-```bash
-# Generate both reports with charts and branding
-python scripts/generate-report.py --scores scores.json --url example.com \
-    --charts-dir ./charts --brand logo.png --output-dir ./reports
+3. **Generate charts** from the scored data (and optional SEMrush data):
+   ```bash
+   python scripts/generate-charts.py \
+       --scores /tmp/scores.json \
+       --semrush /tmp/semrush.json \
+       --output-dir /tmp/charts \
+       --font "Plus Jakarta Sans"
+   ```
 
-# With SEMrush data
-python scripts/generate-report.py --scores scores.json --semrush semrush.json \
-    --url example.com --charts-dir ./charts --output-dir ./reports
+4. **Generate reports** with branding and embedded charts:
+   ```bash
+   python scripts/generate-report.py \
+       --scores /tmp/scores.json \
+       --semrush /tmp/semrush.json \
+       --url example.com \
+       --charts-dir /tmp/charts \
+       --brand assets/fat-agent-brand.png \
+       --output-dir ./reports \
+       --font "Plus Jakarta Sans"
+   ```
 
-# Word only
-python scripts/generate-report.py --scores scores.json --format docx
-```
+5. **Tell the user** where the reports are saved and offer to open them.
 
-**Dependencies:** `pip install python-docx python-pptx`
+### Available Charts
 
-The Word report includes:
-- Branded cover page with logo
-- Scoring summary table
-- Complete findings matrix (prioritised P0–P3)
-- SEO score breakdown (8 sub-categories)
-- SEMrush domain intelligence (if data provided)
-- Embedded chart visualisations
-- Professional formatting with Plus Jakarta Sans font
+| Chart | File | Data Source |
+|---|---|---|
+| FAT score bars + issues donut | `chart_fat_scores.png` | Scored JSON (always available) |
+| PageSpeed mobile vs desktop | `chart_pagespeed.png` | Scored JSON + PageSpeed data |
+| Organic traffic over time | `chart_traffic_trend.png` | SEMrush data (if provided) |
+| Keywords trend + SERP distribution | `chart_keywords_trend.png` | SEMrush data (if provided) |
+| Top keywords by volume | `chart_top_keywords.png` | SEMrush data (if provided) |
+| Domain metrics dashboard | `chart_overview.png` | SEMrush data (if provided) |
 
-The PowerPoint includes:
-- Title slide with branding
-- Executive summary with score cards
-- Chart slides (auto-generated for each available chart image)
-- Findings overview
-- Closing slide
+Charts that require SEMrush data are automatically skipped if no `--semrush`
+file is provided. The `chart_fat_scores.png` chart is **always** generated.
 
 ### SEMrush Data Collection
 
-When the user requests SEMrush data, use browser automation to:
-1. Navigate to `semrush.com/analytics/overview/?q={domain}&searchType=domain`
-2. Extract domain metrics (authority score, traffic, keywords, backlinks)
-3. Navigate to organic positions page for keyword data
-4. Collect the data into a JSON structure matching the SEMrush data format
-   documented in `scripts/generate-charts.py`
+When browser automation tools are available, collect SEMrush data by:
 
-Save the collected data as a JSON file for the chart and report generators.
+1. Navigate to `semrush.com/analytics/overview/?q={domain}&searchType=domain`
+2. Switch to the target country (e.g., AU for Australian sites)
+3. Extract: authority score, organic traffic, keywords, referring domains, backlinks
+4. Navigate to organic positions page for keyword ranking data
+5. Save the collected data as a JSON file matching the format documented in
+   the `generate-charts.py` docstring
+
+If browser automation is not available, skip SEMrush charts — the report will
+still include the FAT score chart and all audit findings tables.
+
+### Report Contents
+
+**Word report (.docx) includes:**
+- Branded cover page with FAT Agent logo
+- Scoring summary table (all categories with grades)
+- Complete findings matrix (prioritised P0–P3 with fix suggestions)
+- SEO score breakdown (8 sub-categories from calculate-score.py)
+- SEMrush domain intelligence section (if data provided)
+- All available chart images embedded with captions
+- Recommended action plan (phased)
+- Branded footer
+
+**PowerPoint (.pptx) includes:**
+- Title slide with FAT Agent branding
+- Executive summary with colour-coded score cards
+- One slide per available chart (auto-generated)
+- Key findings with priority-coloured bullets
+- Closing slide with branding
+
+### Font
+
+Use **Plus Jakarta Sans** as the default font. Pass `--font "Plus Jakarta Sans"`
+to both `generate-charts.py` and `generate-report.py`. If the font is not
+installed on the system, the scripts fall back to Calibri, then system sans-serif.
 
 ### Full Pipeline Example
 
 ```bash
-# 1. Analyse the page
-python scripts/analyse-html.py --headers headers.json page.html > analysis.json
+# 1. Fetch the page and save headers
+curl -sI https://example.com > /tmp/headers.txt
+curl -sL https://example.com -o /tmp/page.html
 
-# 2. Calculate scores
-cat analysis.json | python scripts/calculate-score.py > scores.json
+# 2. Analyse and score
+python scripts/analyse-html.py --headers /tmp/headers.json /tmp/page.html | \
+    python scripts/calculate-score.py > /tmp/scores.json
 
 # 3. Generate charts (with optional SEMrush data)
-python scripts/generate-charts.py --scores scores.json --semrush semrush.json --output-dir ./charts
+python scripts/generate-charts.py \
+    --scores /tmp/scores.json \
+    --semrush /tmp/semrush.json \
+    --output-dir /tmp/charts
 
-# 4. Generate reports
-python scripts/generate-report.py --scores scores.json --semrush semrush.json \
-    --url example.com --charts-dir ./charts --brand logo.png --output-dir ./reports
+# 4. Generate branded reports
+python scripts/generate-report.py \
+    --scores /tmp/scores.json \
+    --semrush /tmp/semrush.json \
+    --url example.com \
+    --charts-dir /tmp/charts \
+    --brand assets/fat-agent-brand.png \
+    --output-dir ./reports
 
-# 5. Generate badge (existing)
-cat scores.json | python scripts/generate-badge.py --image --output fat-badge.svg
+# 5. Generate badge (for README)
+cat /tmp/scores.json | python scripts/generate-badge.py --image --output fat-badge.svg
 ```
