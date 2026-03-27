@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "fat-agent-marketplace",
   "description": "Marketplace for the FAT Agent plugin — a post-launch QA audit skill for Claude Code.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "owner": {
     "name": "Spruik Co",
     "url": "https://github.com/spruikco"
