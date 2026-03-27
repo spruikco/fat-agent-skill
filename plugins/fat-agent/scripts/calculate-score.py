@@ -574,8 +574,27 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     # Merge image data into SEO for the scorer
     seo_input = {**seo, "img_total": a11y.get("img_total", 0), "img_missing_alt": a11y.get("img_missing_alt", 0)}
 
+    # If analyse-html.py was run with --fetch, it stores boolean flags for each
+    # security header (has_hsts, has_csp, etc.) but calculate_security_score needs
+    # actual header key-value pairs.  When no separate headers dict is provided,
+    # reconstruct a synthetic one from the boolean flags so the scorer can work.
+    effective_headers = headers
+    if not effective_headers and html_security.get("response_headers_available"):
+        effective_headers = {}
+        flag_to_header = {
+            "has_hsts": ("strict-transport-security", "max-age=63072000; includeSubDomains; preload"),
+            "has_csp": ("content-security-policy", "default-src 'self'"),
+            "has_x_content_type_options": ("x-content-type-options", "nosniff"),
+            "has_x_frame_options": ("x-frame-options", "SAMEORIGIN"),
+            "has_referrer_policy": ("referrer-policy", "strict-origin-when-cross-origin"),
+            "has_permissions_policy": ("permissions-policy", "camera=()"),
+        }
+        for flag, (header_name, placeholder_value) in flag_to_header.items():
+            if html_security.get(flag):
+                effective_headers[header_name] = placeholder_value
+
     seo_result = calculate_seo_score(seo_input, performance)
-    security_result = calculate_security_score(headers or {}, html_security)
+    security_result = calculate_security_score(effective_headers or {}, html_security)
     a11y_result = calculate_accessibility_score(a11y)
     perf_result = calculate_performance_score(performance)
     fat_result = calculate_fat_score(

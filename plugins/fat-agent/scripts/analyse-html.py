@@ -352,16 +352,22 @@ class FATHTMLAnalyser(HTMLParser):
         # --- NEW: Fake affordance detection ---
         # Non-interactive elements styled to look clickable (div/span with hover/pointer/btn classes
         # or cursor:pointer style) but lacking href, onclick, or appropriate ARIA roles.
+        # Skip elements that are children of interactive elements (a, button, label, [role=button]).
         if tag in ("div", "span"):
             has_onclick = "onclick" in attrs_dict
             has_role_interactive = role.lower().strip() in ("button", "link") if role else False
-            if not has_onclick and not has_role_interactive:
+            # Check if any ancestor is an interactive element
+            interactive_ancestors = {"a", "button", "label", "summary", "details"}
+            has_interactive_ancestor = any(t in interactive_ancestors for t in self.tag_stack)
+            if not has_onclick and not has_role_interactive and not has_interactive_ancestor:
                 classes = attrs_dict.get("class", "").lower()
                 style = attrs_dict.get("style", "").lower()
-                interactive_class_keywords = ("hover", "clickable", "pointer", "btn", "button", "link")
+                interactive_class_keywords = ("clickable", "pointer", "btn", "button")
                 has_interactive_class = any(kw in classes for kw in interactive_class_keywords)
                 has_pointer_style = "cursor:pointer" in style.replace(" ", "") or "cursor: pointer" in style
-                if has_interactive_class or has_pointer_style:
+                # Tailwind group-hover / hover: classes inside links are not fake affordances
+                has_only_hover = not has_interactive_class and not has_pointer_style
+                if not has_only_hover and (has_interactive_class or has_pointer_style):
                     self.fake_affordance_count += 1
 
         if tag == "head":
