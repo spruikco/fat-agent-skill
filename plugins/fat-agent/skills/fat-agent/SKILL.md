@@ -484,6 +484,8 @@ For extended check details, see:
 - `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
 - `scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
 - `scripts/generate-badge.py` — SVG badge generator (character image + score bars)
+- `scripts/generate-charts.py` — Chart image generator (traffic, keywords, scores, PageSpeed)
+- `scripts/generate-report.py` — Word + PowerPoint report generator (branded, with charts)
 - `scripts/track-history.py` — Historical audit tracker (read/write `.fat-history.json`)
 - `references/performance-budgets.md` — Performance budget configuration guide
 - `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
@@ -507,3 +509,106 @@ Load the relevant file based on the tech stack from Phase 0:
 - `references/framework-fixes/gatsby.md` — Gatsby (Head API, gatsby-plugin-image)
 - `references/framework-fixes/wordpress.md` — WordPress themes (functions.php, hooks)
 - `references/framework-fixes/static-html.md` — Static HTML/CSS/JS (no framework)
+
+---
+
+## Report & Chart Generation
+
+After completing Phase 2 (FIX report), offer to generate professional reports:
+
+> "Would you like me to generate a Word report and PowerPoint presentation
+> with your audit findings?"
+
+If yes, use the report generation pipeline:
+
+### Chart Generation
+
+Generate data visualisations from the audit scores and optional SEMrush data:
+
+```bash
+# Generate all charts from scored audit data
+python scripts/analyse-html.py page.html | python scripts/calculate-score.py | \
+    python scripts/generate-charts.py --output-dir ./charts
+
+# With SEMrush data for traffic/keyword charts
+python scripts/generate-charts.py --scores scores.json --semrush semrush.json --output-dir ./charts
+
+# Specific charts only
+python scripts/generate-charts.py --scores scores.json --charts fat-scores,pagespeed
+```
+
+Available charts:
+- `chart_fat_scores.png` — FAT score bars + issues priority donut
+- `chart_pagespeed.png` — Mobile vs Desktop PageSpeed comparison
+- `chart_traffic_trend.png` — Organic traffic over time (requires SEMrush data)
+- `chart_keywords_trend.png` — Keywords trend + SERP position distribution (requires SEMrush data)
+- `chart_top_keywords.png` — Top keywords by search volume (requires SEMrush data)
+- `chart_overview.png` — Domain metrics dashboard (requires SEMrush data)
+
+**Dependencies:** `pip install matplotlib` (Pillow optional for brand images)
+
+### Report Generation
+
+Generate branded Word (.docx) and PowerPoint (.pptx) reports:
+
+```bash
+# Generate both reports with charts and branding
+python scripts/generate-report.py --scores scores.json --url example.com \
+    --charts-dir ./charts --brand logo.png --output-dir ./reports
+
+# With SEMrush data
+python scripts/generate-report.py --scores scores.json --semrush semrush.json \
+    --url example.com --charts-dir ./charts --output-dir ./reports
+
+# Word only
+python scripts/generate-report.py --scores scores.json --format docx
+```
+
+**Dependencies:** `pip install python-docx python-pptx`
+
+The Word report includes:
+- Branded cover page with logo
+- Scoring summary table
+- Complete findings matrix (prioritised P0–P3)
+- SEO score breakdown (8 sub-categories)
+- SEMrush domain intelligence (if data provided)
+- Embedded chart visualisations
+- Professional formatting with Plus Jakarta Sans font
+
+The PowerPoint includes:
+- Title slide with branding
+- Executive summary with score cards
+- Chart slides (auto-generated for each available chart image)
+- Findings overview
+- Closing slide
+
+### SEMrush Data Collection
+
+When the user requests SEMrush data, use browser automation to:
+1. Navigate to `semrush.com/analytics/overview/?q={domain}&searchType=domain`
+2. Extract domain metrics (authority score, traffic, keywords, backlinks)
+3. Navigate to organic positions page for keyword data
+4. Collect the data into a JSON structure matching the SEMrush data format
+   documented in `scripts/generate-charts.py`
+
+Save the collected data as a JSON file for the chart and report generators.
+
+### Full Pipeline Example
+
+```bash
+# 1. Analyse the page
+python scripts/analyse-html.py --headers headers.json page.html > analysis.json
+
+# 2. Calculate scores
+cat analysis.json | python scripts/calculate-score.py > scores.json
+
+# 3. Generate charts (with optional SEMrush data)
+python scripts/generate-charts.py --scores scores.json --semrush semrush.json --output-dir ./charts
+
+# 4. Generate reports
+python scripts/generate-report.py --scores scores.json --semrush semrush.json \
+    --url example.com --charts-dir ./charts --brand logo.png --output-dir ./reports
+
+# 5. Generate badge (existing)
+cat scores.json | python scripts/generate-badge.py --image --output fat-badge.svg
+```
