@@ -308,6 +308,40 @@ or not listed, run the Generic checks.
 - Check custom domain is properly configured (no CNAME/A record issues)
 - Check that HTTP redirects to HTTPS
 
+### 1.10 — Multi-Page Batch Audit
+
+When auditing a site with multiple key pages (homepage, product pages, about, contact),
+use batch mode to analyse them all in one pass:
+
+```bash
+# Create a file with one URL per line
+echo "https://example.com/" > urls.txt
+echo "https://example.com/about" >> urls.txt
+echo "https://example.com/products" >> urls.txt
+
+# Run batch analysis
+python scripts/analyse-html.py --batch urls.txt
+```
+
+The output is an aggregate JSON with `pages_tested`, `pages_ok`, `pages_failed`, and
+a `results` array containing the full analysis report for each URL. Use this to
+identify site-wide patterns (e.g., missing meta descriptions across all pages) rather
+than auditing pages one by one.
+
+### 1.11 — Broken URL & Redirect Verification
+
+After collecting external URLs from SEMrush backlink data or sitemap entries, verify
+they resolve correctly:
+
+```bash
+# Create a file with URLs to check (one per line or JSON array)
+python scripts/analyse-html.py --check-urls urls.txt
+```
+
+The output is a JSON list of `{url, status, final_url, redirected}` for each URL.
+Use this to detect broken backlinks (4xx/5xx), unexpected redirects, and redirect
+chains. Flag any 4xx URLs as broken links that need fixing or redirect rules.
+
 ---
 
 ## Phase 2 — FIX
@@ -605,6 +639,15 @@ When browser automation tools are available, collect SEMrush data by:
 
 If browser automation is not available, skip SEMrush charts — the report will
 still include the FAT score chart and all audit findings tables.
+
+**Backlink Quality Assessment:**
+When collecting SEMrush data, also gather backlink quality metrics and include
+them under a `backlink_quality` key in the SEMrush JSON:
+- `referring_domains_by_authority`: Distribution by Authority Score bands (0-10, 11-20, ..., 91-100). Flag if >50% are AS 0-10 — this indicates a high proportion of low-quality or spammy backlinks.
+- `referring_domains_by_country`: Distribution by country. Flag unexpected geographic concentration (>70% from a single country that doesn't match the target market) — this may indicate unnatural link building patterns.
+
+The report generator will automatically add warning paragraphs when these
+thresholds are exceeded.
 
 ### Report Contents
 

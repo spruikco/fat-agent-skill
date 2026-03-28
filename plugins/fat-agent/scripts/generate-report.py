@@ -349,6 +349,38 @@ def generate_docx(scores, url, output_dir, charts_dir=None, semrush=None, brand=
             _set_cell_shading(row.cells[0], "F2F3F4")
 
         doc.add_paragraph()
+
+        # --- Backlink Quality Analysis (Wave 4) ---
+        bq = semrush.get("backlink_quality")
+        if bq:
+            _heading(doc, "Backlink Quality Analysis", level=2)
+            # Authority distribution warning
+            auth_dist = bq.get("referring_domains_by_authority", {})
+            if auth_dist:
+                low_auth = auth_dist.get("0-10", 0)
+                total_domains = sum(auth_dist.values()) if auth_dist.values() else 1
+                if total_domains > 0 and (low_auth / total_domains) > 0.5:
+                    pct = round((low_auth / total_domains) * 100, 1)
+                    _para(doc,
+                          f"WARNING: {pct}% of referring domains have Authority Score 0-10. "
+                          "This indicates a high proportion of low-quality backlinks, which "
+                          "may negatively impact search rankings. Consider a link audit and "
+                          "disavow strategy.",
+                          bold=True, color=ACCENT_RED, size=10)
+            # Geographic concentration warning
+            country_dist = bq.get("referring_domains_by_country", {})
+            if country_dist:
+                total_country = sum(country_dist.values()) if country_dist.values() else 1
+                for country, count in country_dist.items():
+                    if total_country > 0 and (count / total_country) > 0.7:
+                        pct = round((count / total_country) * 100, 1)
+                        _para(doc,
+                              f"NOTE: {pct}% of referring domains are from {country}. "
+                              "High geographic concentration may indicate unnatural link "
+                              "patterns if this doesn't match your target market.",
+                              color=MID_GRAY, size=10)
+                        break
+
         _insert_chart(doc, charts_dir, 'chart_overview.png', 'Figure: Domain Overview Metrics', 6.5)
         _insert_chart(doc, charts_dir, 'chart_traffic_trend.png', 'Figure: Organic Traffic Trend', 6.0)
         _insert_chart(doc, charts_dir, 'chart_keywords_trend.png', 'Figure: Keywords Trend & SERP Distribution', 6.0)

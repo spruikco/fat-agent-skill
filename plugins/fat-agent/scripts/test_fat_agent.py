@@ -3368,5 +3368,128 @@ class TestFontDisplayNextJS(unittest.TestCase):
         self.assertEqual(r["performance"]["font_display_swap_source"], "inline_css")
 
 
+# ---------------------------------------------------------------------------
+# Wave 3 Test Classes — Image URL Collection
+# ---------------------------------------------------------------------------
+
+# Import new functions for Wave 3/4 tests
+analyse_batch_fn = analyse_mod.analyse_batch
+check_url_status_fn = analyse_mod.check_url_status
+FATHTMLAnalyser = analyse_mod.FATHTMLAnalyser
+
+history_mod = import_module("track-history")
+format_verify = history_mod.format_verify
+
+
+class TestImageURLCollection(unittest.TestCase):
+
+    def test_image_urls_collected(self):
+        """HTML with 2 images -> both URLs in _image_urls."""
+        html = """\
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Image Test</title></head>
+<body>
+    <img src="/img/hero.webp" alt="Hero">
+    <img src="/img/thumb.jpg" alt="Thumb">
+</body>
+</html>"""
+        r = analyse_html(html)
+        self.assertIn("/img/hero.webp", r["performance"]["_image_urls"])
+        self.assertIn("/img/thumb.jpg", r["performance"]["_image_urls"])
+        self.assertEqual(len(r["performance"]["_image_urls"]), 2)
+
+    def test_oversized_images_report_structure(self):
+        """Verify check_image_sizes returns (dict, list) tuple."""
+        sizes, oversized = FATHTMLAnalyser.check_image_sizes([], "https://example.com")
+        self.assertIsInstance(sizes, dict)
+        self.assertIsInstance(oversized, list)
+        self.assertEqual(len(sizes), 0)
+        self.assertEqual(len(oversized), 0)
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Test Classes — Batch Mode
+# ---------------------------------------------------------------------------
+
+
+class TestBatchMode(unittest.TestCase):
+
+    def test_analyse_batch_empty_list(self):
+        """Empty input returns empty list."""
+        results = analyse_batch_fn([])
+        self.assertIsInstance(results, list)
+        self.assertEqual(len(results), 0)
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Test Classes — Verify Mode
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyMode(unittest.TestCase):
+
+    def test_verify_detects_improvement(self):
+        """Scores go up -> 'IMPROVED' in output."""
+        history = {
+            "url": "https://example.com",
+            "history": [
+                {
+                    "timestamp": "2026-03-01T00:00:00+00:00",
+                    "scores": {"seo": 60, "security": 70, "accessibility": 65, "performance": 55, "overall": 63},
+                    "grade": "C",
+                    "issues_found": 10,
+                },
+                {
+                    "timestamp": "2026-03-15T00:00:00+00:00",
+                    "scores": {"seo": 80, "security": 85, "accessibility": 78, "performance": 70, "overall": 78},
+                    "grade": "B",
+                    "issues_found": 5,
+                },
+            ],
+        }
+        result = format_verify(history)
+        self.assertIn("IMPROVED", result)
+        self.assertNotIn("REGRESSED", result)
+        self.assertIn("no regressions", result.lower())
+
+    def test_verify_detects_regression(self):
+        """Scores go down -> 'REGRESSED' in output."""
+        history = {
+            "url": "https://example.com",
+            "history": [
+                {
+                    "timestamp": "2026-03-01T00:00:00+00:00",
+                    "scores": {"seo": 80, "security": 85, "accessibility": 78, "performance": 70, "overall": 78},
+                    "grade": "B",
+                    "issues_found": 5,
+                },
+                {
+                    "timestamp": "2026-03-15T00:00:00+00:00",
+                    "scores": {"seo": 60, "security": 70, "accessibility": 65, "performance": 55, "overall": 63},
+                    "grade": "C",
+                    "issues_found": 10,
+                },
+            ],
+        }
+        result = format_verify(history)
+        self.assertIn("REGRESSED", result)
+        self.assertIn("WARNING", result)
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Test Classes — URL Status Check
+# ---------------------------------------------------------------------------
+
+
+class TestURLStatusCheck(unittest.TestCase):
+
+    def test_check_url_status_empty(self):
+        """Empty input returns empty list."""
+        results = check_url_status_fn([])
+        self.assertIsInstance(results, list)
+        self.assertEqual(len(results), 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

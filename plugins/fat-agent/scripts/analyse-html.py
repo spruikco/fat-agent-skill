@@ -259,6 +259,9 @@ class FATHTMLAnalyser(HTMLParser):
         # --- NEW: Inline dynamic script loaders in <head> ---
         self.inline_dynamic_script_loaders = []
 
+        # --- NEW: Image URL collection (Wave 3) ---
+        self.image_urls = []
+
         # HTTP response headers (populated when --fetch is used)
         self.response_headers = {}
 
@@ -416,6 +419,10 @@ class FATHTMLAnalyser(HTMLParser):
         # Images
         if tag == "img":
             self.img_count += 1
+            # --- NEW: Collect image URLs (Wave 3) ---
+            img_src = attrs_dict.get("src", "")
+            if img_src:
+                self.image_urls.append(img_src)
             if "alt" not in attrs_dict:
                 self.img_missing_alt += 1
             if attrs_dict.get("loading") == "lazy":
@@ -943,6 +950,36 @@ class FATHTMLAnalyser(HTMLParser):
             if "prefers-reduced-motion" in data:
                 self.has_prefers_reduced_motion = True
 
+    @staticmethod
+    def check_image_sizes(image_urls, page_url, threshold_bytes=1048576):
+        """HEAD-request each image URL and flag those exceeding threshold.
+
+        Returns (sizes_dict, oversized_list) where:
+            sizes_dict: {url: content_length_bytes or None}
+            oversized_list: [{url, size}] for images > threshold
+        """
+        from urllib.parse import urljoin
+
+        sizes = {}
+        oversized = []
+        for img_url in image_urls:
+            resolved = urljoin(page_url, img_url) if page_url else img_url
+            try:
+                req = urllib.request.Request(resolved, method="HEAD")
+                req.add_header("User-Agent", "FAT-Agent/1.0")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    cl = resp.getheader("Content-Length")
+                    if cl:
+                        size = int(cl)
+                        sizes[img_url] = size
+                        if size > threshold_bytes:
+                            oversized.append({"url": img_url, "size": size})
+                    else:
+                        sizes[img_url] = None
+            except Exception:
+                sizes[img_url] = None
+        return sizes, oversized
+
     def compile_report(self, html_length: int) -> dict:
         """Compile all findings into a structured report."""
 
@@ -1195,6 +1232,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "images_with_hidden_inline_style": self.images_with_hidden_inline_style,
                 "budget_violations": budget_violations,
                 "inline_dynamic_script_loaders": list(self.inline_dynamic_script_loaders),
+                "_image_urls": list(self.image_urls),
             },
             "security": {
                 "mixed_content_urls": self.mixed_content_urls,
@@ -1529,11 +1567,66 @@ def analyse_html(html_content: str, page_url: str = "", budget: dict = None, res
     return analyser.compile_report(len(html_content.encode("utf-8")))
 
 
+def analyse_batch(urls, budget=None, timeout=10):
+    """Fetch and analyse multiple URLs in sequence.
+
+    Returns a list of report dicts, each augmented with _url and _status.
+    Sleeps 0.5s between requests (polite crawling).
+    """
+    import time
+
+    results = []
+    for i, url in enumerate(urls):
+        if i > 0:
+            time.sleep(0.5)
+        report = {"_url": url, "_status": None}
+        try:
+            req = urllib.request.Request(url)
+            req.add_header("User-Agent", "FAT-Agent/1.0")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                html = resp.read().decode("utf-8", errors="replace")
+                report["_status"] = resp.status
+                analysis = analyse_html(html, page_url=url, budget=budget)
+                report.update(analysis)
+        except urllib.error.HTTPError as e:
+            report["_status"] = e.code
+        except Exception as e:
+            report["_status"] = str(e)
+        results.append(report)
+    return results
+
+
+def check_url_status(urls, timeout=10):
+    """HEAD-request each URL and return status information.
+
+    Returns list of {url, status, final_url, redirected}.
+    """
+    results = []
+    for url in urls:
+        entry = {"url": url, "status": None, "final_url": url, "redirected": False}
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            req.add_header("User-Agent", "FAT-Agent/1.0")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                entry["status"] = resp.status
+                entry["final_url"] = resp.url
+                entry["redirected"] = resp.url != url
+        except urllib.error.HTTPError as e:
+            entry["status"] = e.code
+        except Exception as e:
+            entry["status"] = str(e)
+        results.append(entry)
+    return results
+
+
 def main():
     page_url = ""
     filepath = None
     budget = None
     fetch_headers = False
+    check_images = False
+    batch_file = None
+    check_urls_file = None
 
     args = sys.argv[1:]
     i = 0
@@ -1552,9 +1645,51 @@ def main():
         elif args[i] == "--fetch":
             fetch_headers = True
             i += 1
+        elif args[i] == "--check-images":
+            check_images = True
+            i += 1
+        elif args[i] == "--batch" and i + 1 < len(args):
+            batch_file = args[i + 1]
+            i += 2
+        elif args[i] == "--check-urls" and i + 1 < len(args):
+            check_urls_file = args[i + 1]
+            i += 2
         else:
             filepath = args[i]
             i += 1
+
+    # --- Batch mode ---
+    if batch_file:
+        with open(batch_file, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        # Try JSON array first, then line-delimited
+        try:
+            urls = json.loads(content)
+        except json.JSONDecodeError:
+            urls = [line.strip() for line in content.splitlines() if line.strip()]
+        results = analyse_batch(urls, budget=budget)
+        pages_ok = sum(1 for r in results if isinstance(r.get("_status"), int) and 200 <= r["_status"] < 400)
+        pages_failed = len(results) - pages_ok
+        output = {
+            "pages_tested": len(results),
+            "pages_ok": pages_ok,
+            "pages_failed": pages_failed,
+            "results": results,
+        }
+        print(json.dumps(output, indent=2))
+        return
+
+    # --- URL status check mode ---
+    if check_urls_file:
+        with open(check_urls_file, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        try:
+            urls = json.loads(content)
+        except json.JSONDecodeError:
+            urls = [line.strip() for line in content.splitlines() if line.strip()]
+        results = check_url_status(urls)
+        print(json.dumps(results, indent=2))
+        return
 
     # Auto-detect .fat-budget.json if no --budget flag
     if budget is None:
@@ -1583,6 +1718,24 @@ def main():
             print(f"Warning: Could not fetch headers from '{page_url}': {e}", file=sys.stderr)
 
     report = analyse_html(html_content, page_url=page_url, budget=budget, response_headers=response_headers)
+
+    # --- Image size check ---
+    if check_images and page_url and report.get("performance", {}).get("_image_urls"):
+        image_urls = report["performance"]["_image_urls"]
+        sizes, oversized = FATHTMLAnalyser.check_image_sizes(image_urls, page_url)
+        if oversized:
+            for item in oversized:
+                size_mb = round(item["size"] / (1024 * 1024), 2)
+                report["summary"]["high"].append(
+                    f"Oversized image ({size_mb}MB): {item['url']}"
+                )
+            report["summary"]["issues_found"] = (
+                len(report["summary"]["critical"])
+                + len(report["summary"]["high"])
+                + len(report["summary"]["medium"])
+                + len(report["summary"]["low"])
+            )
+
     print(json.dumps(report, indent=2))
 
 

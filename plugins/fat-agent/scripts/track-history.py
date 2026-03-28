@@ -8,6 +8,7 @@ Usage:
     python track-history.py --show                  Print history table
     python track-history.py --diff                  Compare latest vs previous
     python track-history.py --trend                 Show score trend
+    python track-history.py --verify                Post-deploy verification
 
 Options:
     --file <path>   Path to history file (default: .fat-history.json)
@@ -231,6 +232,54 @@ def format_trend(history: dict) -> str:
     return "\n".join(lines)
 
 
+def format_verify(history: dict) -> str:
+    """Compare latest two entries and show per-category IMPROVED/REGRESSED/UNCHANGED."""
+    entries = history.get("history", [])
+    if len(entries) < 2:
+        return "Need at least 2 audit entries for verification."
+
+    latest = entries[-1]
+    previous = entries[-2]
+    latest_scores = latest.get("scores", {})
+    prev_scores = previous.get("scores", {})
+
+    lines = [
+        f"FAT Post-Deploy Verification: {history.get('url', 'Unknown')}",
+        f"{'='*60}",
+    ]
+
+    categories = [
+        ("SEO", "seo"),
+        ("Security", "security"),
+        ("Accessibility", "accessibility"),
+        ("Performance", "performance"),
+        ("Overall", "overall"),
+    ]
+
+    has_regression = False
+    for label, key in categories:
+        prev_val = prev_scores.get(key, 0)
+        latest_val = latest_scores.get(key, 0)
+        delta = latest_val - prev_val
+        if delta > 0:
+            status = "IMPROVED"
+        elif delta < 0:
+            status = "REGRESSED"
+            has_regression = True
+        else:
+            status = "UNCHANGED"
+        lines.append(f"  {label:<15} {prev_val:>3} -> {latest_val:>3}  {status} ({delta:+d})")
+
+    if has_regression:
+        lines.append("")
+        lines.append("WARNING: Regressions detected — review before shipping!")
+    else:
+        lines.append("")
+        lines.append("All clear — no regressions detected.")
+
+    return "\n".join(lines)
+
+
 def main():
     history_file = DEFAULT_HISTORY_FILE
     url = ""
@@ -258,6 +307,9 @@ def main():
             i += 1
         elif args[i] == "--trend":
             action = "trend"
+            i += 1
+        elif args[i] == "--verify":
+            action = "verify"
             i += 1
         else:
             i += 1
@@ -288,12 +340,17 @@ def main():
         history = load_history(history_file)
         print(format_trend(history))
 
+    elif action == "verify":
+        history = load_history(history_file)
+        print(format_verify(history))
+
     else:
         print("Usage:")
         print("  track-history.py --save <scores.json>  Save a new audit entry")
         print("  track-history.py --show                Print history table")
         print("  track-history.py --diff                Compare latest vs previous")
         print("  track-history.py --trend               Show score trend")
+        print("  track-history.py --verify              Post-deploy verification")
         print("")
         print("Options:")
         print("  --file <path>   History file (default: .fat-history.json)")
