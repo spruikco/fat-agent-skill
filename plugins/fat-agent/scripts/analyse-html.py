@@ -140,6 +140,16 @@ class FATHTMLAnalyser(HTMLParser):
         self.has_google_fonts_preconnect = False
         self.font_preloads = 0
 
+        # Counters — preconnect tracking
+        self.preconnect_count = 0
+        self.preconnect_urls = []
+
+        # Counters — LCP animation / hidden inline style on images
+        self.images_with_hidden_inline_style = 0
+
+        # Counters — font preloads with crossorigin
+        self.font_preloads_with_crossorigin = 0
+
         # Counters — cookie/privacy banner
         self.consent_scripts = []
 
@@ -245,6 +255,9 @@ class FATHTMLAnalyser(HTMLParser):
 
         # --- NEW: Accessibility — form error association ---
         self.form_inputs_with_describedby = 0
+
+        # --- NEW: Inline dynamic script loaders in <head> ---
+        self.inline_dynamic_script_loaders = []
 
         # HTTP response headers (populated when --fetch is used)
         self.response_headers = {}
@@ -413,6 +426,13 @@ class FATHTMLAnalyser(HTMLParser):
             # Srcset for responsive images
             if "srcset" in attrs_dict:
                 self.img_with_srcset += 1
+            # --- NEW: LCP animation detection — hidden inline styles ---
+            style = attrs_dict.get("style", "")
+            if style:
+                style_norm = style.lower().replace(" ", "")
+                if ("opacity:0" in style_norm or "visibility:hidden" in style_norm
+                        or "display:none" in style_norm):
+                    self.images_with_hidden_inline_style += 1
             # Modern image formats
             src = attrs_dict.get("src", "")
             if src:
@@ -544,9 +564,15 @@ class FATHTMLAnalyser(HTMLParser):
             # Font preload
             if "preload" in rel and as_attr == "font":
                 self.font_preloads += 1
+                if "crossorigin" in attrs_dict:
+                    self.font_preloads_with_crossorigin += 1
             # Google Fonts preconnect
             if "preconnect" in rel and "fonts.googleapis.com" in href:
                 self.has_google_fonts_preconnect = True
+            # --- NEW: Preconnect count tracking ---
+            if "preconnect" in rel and href:
+                self.preconnect_count += 1
+                self.preconnect_urls.append(href)
             # Mixed content on link href
             if href:
                 self._check_mixed_content(href)
@@ -835,6 +861,18 @@ class FATHTMLAnalyser(HTMLParser):
             if "placeholder" in text and len(text) < 50:
                 self.placeholder_text_found.append(f"Possible placeholder: '{data.strip()[:50]}'")
 
+        # --- NEW: Inline dynamic script loader detection in <head> ---
+        if self.current_tag == "script" and self.in_head and not self.script_has_src:
+            if "googletagmanager.com/gtm.js" in data and "createElement" in data:
+                if "GTM" not in self.inline_dynamic_script_loaders:
+                    self.inline_dynamic_script_loaders.append("GTM")
+            if "connect.facebook.net" in data and "fbevents.js" in data:
+                if "Meta Pixel" not in self.inline_dynamic_script_loaders:
+                    self.inline_dynamic_script_loaders.append("Meta Pixel")
+            if "static.hotjar.com" in data:
+                if "Hotjar" not in self.inline_dynamic_script_loaders:
+                    self.inline_dynamic_script_loaders.append("Hotjar")
+
         # Analytics in inline scripts
         if self.current_tag == "script":
             if "gtag(" in data or "google-analytics" in data:
@@ -910,6 +948,35 @@ class FATHTMLAnalyser(HTMLParser):
 
         title = self.title_text.strip() or None
         description = self.meta_tags.get("description", None)
+
+        # --- NEW: Duplicate title suffix detection ---
+        title_duplicate_suffix = None
+        if title:
+            # Split on common separators: |, -, —, –, :
+            segments = re.split(r'\s*[|:\u2014\u2013]\s*|\s+-\s+', title)
+            segments = [s.strip() for s in segments if s.strip()]
+            if len(segments) >= 2:
+                seen = set()
+                duplicates = []
+                for seg in segments:
+                    seg_lower = seg.lower()
+                    if seg_lower in seen:
+                        duplicates.append(seg)
+                    else:
+                        seen.add(seg_lower)
+                if duplicates:
+                    title_duplicate_suffix = duplicates
+
+        # --- NEW: Next.js font-display inference ---
+        font_display_swap_source = None
+        if self.has_font_display_swap:
+            font_display_swap_source = "inline_css"
+        elif self.font_preloads > 0 and "Next.js" in self.spa_indicators:
+            # Next.js with font preloads infers font-display: swap via
+            # next/font optimisation — check for crossorigin font preloads
+            if self.font_preloads_with_crossorigin > 0:
+                self.has_font_display_swap = True
+                font_display_swap_source = "nextjs_font_preload"
 
         # Validate viewport content
         viewport_valid = False
@@ -1066,6 +1133,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "poor_anchor_text_count": self.poor_anchor_text_count,
                 "nofollow_total_count": self.nofollow_total_count,
                 "nofollow_internal_count": self.nofollow_internal_count,
+                "title_duplicate_suffix": title_duplicate_suffix,
             },
             "accessibility": {
                 "has_lang_attribute": self.has_lang,
@@ -1121,7 +1189,12 @@ class FATHTMLAnalyser(HTMLParser):
                 "font_preloads": self.font_preloads,
                 "has_font_display_swap": self.has_font_display_swap,
                 "has_google_fonts_preconnect": self.has_google_fonts_preconnect,
+                "font_display_swap_source": font_display_swap_source,
+                "preconnect_count": self.preconnect_count,
+                "preconnect_urls": self.preconnect_urls,
+                "images_with_hidden_inline_style": self.images_with_hidden_inline_style,
                 "budget_violations": budget_violations,
+                "inline_dynamic_script_loaders": list(self.inline_dynamic_script_loaders),
             },
             "security": {
                 "mixed_content_urls": self.mixed_content_urls,
@@ -1234,6 +1307,18 @@ class FATHTMLAnalyser(HTMLParser):
             issues["high"].append(
                 f"{report['accessibility']['autoplay_without_muted']} media element(s) autoplay without muted attribute"
             )
+        # --- NEW: LCP animation — hidden inline style on images ---
+        if report["performance"]["images_with_hidden_inline_style"] > 0:
+            issues["high"].append(
+                f"{report['performance']['images_with_hidden_inline_style']} image(s) with hidden inline style (opacity:0, visibility:hidden, display:none) — may delay LCP"
+            )
+        # --- NEW: Inline dynamic script loaders in <head> ---
+        loaders = report["performance"]["inline_dynamic_script_loaders"]
+        if loaders:
+            loader_names = ", ".join(loaders)
+            issues["high"].append(
+                f"Inline scripts in <head> dynamically load heavy third-party resources: {loader_names} — defer with setTimeout"
+            )
 
         # Medium (P2)
         if report["performance"]["render_blocking_scripts"] > 2:
@@ -1316,6 +1401,15 @@ class FATHTMLAnalyser(HTMLParser):
         if report["seo"]["duplicate_og_tags"]:
             dup_keys = ", ".join(report["seo"]["duplicate_og_tags"].keys())
             issues["medium"].append(f"Duplicate Open Graph tags: {dup_keys}")
+        # --- NEW: Title duplicate suffix ---
+        if report["seo"]["title_duplicate_suffix"]:
+            dups = ", ".join(report["seo"]["title_duplicate_suffix"])
+            issues["medium"].append(f"Title contains repeated segment(s): {dups}")
+        # --- NEW: Excess preconnects ---
+        if report["performance"]["preconnect_count"] > 4:
+            issues["medium"].append(
+                f"{report['performance']['preconnect_count']} preconnect hints found (recommend \u2264 4)"
+            )
         # --- NEW: Canonical trailing slash mismatch ---
         if report["seo"]["canonical_trailing_slash_mismatch"]:
             issues["medium"].append("Canonical URL trailing slash doesn't match page URL")

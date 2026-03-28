@@ -1145,3 +1145,222 @@ export default function Custom404() {
 
 Do not mix these up. Using `pages/404.js` in an App Router project will be
 ignored. Using `app/not-found.tsx` in a Pages Router project will not work.
+
+---
+
+### 8. framer-motion LCP Animation Fix
+
+**Problem:** Using `initial={{ opacity: 0 }}` on hero images (or any LCP element)
+delays Largest Contentful Paint. The browser renders the element at zero opacity
+first, then animates it in, adding hundreds of milliseconds to LCP.
+
+**Fix:** Use `initial={false}` on the first/hero image so framer-motion skips the
+entry animation and renders the element in its final state immediately.
+
+```tsx
+"use client";
+
+import { motion } from "framer-motion";
+import Image from "next/image";
+
+// For a single hero image — skip the initial animation entirely
+export function Hero() {
+  return (
+    <motion.div
+      initial={false}       // renders immediately at final state — no LCP delay
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Image src="/hero.jpg" alt="Hero banner" width={1200} height={600} priority />
+    </motion.div>
+  );
+}
+
+// For carousels — only skip initial animation on the first slide
+export function Carousel({ slides }: { slides: { src: string; alt: string }[] }) {
+  return (
+    <>
+      {slides.map((slide, index) => (
+        <motion.div
+          key={slide.src}
+          initial={index === 0 ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        >
+          <Image
+            src={slide.src}
+            alt={slide.alt}
+            width={1200}
+            height={600}
+            priority={index === 0}
+            loading={index === 0 ? "eager" : "lazy"}
+          />
+        </motion.div>
+      ))}
+    </>
+  );
+}
+```
+
+---
+
+### 9. GTM / Meta Pixel Deferral Pattern
+
+**Problem:** Google Tag Manager (~263KB) and Meta Pixel (~138KB) loaded
+synchronously in `<head>` block rendering and delay First Contentful Paint.
+Inline scripts that call `document.createElement` to inject these resources are
+just as blocking as external `<script>` tags when placed in `<head>`.
+
+**Fix:** Wrap the loader in `setTimeout` with a 1500-3500ms delay, or use the
+Next.js `<Script>` component with `strategy="afterInteractive"`.
+
+```tsx
+// app/layout.tsx
+import Script from "next/script";
+
+const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
+const FB_PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID;
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+
+        {/* GTM — deferred via afterInteractive (loads after hydration) */}
+        {GTM_ID && (
+          <Script id="gtm-deferred" strategy="afterInteractive">
+            {`
+              setTimeout(function(){
+                (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','${GTM_ID}');
+              }, 2000);
+            `}
+          </Script>
+        )}
+
+        {/* Meta Pixel — deferred with setTimeout */}
+        {FB_PIXEL_ID && (
+          <Script id="fb-pixel-deferred" strategy="afterInteractive">
+            {`
+              setTimeout(function(){
+                !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
+                n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window,document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init','${FB_PIXEL_ID}');fbq('track','PageView');
+              }, 3000);
+            `}
+          </Script>
+        )}
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+### 10. Image Quality Config in Next.js 14+
+
+**Problem:** The `images.quality` property in `next.config.js` was removed in
+Next.js 14. Setting it there has no effect and may produce a build warning.
+
+**Fix:** Set `quality` per-component using the `quality` prop on `next/image`, or
+create a reusable wrapper component with a default quality.
+
+```tsx
+// components/optimized-image.tsx
+import Image, { ImageProps } from "next/image";
+
+const DEFAULT_QUALITY = 80;
+
+export function OptimizedImage({ quality, ...props }: ImageProps) {
+  return <Image quality={quality ?? DEFAULT_QUALITY} {...props} />;
+}
+```
+
+```tsx
+// Usage — per-component quality override
+import { OptimizedImage } from "@/components/optimized-image";
+
+// Uses default quality (80)
+<OptimizedImage src="/product.jpg" alt="Widget Pro" width={600} height={400} />
+
+// Override for hero image — higher quality
+<OptimizedImage src="/hero.jpg" alt="Hero banner" width={1200} height={600} quality={90} priority />
+
+// Override for thumbnails — lower quality is fine
+<OptimizedImage src="/thumb.jpg" alt="Thumbnail" width={150} height={150} quality={60} />
+```
+
+---
+
+### 11. Consistent Hero DOM for CLS Prevention
+
+**Problem:** Conditional rendering of hero content (e.g., based on data loading
+state or feature flags) causes Cumulative Layout Shift. When the hero
+placeholder is absent from the initial render and then injected, every element
+below it shifts down.
+
+**Fix:** Always render the hero container in the DOM with fixed dimensions. Use
+CSS `visibility: hidden` or `opacity: 0` instead of conditional JS rendering to
+hide content that is not yet ready.
+
+```tsx
+// BAD — conditional rendering causes CLS
+export function Hero({ loaded, data }: { loaded: boolean; data?: HeroData }) {
+  if (!loaded) return null;  // nothing in DOM — elements below shift when this appears
+  return (
+    <section style={{ height: 600 }}>
+      <h1>{data?.title}</h1>
+    </section>
+  );
+}
+
+// GOOD — container is always in the DOM, content becomes visible when ready
+export function Hero({ loaded, data }: { loaded: boolean; data?: HeroData }) {
+  return (
+    <section
+      style={{
+        height: 600,
+        visibility: loaded ? "visible" : "hidden",
+      }}
+    >
+      <h1>{data?.title ?? "\u00A0"}</h1>
+    </section>
+  );
+}
+```
+
+For Next.js App Router with Suspense:
+
+```tsx
+// app/page.tsx — server component with streaming
+import { Suspense } from "react";
+import { HeroContent } from "./hero-content";
+
+function HeroSkeleton() {
+  return (
+    <section style={{ height: 600 }} aria-hidden="true">
+      <div className="skeleton" style={{ width: "60%", height: "2rem" }} />
+    </section>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HeroSkeleton />}>
+      <HeroContent />
+    </Suspense>
+  );
+}
+```
+
+The skeleton has the same dimensions as the real hero, so no layout shift occurs
+when the content streams in.

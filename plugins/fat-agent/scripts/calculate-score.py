@@ -54,6 +54,9 @@ def calculate_seo_score(seo: dict, performance: dict) -> dict:
         title_meta = max(title_meta - 3, 0)
     if seo.get("duplicate_meta_descriptions", 1) > 1:
         title_meta = max(title_meta - 3, 0)
+    # Penalise duplicate title suffix
+    if seo.get("title_duplicate_suffix"):
+        title_meta = max(title_meta - 2, 0)
     details["title_meta"] = {"score": title_meta, "max": 18}
     score += title_meta
 
@@ -435,6 +438,11 @@ def calculate_performance_score(performance: dict) -> dict:
         block_pts = 3
     else:
         block_pts = 0
+    # --- NEW: Deduct for inline dynamic script loaders ---
+    loaders = performance.get("inline_dynamic_script_loaders", [])
+    if loaders:
+        deduction = min(len(loaders) * 3, 6)
+        block_pts = max(block_pts - deduction, 0)
     details["render_blocking"] = {"score": block_pts, "max": 15}
     score += block_pts
 
@@ -460,13 +468,21 @@ def calculate_performance_score(performance: dict) -> dict:
             img_pts += round((modern / img_total) * 10)
         else:
             img_pts += 3  # Partial — not everyone uses WebP/AVIF yet
+    # Penalise hidden inline styles on images (LCP risk)
+    hidden_imgs = performance.get("images_with_hidden_inline_style", 0)
+    if hidden_imgs > 0:
+        img_pts = max(img_pts - min(hidden_imgs * 4, 8), 0)
     details["image_optimisation"] = {"score": img_pts, "max": 20}
     score += img_pts
 
     # Resource hints (15 points)
     hints = 0
     if performance.get("has_preconnect"):
-        hints += 8
+        # Excessive preconnects (>4) reduce the benefit
+        if performance.get("preconnect_count", 0) > 4:
+            hints += 4
+        else:
+            hints += 8
     if performance.get("has_preload"):
         hints += 7
     details["resource_hints"] = {"score": hints, "max": 15}
@@ -559,6 +575,82 @@ def calculate_fat_score(seo_score: int, security_score: int, a11y_score: int, pe
     }
 
 
+def generate_csp_recommendation(report: dict) -> str:
+    """
+    Generate a Content-Security-Policy recommendation based on detected
+    analytics providers. Starts with a safe base policy and appends
+    domains required by each known provider.
+    """
+    providers = report.get("analytics", {}).get("providers", [])
+
+    # Provider → directive domains mapping
+    provider_domains = {
+        "Google Analytics / GTM": {
+            "script-src": ["googletagmanager.com", "google-analytics.com"],
+            "connect-src": ["google-analytics.com", "analytics.google.com"],
+            "frame-src": ["googletagmanager.com"],
+        },
+        "Facebook Pixel": {
+            "script-src": ["connect.facebook.net"],
+            "connect-src": ["facebook.com"],
+            "img-src": ["facebook.com"],
+        },
+        "Hotjar": {
+            "script-src": ["static.hotjar.com"],
+            "connect-src": ["*.hotjar.com"],
+        },
+        "Stripe": {
+            "script-src": ["js.stripe.com"],
+            "frame-src": ["js.stripe.com"],
+            "connect-src": ["api.stripe.com"],
+        },
+    }
+
+    # Collect extra domains per directive
+    extra = {
+        "script-src": [],
+        "connect-src": [],
+        "frame-src": [],
+        "img-src": [],
+    }
+
+    for provider in providers:
+        mapping = provider_domains.get(provider, {})
+        for directive, domains in mapping.items():
+            for d in domains:
+                if d not in extra.get(directive, []):
+                    extra.setdefault(directive, []).append(d)
+
+    # Build base directives
+    directives = {
+        "default-src": "'self'",
+        "script-src": "'self' 'unsafe-inline'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: https:",
+        "font-src": "'self'",
+        "connect-src": "'self'",
+        "frame-src": "'none'",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+    }
+
+    # Merge extra domains into directives
+    for directive, domains in extra.items():
+        if domains:
+            base = directives.get(directive, "'self'")
+            # Replace 'none' with 'self' when we have domains to add
+            if base == "'none'":
+                base = "'self'"
+            directives[directive] = base + " " + " ".join(domains)
+
+    # Build policy string
+    parts = []
+    for directive, value in directives.items():
+        parts.append(f"{directive} {value}")
+
+    return "; ".join(parts)
+
+
 def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     """
     Main entry point. Takes a full analyse-html.py report and optional
@@ -604,7 +696,7 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         perf_result["score"],
     )
 
-    return {
+    result = {
         "seo": seo_result,
         "security": security_result,
         "accessibility": a11y_result,
@@ -612,6 +704,8 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         "overall": fat_result,
         "summary": report.get("summary", {}),
     }
+    result["csp_recommendation"] = generate_csp_recommendation(report)
+    return result
 
 
 def main():

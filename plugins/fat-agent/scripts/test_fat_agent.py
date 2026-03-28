@@ -27,6 +27,7 @@ calculate_security_score = score_mod.calculate_security_score
 calculate_accessibility_score = score_mod.calculate_accessibility_score
 calculate_performance_score = score_mod.calculate_performance_score
 calculate_fat_score = score_mod.calculate_fat_score
+generate_csp_recommendation = score_mod.generate_csp_recommendation
 
 badge_mod = import_module("generate-badge")
 generate_badge = badge_mod.generate_badge
@@ -2960,6 +2961,411 @@ class TestARIAValidation(unittest.TestCase):
         html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><div role="directory">X</div><main><h1>Hi</h1></main></body></html>'
         r = analyse_html(html)
         self.assertIn("directory", r["accessibility"]["deprecated_aria_roles"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Fixtures — Wave 2: Inline Dynamic Script Loaders
+# ---------------------------------------------------------------------------
+
+GTM_INLINE_LOADER_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GTM Inline Loader Test Page Title Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-XXXXX');
+    </script>
+</head>
+<body>
+    <main><h1>GTM Inline</h1></main>
+</body>
+</html>
+"""
+
+META_PIXEL_INLINE_LOADER_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Meta Pixel Inline Loader Test Page Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
+        n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src='https://connect.facebook.net/en_US/fbevents.js';
+        s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+        (window,document,'script');
+        fbq('init','123456789');fbq('track','PageView');
+    </script>
+</head>
+<body>
+    <main><h1>Meta Pixel Inline</h1></main>
+</body>
+</html>
+"""
+
+BODY_INLINE_SCRIPT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Body Inline Script Test Page Title Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main><h1>Body Script</h1></main>
+    <script>
+        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-XXXXX');
+    </script>
+</body>
+</html>
+"""
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Wave 2: Inline Dynamic Script Loaders
+# ---------------------------------------------------------------------------
+
+
+class TestInlineDynamicScriptLoaders(unittest.TestCase):
+
+    def test_gtm_inline_loader_detected(self):
+        r = analyse_html(GTM_INLINE_LOADER_HTML)
+        loaders = r["performance"]["inline_dynamic_script_loaders"]
+        self.assertIn("GTM", loaders)
+
+    def test_meta_pixel_inline_loader_detected(self):
+        r = analyse_html(META_PIXEL_INLINE_LOADER_HTML)
+        loaders = r["performance"]["inline_dynamic_script_loaders"]
+        self.assertIn("Meta Pixel", loaders)
+
+    def test_body_inline_not_flagged(self):
+        r = analyse_html(BODY_INLINE_SCRIPT_HTML)
+        loaders = r["performance"]["inline_dynamic_script_loaders"]
+        self.assertEqual(loaders, [])
+
+    def test_loader_flagged_as_high(self):
+        r = analyse_html(GTM_INLINE_LOADER_HTML)
+        high_issues = r["summary"]["high"]
+        self.assertTrue(
+            any("defer with setTimeout" in i for i in high_issues),
+            f"Expected P1 High issue about deferral, got: {high_issues}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Wave 2: CSP Recommendation
+# ---------------------------------------------------------------------------
+
+
+class TestCSPRecommendation(unittest.TestCase):
+
+    def test_csp_includes_gtm_domains(self):
+        report = {"analytics": {"providers": ["Google Analytics / GTM"]}}
+        csp = generate_csp_recommendation(report)
+        self.assertIn("googletagmanager.com", csp)
+        self.assertIn("google-analytics.com", csp)
+
+    def test_csp_includes_facebook_domains(self):
+        report = {"analytics": {"providers": ["Facebook Pixel"]}}
+        csp = generate_csp_recommendation(report)
+        self.assertIn("connect.facebook.net", csp)
+        self.assertIn("facebook.com", csp)
+
+    def test_csp_base_policy_has_self(self):
+        report = {"analytics": {"providers": []}}
+        csp = generate_csp_recommendation(report)
+        self.assertIn("default-src 'self'", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("base-uri 'self'", csp)
+
+    def test_csp_in_scored_output(self):
+        r = analyse_html(ANALYTICS_HTML)
+        scored = calculate_scores(r)
+        self.assertIn("csp_recommendation", scored)
+        self.assertIn("default-src 'self'", scored["csp_recommendation"])
+
+
+# ---------------------------------------------------------------------------
+# Wave 1 Fixtures — Duplicate Title Suffix, Preconnect Count, LCP Animation,
+#                     Next.js Font-Display Inference
+# ---------------------------------------------------------------------------
+
+DUPLICATE_TITLE_SUFFIX_PIPE_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Product | Brand | Brand</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body><main><h1>Product</h1></main></body>
+</html>
+"""
+
+DUPLICATE_TITLE_SUFFIX_DASH_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>About - MyBrand - MyBrand</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body><main><h1>About</h1></main></body>
+</html>
+"""
+
+NO_DUPLICATE_SUFFIX_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Product | Brand</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body><main><h1>Product</h1></main></body>
+</html>
+"""
+
+EXCESS_PRECONNECT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Preconnect Test Page Title Here Right Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.example.com">
+    <link rel="preconnect" href="https://api.example.com">
+    <link rel="preconnect" href="https://analytics.example.com">
+    <link rel="preconnect" href="https://images.example.com">
+</head>
+<body><main><h1>Preconnects</h1></main></body>
+</html>
+"""
+
+FOUR_PRECONNECT_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Four Preconnects Test Page Title Here Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.example.com">
+    <link rel="preconnect" href="https://api.example.com">
+</head>
+<body><main><h1>Four Preconnects</h1></main></body>
+</html>
+"""
+
+LCP_OPACITY_ZERO_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LCP Animation Test Page Title Here Right</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>LCP Test</h1>
+        <img src="hero.jpg" alt="Hero" style="opacity: 0" width="1200" height="600">
+    </main>
+</body>
+</html>
+"""
+
+LCP_VISIBILITY_HIDDEN_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Visibility Hidden Test Page Title Here Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Visibility Test</h1>
+        <img src="hero.jpg" alt="Hero" style="visibility: hidden" width="1200" height="600">
+    </main>
+</body>
+</html>
+"""
+
+LCP_NORMAL_IMAGE_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Normal Image Test Page Title Here Right Now</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <main>
+        <h1>Normal Image</h1>
+        <img src="hero.jpg" alt="Hero" style="opacity: 1" width="1200" height="600">
+    </main>
+</body>
+</html>
+"""
+
+NEXTJS_FONT_PRELOAD_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Next.js Font Preload Test Page Title Here</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preload" href="/_next/static/media/font.woff2" as="font" type="font/woff2" crossorigin>
+    <script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
+</head>
+<body>
+    <div id="__next">
+        <main><h1>Next.js Font</h1></main>
+    </div>
+    <script src="/_next/static/chunks/main.js"></script>
+</body>
+</html>
+"""
+
+NON_NEXTJS_FONT_PRELOAD_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Non-Next.js Font Preload Test Page Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preload" href="/fonts/body.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body>
+    <main><h1>No Framework</h1></main>
+</body>
+</html>
+"""
+
+
+# ---------------------------------------------------------------------------
+# Wave 1 Test Classes — Duplicate Title Suffix
+# ---------------------------------------------------------------------------
+
+
+class TestDuplicateTitleSuffix(unittest.TestCase):
+
+    def test_duplicate_suffix_pipe(self):
+        r = analyse_html(DUPLICATE_TITLE_SUFFIX_PIPE_HTML)
+        self.assertIsNotNone(r["seo"]["title_duplicate_suffix"])
+        self.assertIn("Brand", r["seo"]["title_duplicate_suffix"])
+
+    def test_duplicate_suffix_dash(self):
+        r = analyse_html(DUPLICATE_TITLE_SUFFIX_DASH_HTML)
+        self.assertIsNotNone(r["seo"]["title_duplicate_suffix"])
+        self.assertIn("MyBrand", r["seo"]["title_duplicate_suffix"])
+
+    def test_no_duplicate_suffix(self):
+        r = analyse_html(NO_DUPLICATE_SUFFIX_HTML)
+        self.assertIsNone(r["seo"]["title_duplicate_suffix"])
+
+    def test_duplicate_suffix_score_penalty(self):
+        r_dup = analyse_html(DUPLICATE_TITLE_SUFFIX_PIPE_HTML)
+        r_clean = analyse_html(NO_DUPLICATE_SUFFIX_HTML)
+        scores_dup = calculate_scores(r_dup)
+        scores_clean = calculate_scores(r_clean)
+        self.assertLess(
+            scores_dup["seo"]["details"]["title_meta"]["score"],
+            scores_clean["seo"]["details"]["title_meta"]["score"],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Wave 1 Test Classes — Preconnect Count
+# ---------------------------------------------------------------------------
+
+
+class TestPreconnectCount(unittest.TestCase):
+
+    def test_preconnect_count_tracked(self):
+        """3 preconnects in PERFECT_HTML (fonts.googleapis.com + font preload)."""
+        r = analyse_html(FOUR_PRECONNECT_HTML)
+        self.assertEqual(r["performance"]["preconnect_count"], 4)
+        self.assertEqual(len(r["performance"]["preconnect_urls"]), 4)
+
+    def test_excess_preconnect_flagged(self):
+        r = analyse_html(EXCESS_PRECONNECT_HTML)
+        self.assertEqual(r["performance"]["preconnect_count"], 6)
+        self.assertTrue(
+            any("preconnect" in i.lower() for i in r["summary"]["medium"])
+        )
+
+    def test_four_preconnects_ok(self):
+        r = analyse_html(FOUR_PRECONNECT_HTML)
+        self.assertEqual(r["performance"]["preconnect_count"], 4)
+        self.assertFalse(
+            any("preconnect" in i.lower() and "recommend" in i.lower() for i in r["summary"]["medium"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# Wave 1 Test Classes — LCP Animation Detection
+# ---------------------------------------------------------------------------
+
+
+class TestLCPAnimationDetection(unittest.TestCase):
+
+    def test_opacity_zero_detected(self):
+        r = analyse_html(LCP_OPACITY_ZERO_HTML)
+        self.assertEqual(r["performance"]["images_with_hidden_inline_style"], 1)
+
+    def test_visibility_hidden_detected(self):
+        r = analyse_html(LCP_VISIBILITY_HIDDEN_HTML)
+        self.assertEqual(r["performance"]["images_with_hidden_inline_style"], 1)
+
+    def test_normal_image_not_flagged(self):
+        r = analyse_html(LCP_NORMAL_IMAGE_HTML)
+        self.assertEqual(r["performance"]["images_with_hidden_inline_style"], 0)
+
+    def test_hidden_image_flagged_high(self):
+        r = analyse_html(LCP_OPACITY_ZERO_HTML)
+        self.assertTrue(
+            any("hidden inline style" in i for i in r["summary"]["high"])
+        )
+
+
+# ---------------------------------------------------------------------------
+# Wave 1 Test Classes — Font Display Next.js Inference
+# ---------------------------------------------------------------------------
+
+
+class TestFontDisplayNextJS(unittest.TestCase):
+
+    def test_nextjs_font_preload_infers_swap(self):
+        r = analyse_html(NEXTJS_FONT_PRELOAD_HTML)
+        self.assertTrue(r["performance"]["has_font_display_swap"])
+        self.assertEqual(r["performance"]["font_display_swap_source"], "nextjs_font_preload")
+
+    def test_non_nextjs_no_inference(self):
+        r = analyse_html(NON_NEXTJS_FONT_PRELOAD_HTML)
+        self.assertFalse(r["performance"]["has_font_display_swap"])
+        self.assertIsNone(r["performance"]["font_display_swap_source"])
+
+    def test_inline_font_display_still_works(self):
+        r = analyse_html(FONT_LOADING_HTML)
+        self.assertTrue(r["performance"]["has_font_display_swap"])
+        self.assertEqual(r["performance"]["font_display_swap_source"], "inline_css")
 
 
 if __name__ == "__main__":
