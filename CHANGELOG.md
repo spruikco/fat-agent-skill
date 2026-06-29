@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.3.0] - 2026-06-29
+
+### Added
+- **From-afar schema advisor** (`scripts/suggest_schema.py`) — classifies any live
+  page (home / contact / article / **PDP** / **PLP** / FAQ / local business) from
+  its HTML alone and generates **ready-to-paste JSON-LD**, pre-filled with scraped
+  signals (business name, phone, address, social `sameAs`, price, currency,
+  availability, ratings) and `REPLACE_*` placeholders for the rest. No codebase
+  access required.
+  - Recommends Organization/LocalBusiness, WebSite (+SearchAction), BreadcrumbList,
+    Article/BlogPosting, **Product** (offers/brand/sku/aggregateRating), **ItemList**,
+    and **FAQPage** (built from on-page `<details>` Q&A).
+  - PDPs get a **`merchant_listing`** readiness checklist (price, currency,
+    availability, image, rating, Product schema) for Google Merchant / rich-result
+    eligibility.
+  - 18 tests; `--format html` emits copy-paste `<script type="application/ld+json">`.
+- **Remote / From-Afar Mode** in SKILL.md: URL is now the *only* required input.
+  Tech stack and hosting are optional and inferred from response headers / generator
+  meta / asset paths; when the stack is unknown, fixes are delivered stack-agnostic
+  (the HTML/JSON-LD/header to paste) rather than framework file edits.
+
+### Fixed
+- `_meta` extraction now uses a quote backreference so values containing the other
+  quote character (e.g. `content="Joe's Plumbing"`) are captured in full.
+
 ## [2.2.1] - 2026-06-29
 
 ### Fixed

@@ -171,6 +171,16 @@ python plugins/fat-agent/scripts/semrush.py --domain example.com --database au -
 
 **Bring your own key** — the script reads it from the `SEMRUSH_API_KEY` environment variable (never hardcoded, never written to output, redacted from all errors). No key, no problem: the audit runs fully without it. A connected SEMrush MCP server or browser automation also work as sources. See [`references/semrush-integration.md`](plugins/fat-agent/references/semrush-integration.md).
 
+### Schema Suggestions — from afar, no codebase needed
+
+FAT Agent can audit **any live URL** (yours, a client's, a prospect's) with zero repo access. It classifies each page — home, article, **product (PDP)**, **listing (PLP)**, FAQ, local business — and generates **ready-to-paste JSON-LD**, pre-filled from the live page:
+
+```bash
+python plugins/fat-agent/scripts/suggest_schema.py --fetch --url https://example.com --format html
+```
+
+Recommends Organization/LocalBusiness (with NAP + `sameAs`), Product (offers, brand, `aggregateRating` — the fields Google needs for **rich results and free Merchant listings**), ItemList, Article, FAQPage, and BreadcrumbList — with a per-PDP **Merchant-listing readiness checklist**. Stack and hosting are optional and auto-inferred; when unknown, fixes are delivered as stack-agnostic snippets.
+
 ---
 
 ## The FAT Report

@@ -53,9 +53,15 @@ context or memory):
 
 #### Required
 1. **Live URL** — The production URL to audit (e.g., `https://example.com`)
-2. **Site type** — What kind of site is this? (marketing site, SaaS app, e-commerce, blog, portfolio, landing page, web app, local business)
-3. **Tech stack** — Framework/CMS (e.g., Next.js, WordPress, static HTML, Astro, etc.)
-4. **Hosting platform** — Where is this deployed? (Netlify, Vercel, Cloudflare Pages, AWS, shared hosting, self-hosted, etc.) — this helps tailor fix suggestions to the right config format
+
+That's the *only* thing FAT Agent needs. Everything below is helpful but optional —
+if the user doesn't know or doesn't have the codebase, **infer what you can from
+the live response and proceed** (see *Remote / From-Afar Mode* below).
+
+#### Helpful (optional — auto-detected when not provided)
+2. **Site type** — marketing site, SaaS app, e-commerce, blog, portfolio, landing page, web app, local business. *Infer from the page: product schema/cart → e-commerce; LocalBusiness/NAP → local business; `<article>`/blog paths → blog.*
+3. **Tech stack** — Framework/CMS. *Infer from response headers (`Server`, `X-Powered-By`, `X-Generator`), `<meta name="generator">`, cookies (e.g. `wordpress_*`), and asset paths (`/_next/`, `/_nuxt/`, Vite `/assets/index-*.js`, `/wp-content/`).*
+4. **Hosting platform** — *Infer from headers (`Server`, `Via`, `X-Vercel-*`, `CF-Ray`/`Server: cloudflare`, `X-Served-By` Fastly/Netlify, `X-Amz-*`).* Used only to tailor config-format fixes; when unknown, give **stack-agnostic** fixes (the HTML/JSON-LD/header to add).
 
 #### Situational (ask only if relevant)
 5. **Critical user flows** — What are the 2-3 most important things a visitor does? (e.g., "fill out contact form", "add to cart and checkout", "sign up")
@@ -69,6 +75,24 @@ logically and use the ask_user_input tool where possible for bounded choices.
 **Example opener:**
 > Ready to run a FAT audit! I just need a few details to get started. What's the
 > live URL, and what kind of site are we looking at?
+
+### Remote / From-Afar Mode
+
+FAT Agent can audit **any live URL with zero codebase access** — your own site, a
+client's, or a prospect's you're pitching. When you don't have (or don't need) the
+repo:
+
+- **Don't block on stack/hosting.** Fetch the page and infer them from response
+  headers and markup (see the inference hints under *Helpful*, above).
+- **Deliver stack-agnostic fixes.** Instead of "edit `next.config.js`", hand the
+  user the exact **HTML/JSON-LD/header** to add. They can paste it into any CMS,
+  tag manager, or template. Only switch to framework-specific fixes once the stack
+  is confirmed.
+- **Lead with schema + local SEO suggestions** — these are fully derivable from the
+  live page and are the highest-leverage from-afar wins (see *Schema Suggestions*).
+
+This makes FAT Agent equally useful for self-audits and for outside-in audits of
+sites you can only reach over HTTP.
 
 ### Step 2: Select Audit Profile
 
@@ -502,6 +526,41 @@ Uses `scripts/modules/js_bundle.py`. Checks:
 - ES module (`type="module"`) adoption
 - Render-blocking script identification
 
+### 1.16 — Schema Suggestions (paste-ready JSON-LD, from-afar)
+
+Always run for SEO-relevant audits — it needs nothing but the live HTML, so it
+works fully remotely. Where `schema_validator` *validates* existing markup, this
+*recommends what's missing and writes it for you*.
+
+```bash
+python scripts/suggest_schema.py --url https://example.com page.html --format html
+# or fetch it directly:
+python scripts/suggest_schema.py --fetch --url https://example.com --format json
+```
+
+`suggest_schema.py` classifies the page (home / contact / article / **PDP** /
+**PLP** / FAQ / local business), scrapes the live signals, and emits **ready-to-paste
+JSON-LD** pre-filled with what it found (`REPLACE_*` marks what the user must
+supply). It recommends, per page:
+
+- **Organization / LocalBusiness** — brand entity; for local pages, NAP +
+  `openingHoursSpecification` + `geo` + `sameAs` (Knowledge Panel + local pack).
+- **WebSite** (+ `SearchAction` sitelinks box), **BreadcrumbList** on deep pages.
+- **Article / BlogPosting** on content pages (headline, author, dates, publisher).
+- **Product** on PDPs — `offers` (price, `priceCurrency`, `availability`,
+  `itemCondition`), `brand`, `sku`, and `aggregateRating`/`review` — i.e. the
+  fields Google needs for **product rich results and free Merchant listings**.
+- **ItemList** on PLPs (product-grid carousels).
+- **FAQPage** built from on-page `<details>`/Q&A content.
+
+For PDPs it also returns a **`merchant_listing`** readiness checklist (price,
+currency, availability, image, rating, Product schema) so you can tell the user
+exactly what's blocking Merchant/rich-result eligibility.
+
+**Presenting results:** group the suggestions by page, show each as a copy-paste
+`<script type="application/ld+json">` block, and note which `REPLACE_*` values the
+user needs to fill. Prioritise LocalBusiness/Product (P0–P1) over WebSite/Breadcrumb.
+
 ---
 
 ## Phase 2 — FIX
@@ -880,6 +939,7 @@ For extended check details, see:
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
 - `scripts/pagespeed.py` — PageSpeed Insights API wrapper (Core Web Vitals)
 - `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
+- `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
 - `scripts/profiles.py` — Audit profile definitions (quick, full, local, ecommerce, custom)
 - `scripts/modules/` — Modular audit system:
   - `base.py` — `AuditModule` abstract base class
