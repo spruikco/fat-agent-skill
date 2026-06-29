@@ -561,6 +561,47 @@ exactly what's blocking Merchant/rich-result eligibility.
 `<script type="application/ld+json">` block, and note which `REPLACE_*` values the
 user needs to fill. Prioritise LocalBusiness/Product (P0–P1) over WebSite/Breadcrumb.
 
+### 1.17 — E-E-A-T & Trust (module: `eeat`, always-on)
+
+Modern Google ranking — and the leaked authorship/entity signals — reward
+identifiable expertise and trust. In 2026, anonymity is a ranking liability. Uses
+`scripts/modules/eeat.py` (from-afar). Checks:
+- **Authorship** — visible author byline, link to an author bio/page, and `author`
+  in Article schema referencing a `Person` (with `sameAs`).
+- **Trust pages** — About, Contact, Privacy (and ideally an editorial/review policy)
+  linked from the global nav/footer. Required for YMYL.
+- **Entity** — `Organization`/`LocalBusiness` schema with `logo`, `sameAs`, `contactPoint`.
+- **Reachability** — phone, email, postal address present.
+- **Transparency** — outbound citations to authoritative sources; affiliate/sponsored
+  disclosure; "reviewed by"/fact-check for YMYL.
+
+### 1.18 — AI Search / GEO (module: `ai_search`, always-on)
+
+AI Overviews appear on ~30–40% of queries; ChatGPT/Perplexity/Gemini/Claude cite
+sources. Uses `scripts/modules/ai_search.py`. Checks:
+- **AI-crawler posture** in `robots.txt` — reports allowed/blocked/partial for GPTBot,
+  OAI-SearchBot, Google-Extended, PerplexityBot, ClaudeBot, CCBot, Bytespider,
+  Amazonbot, Applebot-Extended, etc. **A blanket `Disallow` is the #1 cause of
+  AI-search invisibility** — flag blocked answer bots as P1 and make the posture a
+  deliberate choice.
+- **`llms.txt`** manifest presence.
+- **Extraction-readiness** — concise lead answer/summary, Q&A, lists, tables, clear headings.
+- **Entity clarity** — Organization/Person + `sameAs` to Wikipedia/Wikidata.
+
+### 1.19 — Technical SEO depth (module: `technical_seo`, always-on)
+
+Header- and DOM-level technical checks beneath the core SEO module. Uses
+`scripts/modules/technical_seo.py`. Checks:
+- **`X-Robots-Tag` header** noindex/nofollow (a header-level block the meta check misses) — P0.
+- **Canonical host/scheme consistency** (www vs non-www, http vs https, foreign host).
+- **Meta-refresh redirects** (use a 301 instead).
+- **Intrusive interstitial / pop-up** heuristics (a page-experience demotion).
+- **Next-gen images** (WebP/AVIF) and **explicit width/height** (CLS).
+
+> **Redirect chains/loops** and **soft-404s** need multi-request following — drive
+> these manually: follow each redirect hop (flag chains > 1) and check that "not
+> found" pages return a real 404/410, not 200 with thin content.
+
 ---
 
 ## Phase 2 — FIX
@@ -940,6 +981,7 @@ For extended check details, see:
 - `scripts/pagespeed.py` — PageSpeed Insights API wrapper (Core Web Vitals)
 - `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
 - `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
+- `scripts/gsc.py` — Google Search Console behavioural analysis (NavBoost proxy) → striking-distance, low-CTR, branded share, `opportunity_keywords`
 - `scripts/profiles.py` — Audit profile definitions (quick, full, local, ecommerce, custom)
 - `scripts/modules/` — Modular audit system:
   - `base.py` — `AuditModule` abstract base class
@@ -951,6 +993,9 @@ For extended check details, see:
   - `dns_infra.py` — DNS & infrastructure checks
   - `js_bundle.py` — JavaScript bundle analysis
   - `links.py` — Link quality and broken link detection
+  - `eeat.py` — E-E-A-T & Trust (authorship, trust pages, entity, transparency) — always-on
+  - `ai_search.py` — AI Search / GEO (AI-crawler posture, llms.txt, extraction, entity) — always-on
+  - `technical_seo.py` — Technical depth (X-Robots-Tag, canonical host, interstitials, images) — always-on
 
 ### Platform-Specific Fix References
 Load the relevant file based on the hosting platform from Phase 0:
@@ -1061,6 +1106,33 @@ After Phase 2 findings are compiled:
 
 Charts that require SEMrush data are automatically skipped if no `--semrush`
 file is provided. The `chart_fat_scores.png` chart is **always** generated.
+
+### GSC Behavioural Data Collection (NavBoost proxy)
+
+The 2024 leak confirmed click signals (NavBoost) are among Google's strongest
+ranking inputs — invisible to a URL-only audit, but visible in Search Console.
+When the user grants access, fold GSC in:
+
+1. **Collect** the last 3 months of query+page performance rows. Prefer a connected
+   **GSC MCP** (e.g. `mcp__gsc__*` tools); otherwise the Search Console API, or a
+   manual export. Save as `gsc.json` (rows of query/page/clicks/impressions/ctr/position;
+   the GSC API `{"keys":[...]}` shape is accepted as-is).
+2. **Analyse** with `scripts/gsc.py`:
+
+```bash
+python scripts/gsc.py --data gsc.json --brand "acme" --output /tmp/gsc.json
+```
+
+3. **Present** the behavioural wins, which most audits never surface:
+   - **Striking-distance** (positions ~5–20 with impressions) — fastest ranking wins.
+   - **Low-CTR at good position** — a title/meta/intent fix, not a ranking one
+     (compare `ctr` vs `benchmark_ctr`).
+   - **Impressions, ~no clicks** — snippet/intent mismatch.
+   - **Branded share** — brand-strength proxy.
+
+`gsc.py` also emits `opportunity_keywords` in the report schema, so GSC wins feed
+straight into the deck's *SEO Priority Opportunities* slide. If no GSC access is
+available, skip — the rest of the audit is unaffected.
 
 ### SEMrush Data Collection
 

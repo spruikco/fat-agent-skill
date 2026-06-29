@@ -69,8 +69,11 @@ def detect_modules(
     """
     enabled: set[str] = set(CORE_MODULES)
 
-    # links module is universally useful
+    # universally-useful modules (run on every audit)
     enabled.add("links")
+    enabled.add("eeat")
+    enabled.add("ai_search")
+    enabled.add("technical_seo")
 
     # auto-detect from html signals
     for module_id, patterns in DETECTION_SIGNALS.items():
@@ -131,4 +134,7 @@ from modules import (  # noqa: E402, F401
     cookie_gdpr,
     pwa,
     schema_validator,
+    eeat,
+    ai_search,
+    technical_seo,
 )

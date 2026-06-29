@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.4.0] - 2026-06-29
+
+### Added — the modern ranking layer (grounded in Google guidance + the 2024 leak)
+- **E-E-A-T & Trust module** (`modules/eeat.py`, always-on, from-afar) — audits
+  authorship (visible byline, author page, `author`/`Person` schema), trust pages
+  (About/Contact/Privacy/editorial), Organization entity (`logo`/`sameAs`/`contactPoint`),
+  reachability (phone/email/address), and transparency (outbound citations, affiliate
+  disclosure, "reviewed by"/fact-check for YMYL).
+- **AI Search / GEO module** (`modules/ai_search.py`, always-on) — reports the
+  AI-crawler posture in robots.txt for GPTBot, OAI-SearchBot, Google-Extended,
+  PerplexityBot, ClaudeBot, CCBot, Bytespider, Amazonbot, Applebot-Extended, etc.
+  (a blanket `Disallow` is flagged P1 — the #1 cause of AI-search invisibility),
+  plus `llms.txt`, extraction-readiness, and entity clarity.
+- **Technical SEO depth module** (`modules/technical_seo.py`, always-on) —
+  `X-Robots-Tag` header noindex (P0; the meta-only check misses it), canonical
+  host/scheme consistency, meta-refresh redirects, intrusive-interstitial heuristics,
+  next-gen image formats + explicit width/height (CLS).
+- **GSC behavioural analysis** (`scripts/gsc.py`) — turns a Search Console export
+  (via the GSC MCP/API/CSV) into the NavBoost-proxy signals a URL-only audit can't
+  see: striking-distance keywords, low-CTR-at-good-position (vs a positional CTR
+  benchmark), impressions-with-no-clicks, and branded share. Emits report-compatible
+  `opportunity_keywords`.
+- SKILL.md §1.17–1.19 + a GSC collection workflow; 41 new tests (710 total).
+
 ## [2.3.0] - 2026-06-29
 
 ### Added

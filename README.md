@@ -171,6 +171,15 @@ python plugins/fat-agent/scripts/semrush.py --domain example.com --database au -
 
 **Bring your own key** — the script reads it from the `SEMRUSH_API_KEY` environment variable (never hardcoded, never written to output, redacted from all errors). No key, no problem: the audit runs fully without it. A connected SEMrush MCP server or browser automation also work as sources. See [`references/semrush-integration.md`](plugins/fat-agent/references/semrush-integration.md).
 
+### The modern ranking layer (E-E-A-T, AI search, behavioural)
+
+Beyond the classic technical audit, FAT Agent checks what 2026 Google ranking actually weights — grounded in Google's guidance and the 2024 Content Warehouse leak:
+
+- **E-E-A-T & Trust** — author bylines/bio + `Person` schema, trust pages (About/Contact/Privacy/editorial), Organization entity + `sameAs`, outbound citations, disclosures. *Anonymity is a ranking liability.*
+- **AI Search / GEO** — flags your **AI-crawler posture** in `robots.txt` (GPTBot, OAI-SearchBot, Google-Extended, PerplexityBot, ClaudeBot, CCBot…) so a blanket `Disallow` isn't silently keeping you out of AI Overviews/ChatGPT/Perplexity; checks `llms.txt`, extraction-readiness, entity clarity.
+- **Technical depth** — `X-Robots-Tag` header noindex, canonical host/scheme consistency, intrusive interstitials, next-gen images + CLS dimensions.
+- **GSC behavioural (NavBoost proxy)** — feed a Search Console export to `scripts/gsc.py` for striking-distance keywords, low-CTR-at-good-position, and branded share — the click signals a URL-only audit can't see.
+
 ### Schema Suggestions — from afar, no codebase needed
 
 FAT Agent can audit **any live URL** (yours, a client's, a prospect's) with zero repo access. It classifies each page — home, article, **product (PDP)**, **listing (PLP)**, FAQ, local business — and generates **ready-to-paste JSON-LD**, pre-filled from the live page:
