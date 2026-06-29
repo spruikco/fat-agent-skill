@@ -1,0 +1,35 @@
+[project]
+name = "fat-agent"
+version = "2.1.0"
+description = "FAT Agent with Superpowers - modular post-launch QA audit skill for Claude Code"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib",
+    "python-docx",
+    "python-pptx",
+    "Pillow",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+]
+lighthouse = [
+    "playwright",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

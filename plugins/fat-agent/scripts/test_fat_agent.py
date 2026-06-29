@@ -8,7 +8,6 @@ Usage:
     python test_fat_agent.py
 """
 
-import json
 import sys
 import os
 import unittest
@@ -27,7 +26,6 @@ calculate_security_score = score_mod.calculate_security_score
 calculate_accessibility_score = score_mod.calculate_accessibility_score
 calculate_performance_score = score_mod.calculate_performance_score
 calculate_fat_score = score_mod.calculate_fat_score
-generate_csp_recommendation = score_mod.generate_csp_recommendation
 
 badge_mod = import_module("generate-badge")
 generate_badge = badge_mod.generate_badge
@@ -445,22 +443,28 @@ EMPTY_HEADINGS_HTML = """\
 </html>
 """
 
-INLINE_SIZE_HTML = """\
+INLINE_SIZE_HTML = (
+    """\
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Inline Size Test</title>
-    <style>""" + "body { margin: 0; } " * 500 + """</style>
+    <style>"""
+    + "body { margin: 0; } " * 500
+    + """</style>
 </head>
 <body>
     <main>
         <h1>Inline Size</h1>
-        <script>""" + "var x = 1; " * 500 + """</script>
+        <script>"""
+    + "var x = 1; " * 500
+    + """</script>
     </main>
 </body>
 </html>
 """
+)
 
 NOOPENER_HTML = """\
 <!DOCTYPE html>
@@ -736,7 +740,7 @@ class TestStructuredData(unittest.TestCase):
         """HTML with only JSON-LD and no other scripts."""
         html = '<!DOCTYPE html><html lang="en"><head><title>T</title>'
         html += '<script type="application/ld+json">{"@type":"WebSite","name":"Test"}</script>'
-        html += '</head><body><h1>Hi</h1></body></html>'
+        html += "</head><body><h1>Hi</h1></body></html>"
         r = analyse_html(html)
         self.assertGreaterEqual(r["seo"]["json_ld_count"], 1)
         self.assertIn("WebSite", r["seo"]["json_ld_types"])
@@ -812,9 +816,7 @@ class TestAccessibilityImages(unittest.TestCase):
         r = analyse_html(BROKEN_HTML)
         self.assertEqual(r["accessibility"]["img_total"], 3)
         self.assertEqual(r["accessibility"]["img_missing_alt"], 3)
-        self.assertIn(
-            "3 images missing alt text", r["summary"]["high"]
-        )
+        self.assertIn("3 images missing alt text", r["summary"]["high"])
 
 
 class TestAccessibilityLang(unittest.TestCase):
@@ -827,9 +829,7 @@ class TestAccessibilityLang(unittest.TestCase):
     def test_lang_missing_flagged_critical(self):
         r = analyse_html(BROKEN_HTML)
         self.assertFalse(r["accessibility"]["has_lang_attribute"])
-        self.assertIn(
-            "Missing <html lang> attribute", r["summary"]["critical"]
-        )
+        self.assertIn("Missing <html lang> attribute", r["summary"]["critical"])
 
     def test_non_english_lang(self):
         r = analyse_html(SEO_EDGE_CASES_HTML)
@@ -885,9 +885,7 @@ class TestPerformance(unittest.TestCase):
         r = analyse_html(PERFORMANCE_HEAVY_HTML)
         # 5 sync scripts in head, async and defer don't count
         self.assertEqual(r["performance"]["render_blocking_scripts"], 5)
-        self.assertIn(
-            "5 render-blocking scripts in <head>", r["summary"]["medium"]
-        )
+        self.assertIn("5 render-blocking scripts in <head>", r["summary"]["medium"])
 
     def test_async_defer_not_counted(self):
         r = analyse_html(PERFORMANCE_HEAVY_HTML)
@@ -943,9 +941,7 @@ class TestAnalyticsDetection(unittest.TestCase):
     def test_no_analytics_flagged(self):
         r = analyse_html(BROKEN_HTML)
         self.assertFalse(r["analytics"]["has_analytics"])
-        self.assertIn(
-            "No analytics tracking detected", r["summary"]["low"]
-        )
+        self.assertIn("No analytics tracking detected", r["summary"]["low"])
 
 
 class TestPlaceholderText(unittest.TestCase):
@@ -956,9 +952,7 @@ class TestPlaceholderText(unittest.TestCase):
         self.assertTrue(
             any("Lorem ipsum" in t for t in r["content"]["placeholder_text"])
         )
-        self.assertIn(
-            "Placeholder/Lorem Ipsum text detected", r["summary"]["medium"]
-        )
+        self.assertIn("Placeholder/Lorem Ipsum text detected", r["summary"]["medium"])
 
     def test_no_placeholder_text(self):
         r = analyse_html(PERFECT_HTML)
@@ -987,10 +981,7 @@ class TestIssueCounts(unittest.TestCase):
         r = analyse_html(BROKEN_HTML)
         s = r["summary"]
         expected = (
-            len(s["critical"])
-            + len(s["high"])
-            + len(s["medium"])
-            + len(s["low"])
+            len(s["critical"]) + len(s["high"]) + len(s["medium"]) + len(s["low"])
         )
         self.assertEqual(s["issues_found"], expected)
 
@@ -1034,9 +1025,7 @@ class TestMixedContent(unittest.TestCase):
 
     def test_mixed_content_flagged_critical(self):
         r = analyse_html(MIXED_CONTENT_HTML, page_url="https://example.com")
-        self.assertTrue(
-            any("Mixed content" in i for i in r["summary"]["critical"])
-        )
+        self.assertTrue(any("Mixed content" in i for i in r["summary"]["critical"]))
 
 
 # ---------------------------------------------------------------------------
@@ -1060,9 +1049,7 @@ class TestDuplicateMeta(unittest.TestCase):
 
     def test_duplicate_titles_flagged_high(self):
         r = analyse_html(DUPLICATE_META_HTML)
-        self.assertTrue(
-            any("Duplicate <title>" in i for i in r["summary"]["high"])
-        )
+        self.assertTrue(any("Duplicate <title>" in i for i in r["summary"]["high"]))
 
     def test_duplicate_descriptions_flagged_high(self):
         r = analyse_html(DUPLICATE_META_HTML)
@@ -1072,9 +1059,7 @@ class TestDuplicateMeta(unittest.TestCase):
 
     def test_duplicate_canonicals_flagged_high(self):
         r = analyse_html(DUPLICATE_META_HTML)
-        self.assertTrue(
-            any("Duplicate canonical" in i for i in r["summary"]["high"])
-        )
+        self.assertTrue(any("Duplicate canonical" in i for i in r["summary"]["high"]))
 
     def test_no_duplicates_on_clean_page(self):
         r = analyse_html(PERFECT_HTML)
@@ -1097,9 +1082,7 @@ class TestViewportValidation(unittest.TestCase):
     def test_missing_device_width_flagged(self):
         r = analyse_html(VIEWPORT_EDGE_CASES_HTML)
         self.assertFalse(r["seo"]["viewport_valid"])
-        self.assertTrue(
-            any("width=device-width" in i for i in r["summary"]["high"])
-        )
+        self.assertTrue(any("width=device-width" in i for i in r["summary"]["high"]))
 
     def test_viewport_content_captured(self):
         r = analyse_html(VIEWPORT_EDGE_CASES_HTML)
@@ -1177,9 +1160,7 @@ class TestImageOptimisation(unittest.TestCase):
     def test_no_dimensions_flagged(self):
         r = analyse_html(BROKEN_HTML)
         self.assertEqual(r["accessibility"]["img_with_dimensions"], 0)
-        self.assertTrue(
-            any("width/height" in i for i in r["summary"]["low"])
-        )
+        self.assertTrue(any("width/height" in i for i in r["summary"]["low"]))
 
     def test_no_responsive_images_flagged(self):
         """Pages with >3 images and no srcset/picture get a low-priority flag."""
@@ -1278,9 +1259,7 @@ class TestEmptyHeadings(unittest.TestCase):
 
     def test_empty_headings_flagged_medium(self):
         r = analyse_html(EMPTY_HEADINGS_HTML)
-        self.assertTrue(
-            any("empty heading" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("empty heading" in i for i in r["summary"]["medium"]))
 
     def test_no_empty_headings(self):
         r = analyse_html(PERFECT_HTML)
@@ -1352,9 +1331,7 @@ class TestNoopener(unittest.TestCase):
 
     def test_unsafe_links_flagged_low(self):
         r = analyse_html(NOOPENER_HTML)
-        self.assertTrue(
-            any("noopener" in i for i in r["summary"]["low"])
-        )
+        self.assertTrue(any("noopener" in i for i in r["summary"]["low"]))
 
     def test_internal_blank_not_counted(self):
         """target=_blank on internal /paths should not count as external."""
@@ -1412,11 +1389,26 @@ class TestSEOScoring(unittest.TestCase):
 
     def test_title_length_scoring_tiers(self):
         """Verify different title lengths hit different score tiers."""
-        seo_perfect = {"title_tag": "A" * 55, "title_length": 55, "meta_description": None, "meta_description_length": 0}
+        seo_perfect = {
+            "title_tag": "A" * 55,
+            "title_length": 55,
+            "meta_description": None,
+            "meta_description_length": 0,
+        }
         s1 = calculate_seo_score(seo_perfect, {})
-        seo_ok = {"title_tag": "A" * 35, "title_length": 35, "meta_description": None, "meta_description_length": 0}
+        seo_ok = {
+            "title_tag": "A" * 35,
+            "title_length": 35,
+            "meta_description": None,
+            "meta_description_length": 0,
+        }
         s2 = calculate_seo_score(seo_ok, {})
-        seo_short = {"title_tag": "A", "title_length": 1, "meta_description": None, "meta_description_length": 0}
+        seo_short = {
+            "title_tag": "A",
+            "title_length": 1,
+            "meta_description": None,
+            "meta_description_length": 0,
+        }
         s3 = calculate_seo_score(seo_short, {})
 
         self.assertGreater(
@@ -1459,7 +1451,12 @@ class TestSEOScoring(unittest.TestCase):
     def test_og_tags_scoring(self):
         """All 4 OG keys + twitter = full social score."""
         seo_full = {
-            "og_tags": {"og:title": "T", "og:description": "D", "og:image": "I", "og:url": "U"},
+            "og_tags": {
+                "og:title": "T",
+                "og:description": "D",
+                "og:image": "I",
+                "og:url": "U",
+            },
             "twitter_tags": {"twitter:card": "summary"},
         }
         s = calculate_seo_score(seo_full, {})
@@ -1467,7 +1464,11 @@ class TestSEOScoring(unittest.TestCase):
 
     def test_duplicate_meta_penalty(self):
         """Duplicate titles/descriptions should reduce score."""
-        seo_clean = {"title_tag": "A" * 55, "title_length": 55, "duplicate_title_tags": 1}
+        seo_clean = {
+            "title_tag": "A" * 55,
+            "title_length": 55,
+            "duplicate_title_tags": 1,
+        }
         seo_dup = {"title_tag": "A" * 55, "title_length": 55, "duplicate_title_tags": 2}
         s1 = calculate_seo_score(seo_clean, {})
         s2 = calculate_seo_score(seo_dup, {})
@@ -1503,7 +1504,11 @@ class TestSecurityScoring(unittest.TestCase):
 
     def test_no_headers_gives_html_scores(self):
         """Even without headers, mixed content + link safety are scored."""
-        html_sec = {"has_mixed_content": False, "external_links_total": 0, "external_links_without_noopener": 0}
+        html_sec = {
+            "has_mixed_content": False,
+            "external_links_total": 0,
+            "external_links_without_noopener": 0,
+        }
         s = calculate_security_score({}, html_sec)
         self.assertEqual(s["details"]["mixed_content"]["score"], 10)
         self.assertEqual(s["details"]["link_safety"]["score"], 5)
@@ -1528,13 +1533,19 @@ class TestSecurityScoring(unittest.TestCase):
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "camera=(), microphone=()",
         }
-        html_sec = {"has_mixed_content": False, "external_links_total": 0, "external_links_without_noopener": 0}
+        html_sec = {
+            "has_mixed_content": False,
+            "external_links_total": 0,
+            "external_links_without_noopener": 0,
+        }
         s = calculate_security_score(headers, html_sec)
         self.assertEqual(s["score"], 100)
 
     def test_partial_hsts_scoring(self):
         """HSTS without includeSubDomains or preload gets partial score."""
-        headers_full = {"Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload"}
+        headers_full = {
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload"
+        }
         headers_partial = {"Strict-Transport-Security": "max-age=31536000"}
         s_full = calculate_security_score(headers_full)
         s_partial = calculate_security_score(headers_partial)
@@ -1600,8 +1611,10 @@ class TestAccessibilityScoring(unittest.TestCase):
         s1 = calculate_accessibility_score(a11y_clean)
         s2 = calculate_accessibility_score(a11y_empty)
         self.assertGreater(
-            s1["details"]["heading_structure"]["score"] + s1["details"]["empty_headings"]["score"],
-            s2["details"]["heading_structure"]["score"] + s2["details"]["empty_headings"]["score"],
+            s1["details"]["heading_structure"]["score"]
+            + s1["details"]["empty_headings"]["score"],
+            s2["details"]["heading_structure"]["score"]
+            + s2["details"]["empty_headings"]["score"],
         )
 
     def test_image_dimensions_scoring(self):
@@ -1819,13 +1832,9 @@ class TestSPAH1Softening(unittest.TestCase):
         r = analyse_html(SPA_NEXTJS_HTML)
         self.assertEqual(r["seo"]["h1_count"], 0)
         # Should NOT be in critical
-        self.assertFalse(
-            any("h1" in i.lower() for i in r["summary"]["critical"])
-        )
+        self.assertFalse(any("h1" in i.lower() for i in r["summary"]["critical"]))
         # Should be in high
-        self.assertTrue(
-            any("No <h1>" in i for i in r["summary"]["high"])
-        )
+        self.assertTrue(any("No <h1>" in i for i in r["summary"]["high"]))
 
     def test_spa_h1_message_includes_framework(self):
         r = analyse_html(SPA_NEXTJS_HTML)
@@ -1874,7 +1883,9 @@ class TestHeadingHierarchySkip(unittest.TestCase):
 
     def test_skip_message_shows_levels(self):
         r = analyse_html(BROKEN_HTML)
-        skip_issues = [i for i in r["summary"]["medium"] if "Heading hierarchy skips" in i]
+        skip_issues = [
+            i for i in r["summary"]["medium"] if "Heading hierarchy skips" in i
+        ]
         self.assertEqual(len(skip_issues), 1)
         self.assertIn("h2", skip_issues[0])
         self.assertIn("h4", skip_issues[0])
@@ -1901,30 +1912,27 @@ class TestTitleLengthWarnings(unittest.TestCase):
 
     def test_short_title_flagged(self):
         r = analyse_html(SEO_EDGE_CASES_HTML)
-        self.assertTrue(
-            any("Title tag is only" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("Title tag is only" in i for i in r["summary"]["medium"]))
 
     def test_long_title_flagged(self):
         r = analyse_html(TITLE_LENGTH_EDGE_CASES_HTML)
         tlen = r["seo"]["title_length"]
         self.assertGreater(tlen, 60)
         self.assertTrue(
-            any("Title tag is" in i and "characters" in i for i in r["summary"]["medium"])
+            any(
+                "Title tag is" in i and "characters" in i
+                for i in r["summary"]["medium"]
+            )
         )
 
     def test_ideal_title_not_flagged(self):
         r = analyse_html(PERFECT_HTML)
-        self.assertFalse(
-            any("Title tag is" in i for i in r["summary"]["medium"])
-        )
+        self.assertFalse(any("Title tag is" in i for i in r["summary"]["medium"]))
 
     def test_no_title_not_length_flagged(self):
         """Missing title triggers critical, not a length warning."""
         r = analyse_html(BROKEN_HTML)
-        self.assertFalse(
-            any("Title tag is" in i for i in r["summary"]["medium"])
-        )
+        self.assertFalse(any("Title tag is" in i for i in r["summary"]["medium"]))
 
 
 class TestDescriptionLengthWarnings(unittest.TestCase):
@@ -1940,7 +1948,10 @@ class TestDescriptionLengthWarnings(unittest.TestCase):
         dlen = r["seo"]["meta_description_length"]
         self.assertGreater(dlen, 160)
         self.assertTrue(
-            any("Meta description is" in i and "characters" in i for i in r["summary"]["medium"])
+            any(
+                "Meta description is" in i and "characters" in i
+                for i in r["summary"]["medium"]
+            )
         )
 
     def test_ideal_description_not_flagged(self):
@@ -2020,8 +2031,9 @@ class TestBadgeSVGGeneration(unittest.TestCase):
 
 class TestBadgeFromScores(unittest.TestCase):
 
-    def _make_scores(self, overall_score=85, grade="B",
-                     seo=80, security=90, a11y=75, perf=70):
+    def _make_scores(
+        self, overall_score=85, grade="B", seo=80, security=90, a11y=75, perf=70
+    ):
         return {
             "seo": {"score": seo, "max": 100},
             "security": {"score": security, "max": 100},
@@ -2106,78 +2118,60 @@ class TestBadgeWithImage(unittest.TestCase):
     }
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_default_icon_exists(self):
         self.assertTrue(os.path.exists(DEFAULT_ICON))
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_badge_icon_is_small(self):
         size = os.path.getsize(BADGE_ICON_PATH)
         self.assertLess(size, 50 * 1024, "Badge icon should be < 50KB")
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_valid_svg(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES, width=200
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES, width=200)
         self.assertTrue(svg.startswith("<svg"))
         self.assertTrue(svg.strip().endswith("</svg>"))
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_contains_base64(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES)
         self.assertIn("data:image/png;base64,", svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_contains_overall_text(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES)
         self.assertIn(">FAT<", svg)
         self.assertIn(">A 92<", svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_contains_category_scores(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES)
         self.assertIn(">SEO 95<", svg)
         self.assertIn(">Sec 100<", svg)
         self.assertIn(">A11y 82<", svg)
         self.assertIn(">Perf 74<", svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_custom_width(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES, width=300
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES, width=300)
         self.assertIn('width="300"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_flat_square(self):
         svg = generate_badge_with_image(
@@ -2186,50 +2180,38 @@ class TestBadgeWithImage(unittest.TestCase):
         self.assertIn('rx="0"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_has_aria_with_categories(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES)
         self.assertIn('aria-label="FAT: A 92 (SEO 95, Sec 100, A11y 82, Perf 74)"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_low_scores_use_correct_colours(self):
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.LOW_SCORES
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.LOW_SCORES)
         # F grade overall
         self.assertIn(">F 30<", svg)
         # Should contain the F grade colour for overall
         self.assertIn(f'fill="{GRADE_COLOURS["F"]}"', svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_generate_badge_routes_to_image(self):
         """generate_badge with image_path should produce embedded image."""
-        svg = generate_badge(
-            self.SAMPLE_SCORES, image_path=BADGE_ICON_PATH, width=200
-        )
+        svg = generate_badge(self.SAMPLE_SCORES, image_path=BADGE_ICON_PATH, width=200)
         self.assertIn("data:image/png;base64,", svg)
         self.assertIn(">A 92<", svg)
         self.assertIn(">SEO 95<", svg)
 
     @unittest.skipUnless(
-        os.path.exists(BADGE_ICON_PATH),
-        "fat-agent-badge-icon.png not found"
+        os.path.exists(BADGE_ICON_PATH), "fat-agent-badge-icon.png not found"
     )
     def test_image_badge_svg_size_reasonable(self):
         """Badge with icon should be well under 100KB."""
-        svg = generate_badge_with_image(
-            BADGE_ICON_PATH, self.SAMPLE_SCORES
-        )
+        svg = generate_badge_with_image(BADGE_ICON_PATH, self.SAMPLE_SCORES)
         self.assertLess(len(svg), 100 * 1024)
 
 
@@ -2249,9 +2231,7 @@ class TestBadgeEndToEnd(unittest.TestCase):
         svg = generate_badge(scores)
         self.assertIn(">FAT<", svg)
         # Broken page should have D or F grade
-        self.assertTrue(
-            scores["overall"]["grade"] in ("D", "F")
-        )
+        self.assertTrue(scores["overall"]["grade"] in ("D", "F"))
 
     def test_all_category_badges_from_pipeline(self):
         r = analyse_html(PERFECT_HTML)
@@ -2539,9 +2519,7 @@ class TestThinContent(unittest.TestCase):
 
     def test_thin_content_flagged_medium(self):
         r = analyse_html(THIN_CONTENT_HTML)
-        self.assertTrue(
-            any("Thin content" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("Thin content" in i for i in r["summary"]["medium"]))
 
     def test_page_with_enough_content_not_thin(self):
         """A page with 300+ body words should not be flagged as thin."""
@@ -2569,9 +2547,7 @@ class TestPoorAnchorText(unittest.TestCase):
 
     def test_poor_anchor_text_flagged_low(self):
         r = analyse_html(POOR_ANCHOR_TEXT_HTML)
-        self.assertTrue(
-            any("poor anchor text" in i for i in r["summary"]["low"])
-        )
+        self.assertTrue(any("poor anchor text" in i for i in r["summary"]["low"]))
 
     def test_good_anchor_text_not_flagged(self):
         r = analyse_html(PERFECT_HTML)
@@ -2591,9 +2567,7 @@ class TestGenericImageFilenames(unittest.TestCase):
 
     def test_generic_filenames_flagged_medium(self):
         r = analyse_html(GENERIC_IMG_FILENAMES_HTML)
-        self.assertTrue(
-            any("generic filenames" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("generic filenames" in i for i in r["summary"]["medium"]))
 
     def test_good_filenames_not_flagged(self):
         r = analyse_html(PERFECT_HTML)
@@ -2613,9 +2587,7 @@ class TestTabindex(unittest.TestCase):
 
     def test_positive_tabindex_flagged_medium(self):
         r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
-        self.assertTrue(
-            any("tabindex > 0" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("tabindex > 0" in i for i in r["summary"]["medium"]))
 
     def test_no_positive_tabindex_on_perfect(self):
         r = analyse_html(PERFECT_HTML)
@@ -2644,9 +2616,7 @@ class TestZoomDisabled(unittest.TestCase):
 
     def test_zoom_disabled_flagged_critical(self):
         r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
-        self.assertTrue(
-            any("zoom" in i.lower() for i in r["summary"]["critical"])
-        )
+        self.assertTrue(any("zoom" in i.lower() for i in r["summary"]["critical"]))
 
     def test_zoom_not_disabled_on_perfect(self):
         r = analyse_html(PERFECT_HTML)
@@ -2663,7 +2633,10 @@ class TestTableAccessibility(unittest.TestCase):
     def test_table_without_th_flagged_medium(self):
         r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
         self.assertTrue(
-            any("table" in i.lower() and "header" in i.lower() for i in r["summary"]["medium"])
+            any(
+                "table" in i.lower() and "header" in i.lower()
+                for i in r["summary"]["medium"]
+            )
         )
 
 
@@ -2676,9 +2649,7 @@ class TestSVGAccessibility(unittest.TestCase):
 
     def test_svg_without_name_flagged_medium(self):
         r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
-        self.assertTrue(
-            any("SVG" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("SVG" in i for i in r["summary"]["medium"]))
 
 
 class TestIframeAccessibility(unittest.TestCase):
@@ -2690,9 +2661,7 @@ class TestIframeAccessibility(unittest.TestCase):
 
     def test_iframe_without_title_flagged_medium(self):
         r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
-        self.assertTrue(
-            any("iframe" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("iframe" in i for i in r["summary"]["medium"]))
 
 
 class TestPrefersReducedMotion(unittest.TestCase):
@@ -2714,9 +2683,7 @@ class TestLinkAsButton(unittest.TestCase):
 
     def test_link_as_button_flagged_low(self):
         r = analyse_html(ACCESSIBILITY_EXTENDED_HTML)
-        self.assertTrue(
-            any("role=\"button\"" in i for i in r["summary"]["low"])
-        )
+        self.assertTrue(any('role="button"' in i for i in r["summary"]["low"]))
 
 
 # ---------------------------------------------------------------------------
@@ -2733,9 +2700,7 @@ class TestNofollowAudit(unittest.TestCase):
 
     def test_nofollow_internal_flagged_low(self):
         r = analyse_html(NOFOLLOW_HTML)
-        self.assertTrue(
-            any("nofollow" in i for i in r["summary"]["low"])
-        )
+        self.assertTrue(any("nofollow" in i for i in r["summary"]["low"]))
 
 
 # ---------------------------------------------------------------------------
@@ -2785,9 +2750,7 @@ class TestCanonicalValidation(unittest.TestCase):
 
     def test_trailing_slash_mismatch_flagged_medium(self):
         r = analyse_html(CANONICAL_HTML, page_url="https://example.com/page")
-        self.assertTrue(
-            any("trailing slash" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("trailing slash" in i for i in r["summary"]["medium"]))
 
 
 # ---------------------------------------------------------------------------
@@ -2814,9 +2777,7 @@ class TestPerformanceBudgets(unittest.TestCase):
     def test_budget_violations_flagged_medium(self):
         strict_budget = {"html_kb": 0.001}
         r = analyse_html(PERFECT_HTML, budget=strict_budget)
-        self.assertTrue(
-            any("Budget exceeded" in i for i in r["summary"]["medium"])
-        )
+        self.assertTrue(any("Budget exceeded" in i for i in r["summary"]["medium"]))
 
 
 # ---------------------------------------------------------------------------
@@ -2835,7 +2796,9 @@ format_trend = track_mod.format_trend
 
 class TestTrackHistory(unittest.TestCase):
 
-    def _make_scores(self, overall=85, grade="B", seo=80, sec=90, a11y=75, perf=70, issues=5):
+    def _make_scores(
+        self, overall=85, grade="B", seo=80, sec=90, a11y=75, perf=70, issues=5
+    ):
         return {
             "seo": {"score": seo},
             "security": {"score": sec},
@@ -2913,9 +2876,7 @@ class TestLinkAudit(unittest.TestCase):
     def test_no_internal_links_flagged(self):
         html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><main><h1>Hi</h1><p>Hello world this is a test with many words.</p></main></body></html>'
         r = analyse_html(html)
-        self.assertTrue(
-            any("No internal links" in i for i in r["summary"]["low"])
-        )
+        self.assertTrue(any("No internal links" in i for i in r["summary"]["low"]))
 
 
 # ---------------------------------------------------------------------------
@@ -2961,534 +2922,6 @@ class TestARIAValidation(unittest.TestCase):
         html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><div role="directory">X</div><main><h1>Hi</h1></main></body></html>'
         r = analyse_html(html)
         self.assertIn("directory", r["accessibility"]["deprecated_aria_roles"])
-
-
-# ---------------------------------------------------------------------------
-# NEW Fixtures — Wave 2: Inline Dynamic Script Loaders
-# ---------------------------------------------------------------------------
-
-GTM_INLINE_LOADER_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>GTM Inline Loader Test Page Title Here</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>
-        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-        })(window,document,'script','dataLayer','GTM-XXXXX');
-    </script>
-</head>
-<body>
-    <main><h1>GTM Inline</h1></main>
-</body>
-</html>
-"""
-
-META_PIXEL_INLINE_LOADER_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Meta Pixel Inline Loader Test Page Title</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>
-        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
-        n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src='https://connect.facebook.net/en_US/fbevents.js';
-        s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
-        (window,document,'script');
-        fbq('init','123456789');fbq('track','PageView');
-    </script>
-</head>
-<body>
-    <main><h1>Meta Pixel Inline</h1></main>
-</body>
-</html>
-"""
-
-BODY_INLINE_SCRIPT_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Body Inline Script Test Page Title Here</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <main><h1>Body Script</h1></main>
-    <script>
-        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-        })(window,document,'script','dataLayer','GTM-XXXXX');
-    </script>
-</body>
-</html>
-"""
-
-
-# ---------------------------------------------------------------------------
-# NEW Test Classes — Wave 2: Inline Dynamic Script Loaders
-# ---------------------------------------------------------------------------
-
-
-class TestInlineDynamicScriptLoaders(unittest.TestCase):
-
-    def test_gtm_inline_loader_detected(self):
-        r = analyse_html(GTM_INLINE_LOADER_HTML)
-        loaders = r["performance"]["inline_dynamic_script_loaders"]
-        self.assertIn("GTM", loaders)
-
-    def test_meta_pixel_inline_loader_detected(self):
-        r = analyse_html(META_PIXEL_INLINE_LOADER_HTML)
-        loaders = r["performance"]["inline_dynamic_script_loaders"]
-        self.assertIn("Meta Pixel", loaders)
-
-    def test_body_inline_not_flagged(self):
-        r = analyse_html(BODY_INLINE_SCRIPT_HTML)
-        loaders = r["performance"]["inline_dynamic_script_loaders"]
-        self.assertEqual(loaders, [])
-
-    def test_loader_flagged_as_high(self):
-        r = analyse_html(GTM_INLINE_LOADER_HTML)
-        high_issues = r["summary"]["high"]
-        self.assertTrue(
-            any("defer with setTimeout" in i for i in high_issues),
-            f"Expected P1 High issue about deferral, got: {high_issues}"
-        )
-
-
-# ---------------------------------------------------------------------------
-# NEW Test Classes — Wave 2: CSP Recommendation
-# ---------------------------------------------------------------------------
-
-
-class TestCSPRecommendation(unittest.TestCase):
-
-    def test_csp_includes_gtm_domains(self):
-        report = {"analytics": {"providers": ["Google Analytics / GTM"]}}
-        csp = generate_csp_recommendation(report)
-        self.assertIn("googletagmanager.com", csp)
-        self.assertIn("google-analytics.com", csp)
-
-    def test_csp_includes_facebook_domains(self):
-        report = {"analytics": {"providers": ["Facebook Pixel"]}}
-        csp = generate_csp_recommendation(report)
-        self.assertIn("connect.facebook.net", csp)
-        self.assertIn("facebook.com", csp)
-
-    def test_csp_base_policy_has_self(self):
-        report = {"analytics": {"providers": []}}
-        csp = generate_csp_recommendation(report)
-        self.assertIn("default-src 'self'", csp)
-        self.assertIn("object-src 'none'", csp)
-        self.assertIn("base-uri 'self'", csp)
-
-    def test_csp_in_scored_output(self):
-        r = analyse_html(ANALYTICS_HTML)
-        scored = calculate_scores(r)
-        self.assertIn("csp_recommendation", scored)
-        self.assertIn("default-src 'self'", scored["csp_recommendation"])
-
-
-# ---------------------------------------------------------------------------
-# Wave 1 Fixtures — Duplicate Title Suffix, Preconnect Count, LCP Animation,
-#                     Next.js Font-Display Inference
-# ---------------------------------------------------------------------------
-
-DUPLICATE_TITLE_SUFFIX_PIPE_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Product | Brand | Brand</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body><main><h1>Product</h1></main></body>
-</html>
-"""
-
-DUPLICATE_TITLE_SUFFIX_DASH_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>About - MyBrand - MyBrand</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body><main><h1>About</h1></main></body>
-</html>
-"""
-
-NO_DUPLICATE_SUFFIX_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Product | Brand</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body><main><h1>Product</h1></main></body>
-</html>
-"""
-
-EXCESS_PRECONNECT_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Preconnect Test Page Title Here Right Now</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.example.com">
-    <link rel="preconnect" href="https://api.example.com">
-    <link rel="preconnect" href="https://analytics.example.com">
-    <link rel="preconnect" href="https://images.example.com">
-</head>
-<body><main><h1>Preconnects</h1></main></body>
-</html>
-"""
-
-FOUR_PRECONNECT_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Four Preconnects Test Page Title Here Now</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.example.com">
-    <link rel="preconnect" href="https://api.example.com">
-</head>
-<body><main><h1>Four Preconnects</h1></main></body>
-</html>
-"""
-
-LCP_OPACITY_ZERO_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>LCP Animation Test Page Title Here Right</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <main>
-        <h1>LCP Test</h1>
-        <img src="hero.jpg" alt="Hero" style="opacity: 0" width="1200" height="600">
-    </main>
-</body>
-</html>
-"""
-
-LCP_VISIBILITY_HIDDEN_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Visibility Hidden Test Page Title Here Now</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <main>
-        <h1>Visibility Test</h1>
-        <img src="hero.jpg" alt="Hero" style="visibility: hidden" width="1200" height="600">
-    </main>
-</body>
-</html>
-"""
-
-LCP_NORMAL_IMAGE_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Normal Image Test Page Title Here Right Now</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <main>
-        <h1>Normal Image</h1>
-        <img src="hero.jpg" alt="Hero" style="opacity: 1" width="1200" height="600">
-    </main>
-</body>
-</html>
-"""
-
-NEXTJS_FONT_PRELOAD_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Next.js Font Preload Test Page Title Here</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preload" href="/_next/static/media/font.woff2" as="font" type="font/woff2" crossorigin>
-    <script id="__NEXT_DATA__" type="application/json">{"props":{}}</script>
-</head>
-<body>
-    <div id="__next">
-        <main><h1>Next.js Font</h1></main>
-    </div>
-    <script src="/_next/static/chunks/main.js"></script>
-</body>
-</html>
-"""
-
-NON_NEXTJS_FONT_PRELOAD_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Non-Next.js Font Preload Test Page Title</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preload" href="/fonts/body.woff2" as="font" type="font/woff2" crossorigin>
-</head>
-<body>
-    <main><h1>No Framework</h1></main>
-</body>
-</html>
-"""
-
-
-# ---------------------------------------------------------------------------
-# Wave 1 Test Classes — Duplicate Title Suffix
-# ---------------------------------------------------------------------------
-
-
-class TestDuplicateTitleSuffix(unittest.TestCase):
-
-    def test_duplicate_suffix_pipe(self):
-        r = analyse_html(DUPLICATE_TITLE_SUFFIX_PIPE_HTML)
-        self.assertIsNotNone(r["seo"]["title_duplicate_suffix"])
-        self.assertIn("Brand", r["seo"]["title_duplicate_suffix"])
-
-    def test_duplicate_suffix_dash(self):
-        r = analyse_html(DUPLICATE_TITLE_SUFFIX_DASH_HTML)
-        self.assertIsNotNone(r["seo"]["title_duplicate_suffix"])
-        self.assertIn("MyBrand", r["seo"]["title_duplicate_suffix"])
-
-    def test_no_duplicate_suffix(self):
-        r = analyse_html(NO_DUPLICATE_SUFFIX_HTML)
-        self.assertIsNone(r["seo"]["title_duplicate_suffix"])
-
-    def test_duplicate_suffix_score_penalty(self):
-        r_dup = analyse_html(DUPLICATE_TITLE_SUFFIX_PIPE_HTML)
-        r_clean = analyse_html(NO_DUPLICATE_SUFFIX_HTML)
-        scores_dup = calculate_scores(r_dup)
-        scores_clean = calculate_scores(r_clean)
-        self.assertLess(
-            scores_dup["seo"]["details"]["title_meta"]["score"],
-            scores_clean["seo"]["details"]["title_meta"]["score"],
-        )
-
-
-# ---------------------------------------------------------------------------
-# Wave 1 Test Classes — Preconnect Count
-# ---------------------------------------------------------------------------
-
-
-class TestPreconnectCount(unittest.TestCase):
-
-    def test_preconnect_count_tracked(self):
-        """3 preconnects in PERFECT_HTML (fonts.googleapis.com + font preload)."""
-        r = analyse_html(FOUR_PRECONNECT_HTML)
-        self.assertEqual(r["performance"]["preconnect_count"], 4)
-        self.assertEqual(len(r["performance"]["preconnect_urls"]), 4)
-
-    def test_excess_preconnect_flagged(self):
-        r = analyse_html(EXCESS_PRECONNECT_HTML)
-        self.assertEqual(r["performance"]["preconnect_count"], 6)
-        self.assertTrue(
-            any("preconnect" in i.lower() for i in r["summary"]["medium"])
-        )
-
-    def test_four_preconnects_ok(self):
-        r = analyse_html(FOUR_PRECONNECT_HTML)
-        self.assertEqual(r["performance"]["preconnect_count"], 4)
-        self.assertFalse(
-            any("preconnect" in i.lower() and "recommend" in i.lower() for i in r["summary"]["medium"])
-        )
-
-
-# ---------------------------------------------------------------------------
-# Wave 1 Test Classes — LCP Animation Detection
-# ---------------------------------------------------------------------------
-
-
-class TestLCPAnimationDetection(unittest.TestCase):
-
-    def test_opacity_zero_detected(self):
-        r = analyse_html(LCP_OPACITY_ZERO_HTML)
-        self.assertEqual(r["performance"]["images_with_hidden_inline_style"], 1)
-
-    def test_visibility_hidden_detected(self):
-        r = analyse_html(LCP_VISIBILITY_HIDDEN_HTML)
-        self.assertEqual(r["performance"]["images_with_hidden_inline_style"], 1)
-
-    def test_normal_image_not_flagged(self):
-        r = analyse_html(LCP_NORMAL_IMAGE_HTML)
-        self.assertEqual(r["performance"]["images_with_hidden_inline_style"], 0)
-
-    def test_hidden_image_flagged_high(self):
-        r = analyse_html(LCP_OPACITY_ZERO_HTML)
-        self.assertTrue(
-            any("hidden inline style" in i for i in r["summary"]["high"])
-        )
-
-
-# ---------------------------------------------------------------------------
-# Wave 1 Test Classes — Font Display Next.js Inference
-# ---------------------------------------------------------------------------
-
-
-class TestFontDisplayNextJS(unittest.TestCase):
-
-    def test_nextjs_font_preload_infers_swap(self):
-        r = analyse_html(NEXTJS_FONT_PRELOAD_HTML)
-        self.assertTrue(r["performance"]["has_font_display_swap"])
-        self.assertEqual(r["performance"]["font_display_swap_source"], "nextjs_font_preload")
-
-    def test_non_nextjs_no_inference(self):
-        r = analyse_html(NON_NEXTJS_FONT_PRELOAD_HTML)
-        self.assertFalse(r["performance"]["has_font_display_swap"])
-        self.assertIsNone(r["performance"]["font_display_swap_source"])
-
-    def test_inline_font_display_still_works(self):
-        r = analyse_html(FONT_LOADING_HTML)
-        self.assertTrue(r["performance"]["has_font_display_swap"])
-        self.assertEqual(r["performance"]["font_display_swap_source"], "inline_css")
-
-
-# ---------------------------------------------------------------------------
-# Wave 3 Test Classes — Image URL Collection
-# ---------------------------------------------------------------------------
-
-# Import new functions for Wave 3/4 tests
-analyse_batch_fn = analyse_mod.analyse_batch
-check_url_status_fn = analyse_mod.check_url_status
-FATHTMLAnalyser = analyse_mod.FATHTMLAnalyser
-
-history_mod = import_module("track-history")
-format_verify = history_mod.format_verify
-
-
-class TestImageURLCollection(unittest.TestCase):
-
-    def test_image_urls_collected(self):
-        """HTML with 2 images -> both URLs in _image_urls."""
-        html = """\
-<!DOCTYPE html>
-<html lang="en">
-<head><title>Image Test</title></head>
-<body>
-    <img src="/img/hero.webp" alt="Hero">
-    <img src="/img/thumb.jpg" alt="Thumb">
-</body>
-</html>"""
-        r = analyse_html(html)
-        self.assertIn("/img/hero.webp", r["performance"]["_image_urls"])
-        self.assertIn("/img/thumb.jpg", r["performance"]["_image_urls"])
-        self.assertEqual(len(r["performance"]["_image_urls"]), 2)
-
-    def test_oversized_images_report_structure(self):
-        """Verify check_image_sizes returns (dict, list) tuple."""
-        sizes, oversized = FATHTMLAnalyser.check_image_sizes([], "https://example.com")
-        self.assertIsInstance(sizes, dict)
-        self.assertIsInstance(oversized, list)
-        self.assertEqual(len(sizes), 0)
-        self.assertEqual(len(oversized), 0)
-
-
-# ---------------------------------------------------------------------------
-# Wave 3 Test Classes — Batch Mode
-# ---------------------------------------------------------------------------
-
-
-class TestBatchMode(unittest.TestCase):
-
-    def test_analyse_batch_empty_list(self):
-        """Empty input returns empty list."""
-        results = analyse_batch_fn([])
-        self.assertIsInstance(results, list)
-        self.assertEqual(len(results), 0)
-
-
-# ---------------------------------------------------------------------------
-# Wave 3 Test Classes — Verify Mode
-# ---------------------------------------------------------------------------
-
-
-class TestVerifyMode(unittest.TestCase):
-
-    def test_verify_detects_improvement(self):
-        """Scores go up -> 'IMPROVED' in output."""
-        history = {
-            "url": "https://example.com",
-            "history": [
-                {
-                    "timestamp": "2026-03-01T00:00:00+00:00",
-                    "scores": {"seo": 60, "security": 70, "accessibility": 65, "performance": 55, "overall": 63},
-                    "grade": "C",
-                    "issues_found": 10,
-                },
-                {
-                    "timestamp": "2026-03-15T00:00:00+00:00",
-                    "scores": {"seo": 80, "security": 85, "accessibility": 78, "performance": 70, "overall": 78},
-                    "grade": "B",
-                    "issues_found": 5,
-                },
-            ],
-        }
-        result = format_verify(history)
-        self.assertIn("IMPROVED", result)
-        self.assertNotIn("REGRESSED", result)
-        self.assertIn("no regressions", result.lower())
-
-    def test_verify_detects_regression(self):
-        """Scores go down -> 'REGRESSED' in output."""
-        history = {
-            "url": "https://example.com",
-            "history": [
-                {
-                    "timestamp": "2026-03-01T00:00:00+00:00",
-                    "scores": {"seo": 80, "security": 85, "accessibility": 78, "performance": 70, "overall": 78},
-                    "grade": "B",
-                    "issues_found": 5,
-                },
-                {
-                    "timestamp": "2026-03-15T00:00:00+00:00",
-                    "scores": {"seo": 60, "security": 70, "accessibility": 65, "performance": 55, "overall": 63},
-                    "grade": "C",
-                    "issues_found": 10,
-                },
-            ],
-        }
-        result = format_verify(history)
-        self.assertIn("REGRESSED", result)
-        self.assertIn("WARNING", result)
-
-
-# ---------------------------------------------------------------------------
-# Wave 3 Test Classes — URL Status Check
-# ---------------------------------------------------------------------------
-
-
-class TestURLStatusCheck(unittest.TestCase):
-
-    def test_check_url_status_empty(self):
-        """Empty input returns empty list."""
-        results = check_url_status_fn([])
-        self.assertIsInstance(results, list)
-        self.assertEqual(len(results), 0)
 
 
 if __name__ == "__main__":

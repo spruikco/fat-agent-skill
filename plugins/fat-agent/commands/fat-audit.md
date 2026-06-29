@@ -1,6 +1,6 @@
 ---
 name: fat-audit
-description: Run a FAT Agent audit on a deployed website. Checks SEO, security, accessibility, performance, content, and analytics.
+description: Run a FAT Agent with Superpowers audit on a deployed website. Checks SEO, security, accessibility, performance, content, and analytics.
 argument-hint: "[URL]"
 allowed-tools:
   - Bash
@@ -15,8 +15,12 @@ You have been asked to run a FAT Agent (Fix, Audit, Test) audit.
 
 ## Setup
 
-1. Load the FAT Agent skill instructions from `${CLAUDE_PLUGIN_ROOT}/skills/fat-agent/SKILL.md`
-2. If a URL argument was provided, use it as the live URL and skip that question in Phase 0
+1. Bootstrap dependencies (runs once, skips if already installed):
+   ```bash
+   cd ${CLAUDE_PLUGIN_ROOT} && (command -v uv >/dev/null 2>&1 && uv pip install -q -r pyproject.toml 2>/dev/null || pip install -q matplotlib python-docx python-pptx Pillow 2>/dev/null) && echo "deps ready"
+   ```
+2. Load the FAT Agent skill instructions from `${CLAUDE_PLUGIN_ROOT}/skills/fat-agent/SKILL.md`
+3. If a URL argument was provided, use it as the live URL and skip that question in Phase 0
 
 ## Workflow
 

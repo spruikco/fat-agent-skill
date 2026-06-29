@@ -1,8 +1,9 @@
 ---
 name: fat-agent
 description: >
-  FAT Agent (Fix, Audit, Test) — a post-launch quality assurance agent that
-  systematically audits deployed websites and web applications. Triggers whenever
+  FAT Agent with Superpowers (Fix, Audit, Test) — a post-launch quality
+  assurance agent that systematically audits deployed websites and web
+  applications using modular, auto-detected check categories. Triggers whenever
   a user mentions "FAT agent", "post-launch audit", "site audit", "audit my site",
   "check my deployment", "post-deploy check", "QA my site", "launch checklist",
   or any request to review a live or recently deployed website for issues.
@@ -12,26 +13,27 @@ description: >
   a deploy just completed and the user hasn't run any post-launch checks yet.
 ---
 
-# FAT Agent — Fix, Audit, Test
+# FAT Agent with Superpowers — Fix, Audit, Test
 
-A post-launch quality assurance agent that performs a comprehensive, systematic
+A post-launch quality assurance agent that performs a comprehensive, modular
 audit of deployed websites and guides users through fixing every issue found.
 
-FAT stands for **Fix → Audit → Test** — the three phases the agent cycles through
-until the site scores clean.
+FAT stands for **Fix -> Audit -> Test** — the three phases the agent cycles
+through until the site scores clean.
 
 ## Philosophy
 
 Most post-launch issues fall into predictable categories. Rather than relying on
-the user to know what to check, FAT Agent takes the lead — it asks targeted
-questions, runs automated checks where possible, and builds a prioritised punch
-list. Think of it as a seasoned QA engineer sitting beside you after every deploy.
+the user to know what to check, FAT Agent with Superpowers takes the lead — it
+asks targeted questions, auto-detects which modules are relevant, runs automated
+checks where possible, and builds a prioritised punch list. Think of it as a
+seasoned QA engineer sitting beside you after every deploy.
 
 ---
 
 ## When to Trigger
 
-Activate FAT Agent when:
+Activate FAT Agent with Superpowers when:
 - A user says "run FAT agent", "audit my site", "post-launch check", etc.
 - A deploy just succeeded (on any hosting platform) and the user asks "is it good?" or similar
 - The user pastes a URL and asks Claude to "check it" or "review it"
@@ -39,22 +41,27 @@ Activate FAT Agent when:
 
 ---
 
-## Phase 0 — Gather Context
+## Phase 0 — Gather Context & Module Detection
 
-Before auditing anything, FAT Agent needs to understand the project. Ask the user
-for the following (skip anything already known from conversation context or memory):
+Before auditing anything, FAT Agent with Superpowers needs to understand the
+project and determine which audit modules to run.
 
-### Required
+### Step 1: Collect Project Details
+
+Ask the user for the following (skip anything already known from conversation
+context or memory):
+
+#### Required
 1. **Live URL** — The production URL to audit (e.g., `https://example.com`)
-2. **Site type** — What kind of site is this? (marketing site, SaaS app, e-commerce, blog, portfolio, landing page, web app)
+2. **Site type** — What kind of site is this? (marketing site, SaaS app, e-commerce, blog, portfolio, landing page, web app, local business)
 3. **Tech stack** — Framework/CMS (e.g., Next.js, WordPress, static HTML, Astro, etc.)
 4. **Hosting platform** — Where is this deployed? (Netlify, Vercel, Cloudflare Pages, AWS, shared hosting, self-hosted, etc.) — this helps tailor fix suggestions to the right config format
 
-### Situational (ask only if relevant)
-4. **Critical user flows** — What are the 2-3 most important things a visitor does? (e.g., "fill out contact form", "add to cart and checkout", "sign up")
-5. **Target audience** — Who visits this site? (helps calibrate accessibility and performance expectations)
-6. **Known issues** — Anything the user already knows is broken or unfinished?
-7. **Previous audit results** — Has a FAT audit been run before? (check conversation history)
+#### Situational (ask only if relevant)
+5. **Critical user flows** — What are the 2-3 most important things a visitor does? (e.g., "fill out contact form", "add to cart and checkout", "sign up")
+6. **Target audience** — Who visits this site? (helps calibrate accessibility and performance expectations)
+7. **Known issues** — Anything the user already knows is broken or unfinished?
+8. **Previous audit results** — Has a FAT audit been run before? (check conversation history)
 
 Present these as a friendly, concise intake form — not an interrogation. Group them
 logically and use the ask_user_input tool where possible for bounded choices.
@@ -63,13 +70,67 @@ logically and use the ask_user_input tool where possible for bounded choices.
 > Ready to run a FAT audit! I just need a few details to get started. What's the
 > live URL, and what kind of site are we looking at?
 
+### Step 2: Select Audit Profile
+
+After gathering context, ask the user to select an audit profile:
+
+> Which audit profile would you like to use?
+> - **Quick scan** — SEO + Security only (fast, ~2 minutes)
+> - **Full audit** — All modules enabled (thorough, ~10 minutes)
+> - **Local business** — Core + Local SEO + Email + Links
+> - **E-commerce** — Core + E-commerce + Links
+> - **Custom** — Pick individual modules to enable/disable
+
+Profiles are defined in `scripts/profiles.py`:
+
+| Profile | Modules |
+|---------|---------|
+| `quick` | seo, security |
+| `full` | seo, security, accessibility, performance, links, ecommerce, email_deliverability, i18n, local_seo, dns_infra, js_bundle |
+| `local` | seo, security, accessibility, performance, local_seo, email_deliverability, links |
+| `ecommerce` | seo, security, accessibility, performance, ecommerce, links |
+| `custom` | User selects from all available modules |
+
+If the user doesn't express a preference, default to **Full audit**.
+
+### Step 3: Auto-Detection & Module Confirmation
+
+After fetching the homepage HTML, run the auto-detection system
+(`scripts/modules/__init__.py: detect_modules()`) to determine which conditional
+modules are relevant. Detection uses HTML signal patterns:
+
+- **E-commerce**: add-to-cart elements, Product JSON-LD, Shopify/WooCommerce markers
+- **i18n**: hreflang tags, language switcher elements
+- **Local SEO**: LocalBusiness JSON-LD, Google Maps embeds, tel: links
+- **Email deliverability**: Contact forms, email input fields
+- **Links**: Always enabled (universally useful)
+
+Core modules (SEO, Security, Accessibility, Performance) always run regardless
+of detection.
+
+Show the user the detected module list and offer to toggle:
+
+> Based on your site, I'll run these modules:
+> - [core] SEO, Security, Accessibility, Performance
+> - [detected] E-commerce, Links, Email Deliverability
+> - [disabled] Local SEO, i18n, DNS & Infrastructure, JS Bundle Analysis
+>
+> Want to enable or disable any of these before I start?
+
+Apply `force_enable` / `force_disable` overrides as requested, then proceed to
+Phase 1.
+
 ---
 
 ## Phase 1 — AUDIT
 
-Run checks in this exact order. For each category, use `web_fetch` on the live URL
-and analyse the response. Where checks require visual inspection, ask the user
-targeted yes/no questions rather than vague open-ended ones.
+Run checks in this order. Core modules (1.1-1.9) always run. Conditional
+modules (1.10-1.15) run based on detection results from Phase 0. For each
+category, use `web_fetch` on the live URL and analyse the response. Where
+checks require visual inspection, ask the user targeted yes/no questions
+rather than vague open-ended ones.
+
+### Core Modules (always run)
 
 ### 1.1 — Availability & Response
 - Fetch the homepage — does it return 200?
@@ -84,7 +145,7 @@ Fetch the HTML and check:
 - `<meta name="description">` exists and is 150-160 characters (flag if < 70 or > 160)
 - No duplicate meta descriptions
 - Only one `<h1>` per page, no empty heading tags
-- Heading hierarchy is logical (no skipped levels, e.g. `h1` → `h3` missing `h2`)
+- Heading hierarchy is logical (no skipped levels, e.g. `h1` -> `h3` missing `h2`)
 - `<meta name="robots">` is not set to `noindex` (unless intentional)
 - `<link rel="canonical">` is present and correct, no duplicate canonicals
 - `<meta charset="UTF-8">` is present
@@ -150,7 +211,7 @@ From the HTML response, check:
 **Performance Budgets:**
 If a `.fat-budget.json` file exists in the project root, use it to check custom
 thresholds. Otherwise, apply sensible defaults (HTML < 100KB, inline < 50KB,
-render-blocking scripts ≤ 2, external scripts ≤ 15). See `references/performance-budgets.md`
+render-blocking scripts <= 2, external scripts <= 15). See `references/performance-budgets.md`
 for configuration details.
 
 Ask: "Would you like to configure custom performance budgets for this project?"
@@ -308,39 +369,94 @@ or not listed, run the Generic checks.
 - Check custom domain is properly configured (no CNAME/A record issues)
 - Check that HTTP redirects to HTTPS
 
-### 1.10 — Multi-Page Batch Audit
+### Conditional Modules (run when detected/enabled)
 
-When auditing a site with multiple key pages (homepage, product pages, about, contact),
-use batch mode to analyse them all in one pass:
+### 1.10 — Local SEO Checks (module: `local_seo`)
 
-```bash
-# Create a file with one URL per line
-echo "https://example.com/" > urls.txt
-echo "https://example.com/about" >> urls.txt
-echo "https://example.com/products" >> urls.txt
+Enabled when: LocalBusiness JSON-LD detected, Google Maps embed found, `tel:` links
+present, site type is "local business" or "landing page", or user manually enables.
 
-# Run batch analysis
-python scripts/analyse-html.py --batch urls.txt
-```
+Uses `scripts/modules/local_seo.py`. Checks:
+- LocalBusiness JSON-LD schema present with correct `@type` subtype
+- NAP (Name, Address, Phone) consistency in schema
+- Google Maps embed present and functional
+- Click-to-call `tel:` links present and valid
+- WhatsApp link present (if applicable)
+- Google Business Profile (GBP) link present
+- Service area defined in schema
+- Opening hours (`openingHoursSpecification`) in schema
+- Review/aggregate rating schema present
+- Trust signals (testimonials, certifications, badges)
+- Prominent CTAs (call, directions, book)
+- Directions link to Google Maps
+- Reference: `references/local-seo-checklist.md`
 
-The output is an aggregate JSON with `pages_tested`, `pages_ok`, `pages_failed`, and
-a `results` array containing the full analysis report for each URL. Use this to
-identify site-wide patterns (e.g., missing meta descriptions across all pages) rather
-than auditing pages one by one.
+### 1.11 — E-commerce Checks (module: `ecommerce`)
 
-### 1.11 — Broken URL & Redirect Verification
+Enabled when: Product JSON-LD detected, add-to-cart elements found,
+Shopify/WooCommerce markers present, site type is "e-commerce", or user
+manually enables.
 
-After collecting external URLs from SEMrush backlink data or sitemap entries, verify
-they resolve correctly:
+Uses `scripts/modules/ecommerce.py`. Checks:
+- Product structured data (JSON-LD with `@type: Product`)
+- Price display elements detected
+- Cart/add-to-cart functionality elements present
+- Payment trust signals (Visa, Mastercard, PayPal, Stripe, Klarna badges)
+- Breadcrumb schema for product navigation
+- SSL trust badges
+- Reference: `references/ecommerce-checklist.md`
 
-```bash
-# Create a file with URLs to check (one per line or JSON array)
-python scripts/analyse-html.py --check-urls urls.txt
-```
+### 1.12 — Email Deliverability (module: `email_deliverability`)
 
-The output is a JSON list of `{url, status, final_url, redirected}` for each URL.
-Use this to detect broken backlinks (4xx/5xx), unexpected redirects, and redirect
-chains. Flag any 4xx URLs as broken links that need fixing or redirect rules.
+Enabled when: Contact forms detected, email input fields found, or user
+manually enables.
+
+Uses `scripts/modules/email_deliverability.py`. Checks:
+- **SPF record** — DNS TXT lookup for `v=spf1` on the domain
+- **DKIM record** — DNS TXT lookup for common selectors (google, default, selector1, mail, k1)
+- **DMARC record** — DNS TXT lookup for `_dmarc.{domain}`, policy evaluation (reject > quarantine > none)
+- Flags missing records as P1 High (emails likely going to spam)
+
+### 1.13 — i18n Checks (module: `i18n`)
+
+Enabled when: `hreflang` tags detected, language switcher elements found,
+or user manually enables.
+
+Uses `scripts/modules/i18n.py`. Checks:
+- `hreflang` tags present and valid (ISO 639-1 codes)
+- `x-default` hreflang present (required for multi-language)
+- Self-referencing hreflang on each language version
+- `<html lang="...">` attribute matches content language
+- `Content-Language` response header present
+- Locale routing patterns (e.g., `/en/`, `/fr/`)
+- RTL support detection (for Arabic, Hebrew, etc.)
+- No orphaned language versions (hreflang pointing to non-existent pages)
+
+### 1.14 — DNS & Infrastructure (module: `dns_infra`)
+
+Enabled when: User selects "Full audit" profile or manually enables. Not
+auto-detected from HTML — this is an opt-in deep check.
+
+Uses `scripts/modules/dns_infra.py`. Checks:
+- **DNSSEC** — Verify DNSSEC is configured for the domain
+- **CAA records** — Check Certificate Authority Authorization records exist
+- **SSL certificate expiry** — Flag if certificate expires within 30 days (P1), 14 days (P0)
+- **CDN detection** — Identify CDN provider from response headers
+- **HTTP/2 support** — Verify the server supports HTTP/2
+
+### 1.15 — JS Bundle Analysis (module: `js_bundle`)
+
+Enabled when: User selects "Full audit" profile or manually enables. Runs
+HTML-level JavaScript analysis without requiring source maps.
+
+Uses `scripts/modules/js_bundle.py`. Checks:
+- Total external script count (flag if > 15)
+- Heavy library detection (moment.js, full lodash, etc. — suggest lighter alternatives)
+- Inline script total size (flag if > 50KB)
+- Bundler pattern detection (webpack, Vite, Rollup, Parcel signatures)
+- `async` / `defer` attribute usage on script tags
+- ES module (`type="module"`) adoption
+- Render-blocking script identification
 
 ---
 
@@ -352,20 +468,20 @@ of findings.
 ### Priority Levels
 | Priority | Label | Meaning |
 |----------|-------|---------|
-| 🔴 P0 | **Critical** | Site is broken, inaccessible, or insecure |
-| 🟠 P1 | **High** | Significant SEO, performance, or UX impact |
-| 🟡 P2 | **Medium** | Best practice violations, minor issues |
-| 🟢 P3 | **Low** | Nice-to-haves, polish items |
+| P0 | **Critical** | Site is broken, inaccessible, or insecure |
+| P1 | **High** | Significant SEO, performance, or UX impact |
+| P2 | **Medium** | Best practice violations, minor issues |
+| P3 | **Low** | Nice-to-haves, polish items |
 
 ### Report Format
 Present findings grouped by priority, with each item containing:
 1. **What's wrong** — One-line description
 2. **Why it matters** — Impact explanation (keep it brief)
 3. **How to fix** — Specific, actionable fix (with code snippets where possible)
-4. **Effort** — Quick estimate (⚡ 5 min, 🔧 30 min, 🏗️ 1+ hour)
+4. **Effort** — Quick estimate (5 min, 30 min, 1+ hour)
 
 **Example finding:**
-> 🟠 **P1 — Missing meta description**
+> **P1 — Missing meta description**
 > Your homepage has no `<meta name="description">` tag. Search engines will
 > auto-generate a snippet, which usually looks terrible.
 >
@@ -373,12 +489,41 @@ Present findings grouped by priority, with each item containing:
 > ```html
 > <meta name="description" content="Your compelling 155-character description here">
 > ```
-> **Effort:** ⚡ 5 min
+> **Effort:** 5 min
 
-After presenting the report in the chat, ALWAYS generate Word (.docx) and
-PowerPoint (.pptx) reports using the Report & Chart Generation pipeline below.
-Then ask: "Want me to help fix any of these now? I can
-generate the code changes for the quick wins."
+### Report Generation
+
+After presenting the report in the chat, ALWAYS generate reports using the
+Report & Chart Generation pipeline (see below). Generate all of:
+
+1. **Word (.docx)** — Full technical report with findings matrix
+2. **PowerPoint (.pptx)** — Executive summary with score cards and charts
+3. **HTML dashboard** — Self-contained single-file HTML report with interactive
+   score visualisation, sortable findings table, and expandable fix details.
+   Generate using:
+   ```bash
+   python scripts/generate-report.py \
+       --scores /tmp/scores.json \
+       --url example.com \
+       --charts-dir /tmp/charts \
+       --brand assets/fat-agent-brand.png \
+       --output-dir ./reports \
+       --format html
+   ```
+
+**Client-facing mode (`--client-facing`):** When the user specifies
+`--client-facing` or says "this is for a client", generate reports with:
+- Professional language (no developer jargon)
+- Priority labels shown as "Critical / High / Medium / Low" (no P0-P3 codes)
+- Fix suggestions framed as recommendations, not direct code snippets
+- Executive summary on the first page/slide
+- Branding prominence increased (FAT Agent logo + client's URL)
+- No references to internal scripts or tooling
+
+Pass `--client-facing` to `generate-report.py` for all three formats.
+
+Then ask: "Want me to help fix any of these now? I can generate the code changes
+for the quick wins."
 
 ---
 
@@ -387,17 +532,23 @@ generate the code changes for the quick wins."
 After fixes are applied and redeployed:
 
 1. **Re-fetch the URL** and verify the specific issues that were fixed
-2. **Report results** — "✅ Fixed" or "❌ Still present" for each item
+2. **Report results** — "Fixed" or "Still present" for each item
 3. **Update the punch list** — Remove resolved items, flag persistent ones
-4. **Celebrate** — When all P0 and P1 items are resolved, congratulate the user:
+4. **Visual regression comparison** — If a previous audit's HTML/screenshots are
+   available, compare key elements (header, hero, footer) for unintended visual
+   changes introduced during fixes. Flag any significant layout shifts.
+5. **Link checking results** — If the `links` module was enabled, report broken
+   link status: total links checked, internal broken, external broken, redirect
+   chains found. Show a summary table of any links returning 4xx/5xx status.
+6. **Celebrate** — When all P0 and P1 items are resolved, congratulate the user:
    > "Your site passed the FAT audit! All critical and high-priority items are
    > resolved. Here's your final scorecard."
 
 ### Final Scorecard
-nAfter presenting the final scorecard, regenerate the Word and PowerPoint reports
-with updated scores (re-run the Report & Chart Generation pipeline).
+After presenting the final scorecard, regenerate the Word, PowerPoint, and HTML
+reports with updated scores (re-run the Report & Chart Generation pipeline).
 Present a summary showing:
-- Total issues found → Total resolved
+- Total issues found -> Total resolved
 - Breakdown by priority
 - Remaining items (if any) with a note about when to address them
 - Overall FAT score: percentage of issues resolved weighted by priority
@@ -467,6 +618,153 @@ examples for GitHub Actions, Netlify, Vercel, GitLab CI, and generic shell scrip
 
 ---
 
+## Multi-Page Crawling
+
+FAT Agent with Superpowers supports crawling multiple pages on the same domain.
+Use `scripts/crawl.py` for breadth-first discovery with robots.txt respect.
+
+### Usage
+
+When the user says "audit the whole site", "check all pages", or provides
+`--depth` or `--max-pages` flags:
+
+```bash
+python scripts/crawl.py --url https://example.com --depth 2 --max-pages 20 --output /tmp/crawl.json
+```
+
+**Flags:**
+- `--depth N` — Maximum link-following depth from the start URL (default: 2)
+- `--max-pages N` — Maximum total pages to crawl (default: 10)
+- `--output PATH` — Write the discovered URL list as JSON
+
+The crawler:
+1. Fetches the start URL and extracts all same-domain links
+2. BFS traversal up to `--depth` levels, respecting `--max-pages` cap
+3. Checks `robots.txt` and skips disallowed paths
+4. Normalises URLs (lowercases, strips fragments, deduplicates)
+5. Outputs a JSON array of discovered page URLs
+
+After crawling, run the Phase 1 audit pipeline on each discovered page. Aggregate
+findings across all pages and present a per-page breakdown alongside the
+site-wide summary:
+
+```
+| Page              | SEO | Security | A11y | Perf | Score |
+|-------------------|-----|----------|------|------|-------|
+| /                 | 92  | 85       | 88   | 76   | 85    |
+| /about            | 78  | 85       | 90   | 80   | 83    |
+| /contact          | 65  | 85       | 72   | 82   | 76    |
+| Site-wide average | 78  | 85       | 83   | 79   | 81    |
+```
+
+Flag pages that score significantly below the site average.
+
+---
+
+## Bulk Site Auditing (Portfolio Mode)
+
+For agencies or developers managing multiple sites, FAT Agent with Superpowers
+supports portfolio-wide auditing via `scripts/bulk_audit.py`.
+
+### Usage
+
+When the user says "audit all my sites", "portfolio audit", or provides
+`--sites`:
+
+```bash
+python scripts/bulk_audit.py --sites sites.json --output-dir ./results --profile full
+```
+
+**Input format** (`sites.json`):
+```json
+[
+  {"url": "https://example.com", "name": "Example Site"},
+  {"url": "https://another.com", "name": "Another Site"}
+]
+```
+
+**Flags:**
+- `--sites PATH` — Path to the JSON file listing sites to audit
+- `--output-dir PATH` — Directory for per-site result JSON files
+- `--profile NAME` — Audit profile to apply to all sites (default: `full`)
+
+**Output:**
+- Per-site JSON score files in `--output-dir`
+- `portfolio_summary.json` — Aggregated scores for all sites
+- Console comparison table showing all sites ranked by overall score
+
+Present results as a portfolio dashboard:
+```
+| Site          | SEO | Security | A11y | Perf | Overall | Grade |
+|---------------|-----|----------|------|------|---------|-------|
+| Example Site  | 92  | 100      | 88   | 76   | 89      | A     |
+| Another Site  | 65  | 85       | 72   | 80   | 76      | C     |
+```
+
+Highlight the weakest site and the weakest category across the portfolio.
+
+---
+
+## CI/CD Gate
+
+For automated quality enforcement, FAT Agent with Superpowers includes
+`scripts/ci_gate.py` — a standalone script that checks FAT scores against
+thresholds and exits non-zero if the site fails.
+
+### Usage in CI pipelines
+
+```bash
+# Run the audit pipeline
+python scripts/analyse-html.py --url "$SITE_URL" page.html | \
+    python scripts/calculate-score.py > scores.json
+
+# Gate: fail if overall score < 70 or any P0 findings exist
+python scripts/ci_gate.py --scores scores.json --threshold 70 --fail-on P0
+```
+
+**Flags:**
+- `--scores PATH` — Path to the scored JSON from `calculate-score.py`
+- `--threshold N` — Minimum overall score to pass (default: 60)
+- `--fail-on P0` — Fail the build if any P0 Critical findings exist
+- `--fail-on P1` — Fail the build if any P1 High findings exist
+
+**Exit codes:**
+- `0` — Passed all checks
+- `1` — Score below threshold or priority findings detected
+
+See `references/ci-cd-integration.md` for full GitHub Actions, GitLab CI, and
+generic shell integration examples.
+
+---
+
+## Lighthouse Integration
+
+When the Lighthouse CLI is available on the system, FAT Agent with Superpowers
+can run a full Lighthouse audit to complement its HTML-level analysis.
+
+### Usage
+
+```bash
+python scripts/lighthouse.py --url https://example.com --output /tmp/lighthouse_report.json
+```
+
+**What it provides:**
+- Performance, Accessibility, Best Practices, and SEO scores (0-100)
+- Core Web Vitals: LCP, CLS, INP, FCP, TTFB
+- Results merged into the FAT report alongside HTML-level findings
+
+**Integration with the audit pipeline:**
+1. During Phase 1, check if `lighthouse` CLI is on PATH (`scripts/lighthouse.py: check_lighthouse_available()`)
+2. If available, run Lighthouse against the URL
+3. Merge Lighthouse scores into the scored JSON — use Lighthouse data for Performance
+   and CWV metrics, which are more accurate than HTML-only analysis
+4. If not available, fall back to PageSpeed Insights API and HTML-level checks (default behaviour)
+
+Lighthouse results appear in the report as a dedicated "Lighthouse Scores" section
+with the familiar red/orange/green score cards.
+
+---
+
 ## Competitive Analysis Mode
 
 **Trigger:** User says "compare my site with [competitor URL]" or "competitive analysis"
@@ -519,14 +817,33 @@ For extended check details, see:
 - `references/security-headers.md` — Full security header recommendations
 - `references/seo-checklist.md` — Extended SEO audit criteria
 - `references/accessibility-guide.md` — WCAG 2.1 quick reference
+- `references/local-seo-checklist.md` — Local SEO audit criteria
+- `references/ecommerce-checklist.md` — E-commerce audit criteria
+- `references/performance-budgets.md` — Performance budget configuration guide
+- `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
+
+### Scripts
 - `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
 - `scripts/calculate-score.py` — Scoring calculator (SEO, Security, Accessibility, FAT Score)
 - `scripts/generate-badge.py` — SVG badge generator (character image + score bars)
 - `scripts/generate-charts.py` — Chart image generator (traffic, keywords, scores, PageSpeed)
-- `scripts/generate-report.py` — Word + PowerPoint report generator (branded, with charts)
+- `scripts/generate-report.py` — Word + PowerPoint + HTML report generator (branded, with charts)
 - `scripts/track-history.py` — Historical audit tracker (read/write `.fat-history.json`)
-- `references/performance-budgets.md` — Performance budget configuration guide
-- `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
+- `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
+- `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
+- `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
+- `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
+- `scripts/profiles.py` — Audit profile definitions (quick, full, local, ecommerce, custom)
+- `scripts/modules/` — Modular audit system:
+  - `base.py` — `AuditModule` abstract base class
+  - `__init__.py` — Module registry, detection engine, core/conditional module lists
+  - `local_seo.py` — Local SEO checks
+  - `ecommerce.py` — E-commerce checks
+  - `email_deliverability.py` — SPF/DKIM/DMARC checks
+  - `i18n.py` — Internationalisation checks
+  - `dns_infra.py` — DNS & infrastructure checks
+  - `js_bundle.py` — JavaScript bundle analysis
+  - `links.py` — Link quality and broken link detection
 
 ### Platform-Specific Fix References
 Load the relevant file based on the hosting platform from Phase 0:
@@ -552,8 +869,8 @@ Load the relevant file based on the tech stack from Phase 0:
 
 ## Report & Chart Generation
 
-**IMPORTANT:** After completing Phase 2 (FIX report), ALWAYS generate Word and
-PowerPoint reports. Do NOT just present findings in the chat — produce
+**IMPORTANT:** After completing Phase 2 (FIX report), ALWAYS generate Word,
+PowerPoint, and HTML reports. Do NOT just present findings in the chat — produce
 downloadable, branded documents. This is a core deliverable of every FAT audit.
 
 ### Branding
@@ -566,6 +883,7 @@ appears on:
 - PowerPoint title slide (large, centred)
 - PowerPoint header bar on every slide (small, left-aligned)
 - PowerPoint closing slide (large, centred)
+- HTML dashboard header
 
 Resolve the path relative to the plugin directory. For example:
 ```python
@@ -610,6 +928,17 @@ After Phase 2 findings are compiled:
        --font "Plus Jakarta Sans"
    ```
 
+   For client-facing reports, add `--client-facing`:
+   ```bash
+   python scripts/generate-report.py \
+       --scores /tmp/scores.json \
+       --url example.com \
+       --charts-dir /tmp/charts \
+       --brand assets/fat-agent-brand.png \
+       --output-dir ./reports \
+       --client-facing
+   ```
+
 5. **Tell the user** where the reports are saved and offer to open them.
 
 ### Available Charts
@@ -640,21 +969,12 @@ When browser automation tools are available, collect SEMrush data by:
 If browser automation is not available, skip SEMrush charts — the report will
 still include the FAT score chart and all audit findings tables.
 
-**Backlink Quality Assessment:**
-When collecting SEMrush data, also gather backlink quality metrics and include
-them under a `backlink_quality` key in the SEMrush JSON:
-- `referring_domains_by_authority`: Distribution by Authority Score bands (0-10, 11-20, ..., 91-100). Flag if >50% are AS 0-10 — this indicates a high proportion of low-quality or spammy backlinks.
-- `referring_domains_by_country`: Distribution by country. Flag unexpected geographic concentration (>70% from a single country that doesn't match the target market) — this may indicate unnatural link building patterns.
-
-The report generator will automatically add warning paragraphs when these
-thresholds are exceeded.
-
 ### Report Contents
 
 **Word report (.docx) includes:**
 - Branded cover page with FAT Agent logo
 - Scoring summary table (all categories with grades)
-- Complete findings matrix (prioritised P0–P3 with fix suggestions)
+- Complete findings matrix (prioritised P0-P3 with fix suggestions)
 - SEO score breakdown (8 sub-categories from calculate-score.py)
 - SEMrush domain intelligence section (if data provided)
 - All available chart images embedded with captions
@@ -667,6 +987,13 @@ thresholds are exceeded.
 - One slide per available chart (auto-generated)
 - Key findings with priority-coloured bullets
 - Closing slide with branding
+
+**HTML dashboard (.html) includes:**
+- Self-contained single HTML file (no external dependencies)
+- Interactive score visualisation with colour-coded gauges
+- Sortable and filterable findings table
+- Expandable fix details for each finding
+- Responsive layout for viewing on any device
 
 ### Font
 
@@ -685,13 +1012,16 @@ curl -sL https://example.com -o /tmp/page.html
 python scripts/analyse-html.py --headers /tmp/headers.json /tmp/page.html | \
     python scripts/calculate-score.py > /tmp/scores.json
 
-# 3. Generate charts (with optional SEMrush data)
+# 3. (Optional) Run Lighthouse for deeper performance data
+python scripts/lighthouse.py --url https://example.com --output /tmp/lighthouse_report.json
+
+# 4. Generate charts (with optional SEMrush data)
 python scripts/generate-charts.py \
     --scores /tmp/scores.json \
     --semrush /tmp/semrush.json \
     --output-dir /tmp/charts
 
-# 4. Generate branded reports
+# 5. Generate branded reports (all formats)
 python scripts/generate-report.py \
     --scores /tmp/scores.json \
     --semrush /tmp/semrush.json \
@@ -700,6 +1030,12 @@ python scripts/generate-report.py \
     --brand assets/fat-agent-brand.png \
     --output-dir ./reports
 
-# 5. Generate badge (for README)
+# 6. Generate badge (for README)
 cat /tmp/scores.json | python scripts/generate-badge.py --image --output fat-badge.svg
+
+# 7. (Optional) Multi-page crawl
+python scripts/crawl.py --url https://example.com --depth 2 --max-pages 20 --output /tmp/crawl.json
+
+# 8. (Optional) CI gate check
+python scripts/ci_gate.py --scores /tmp/scores.json --threshold 70 --fail-on P0
 ```

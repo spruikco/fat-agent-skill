@@ -37,7 +37,7 @@ FAT Agent is a Claude Plugin distributed via a marketplace. The repo root is the
 - `python plugins/fat-agent/scripts/generate-badge.py scores.json --category seo` — badge for a specific category.
 - `python plugins/fat-agent/scripts/generate-badge.py scores.json --output badge.svg` — write to file.
 - Full pipeline: `python plugins/fat-agent/scripts/analyse-html.py page.html | python plugins/fat-agent/scripts/calculate-score.py | python plugins/fat-agent/scripts/generate-badge.py --output badge.svg`
-- `python plugins/fat-agent/scripts/test_fat_agent.py` — runs the full test suite (201 tests).
+- `python plugins/fat-agent/scripts/test_fat_agent.py` — runs the full test suite (630 tests).
 
 ## Adding Content
 

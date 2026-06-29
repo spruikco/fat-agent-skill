@@ -21,21 +21,80 @@ import urllib.error
 from html.parser import HTMLParser
 from collections import defaultdict
 
-
 # Valid WAI-ARIA 1.2 roles (used for role validation)
-VALID_ARIA_ROLES = frozenset({
-    "alert", "alertdialog", "application", "article", "banner", "button",
-    "cell", "checkbox", "columnheader", "combobox", "complementary",
-    "contentinfo", "definition", "dialog", "document", "feed", "figure",
-    "form", "grid", "gridcell", "group", "heading", "img", "link", "list",
-    "listbox", "listitem", "log", "main", "marquee", "math", "menu",
-    "menubar", "menuitem", "menuitemcheckbox", "menuitemradio", "meter",
-    "navigation", "none", "note", "option", "presentation", "progressbar",
-    "radio", "radiogroup", "region", "row", "rowgroup", "rowheader",
-    "scrollbar", "search", "searchbox", "separator", "slider", "spinbutton",
-    "status", "switch", "tab", "table", "tablist", "tabpanel", "term",
-    "textbox", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem",
-})
+VALID_ARIA_ROLES = frozenset(
+    {
+        "alert",
+        "alertdialog",
+        "application",
+        "article",
+        "banner",
+        "button",
+        "cell",
+        "checkbox",
+        "columnheader",
+        "combobox",
+        "complementary",
+        "contentinfo",
+        "definition",
+        "dialog",
+        "document",
+        "feed",
+        "figure",
+        "form",
+        "grid",
+        "gridcell",
+        "group",
+        "heading",
+        "img",
+        "link",
+        "list",
+        "listbox",
+        "listitem",
+        "log",
+        "main",
+        "marquee",
+        "math",
+        "menu",
+        "menubar",
+        "menuitem",
+        "menuitemcheckbox",
+        "menuitemradio",
+        "meter",
+        "navigation",
+        "none",
+        "note",
+        "option",
+        "presentation",
+        "progressbar",
+        "radio",
+        "radiogroup",
+        "region",
+        "row",
+        "rowgroup",
+        "rowheader",
+        "scrollbar",
+        "search",
+        "searchbox",
+        "separator",
+        "slider",
+        "spinbutton",
+        "status",
+        "switch",
+        "tab",
+        "table",
+        "tablist",
+        "tabpanel",
+        "term",
+        "textbox",
+        "timer",
+        "toolbar",
+        "tooltip",
+        "tree",
+        "treegrid",
+        "treeitem",
+    }
+)
 DEPRECATED_ARIA_ROLES = frozenset({"directory"})
 
 # Generic image filename patterns (case-insensitive)
@@ -46,10 +105,22 @@ GENERIC_IMG_PATTERNS = re.compile(
 )
 
 # Poor anchor text patterns
-POOR_ANCHOR_TEXTS = frozenset({
-    "click here", "here", "read more", "learn more", "more", "link",
-    "this", "this link", "go", "see more", "details", "info",
-})
+POOR_ANCHOR_TEXTS = frozenset(
+    {
+        "click here",
+        "here",
+        "read more",
+        "learn more",
+        "more",
+        "link",
+        "this",
+        "this link",
+        "go",
+        "see more",
+        "details",
+        "info",
+    }
+)
 
 # Default performance budgets
 DEFAULT_BUDGETS = {
@@ -139,16 +210,6 @@ class FATHTMLAnalyser(HTMLParser):
         self.has_font_display_swap = False
         self.has_google_fonts_preconnect = False
         self.font_preloads = 0
-
-        # Counters — preconnect tracking
-        self.preconnect_count = 0
-        self.preconnect_urls = []
-
-        # Counters — LCP animation / hidden inline style on images
-        self.images_with_hidden_inline_style = 0
-
-        # Counters — font preloads with crossorigin
-        self.font_preloads_with_crossorigin = 0
 
         # Counters — cookie/privacy banner
         self.consent_scripts = []
@@ -256,12 +317,6 @@ class FATHTMLAnalyser(HTMLParser):
         # --- NEW: Accessibility — form error association ---
         self.form_inputs_with_describedby = 0
 
-        # --- NEW: Inline dynamic script loaders in <head> ---
-        self.inline_dynamic_script_loaders = []
-
-        # --- NEW: Image URL collection (Wave 3) ---
-        self.image_urls = []
-
         # HTTP response headers (populated when --fetch is used)
         self.response_headers = {}
 
@@ -278,6 +333,7 @@ class FATHTMLAnalyser(HTMLParser):
             return True
         if self.page_url:
             from urllib.parse import urlparse
+
             try:
                 page_domain = urlparse(self.page_url).netloc
                 link_domain = urlparse(href).netloc
@@ -287,7 +343,11 @@ class FATHTMLAnalyser(HTMLParser):
                     return True
             except Exception:
                 pass
-        if not href.startswith("http://") and not href.startswith("https://") and not href.startswith("//"):
+        if (
+            not href.startswith("http://")
+            and not href.startswith("https://")
+            and not href.startswith("//")
+        ):
             return True
         return False
 
@@ -295,9 +355,14 @@ class FATHTMLAnalyser(HTMLParser):
         """Check if a link is external (different domain)."""
         if not href or href.startswith("#") or href.startswith("javascript:"):
             return False
-        if href.startswith("http://") or href.startswith("https://") or href.startswith("//"):
+        if (
+            href.startswith("http://")
+            or href.startswith("https://")
+            or href.startswith("//")
+        ):
             if self.page_url:
                 from urllib.parse import urlparse
+
                 try:
                     page_domain = urlparse(self.page_url).netloc
                     link_domain = urlparse(href).netloc
@@ -310,11 +375,32 @@ class FATHTMLAnalyser(HTMLParser):
             return True
         return False
 
+    # Void (self-closing) elements that should not be pushed onto the tag stack
+    VOID_ELEMENTS = frozenset(
+        {
+            "area",
+            "base",
+            "br",
+            "col",
+            "embed",
+            "hr",
+            "img",
+            "input",
+            "link",
+            "meta",
+            "param",
+            "source",
+            "track",
+            "wbr",
+        }
+    )
+
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
         self.current_tag = tag
         self.current_attrs = attrs_dict
-        self.tag_stack.append(tag)
+        if tag not in self.VOID_ELEMENTS:
+            self.tag_stack.append(tag)
 
         # Track element IDs for anchor validation
         if "id" in attrs_dict:
@@ -368,22 +454,30 @@ class FATHTMLAnalyser(HTMLParser):
         # --- NEW: Fake affordance detection ---
         # Non-interactive elements styled to look clickable (div/span with hover/pointer/btn classes
         # or cursor:pointer style) but lacking href, onclick, or appropriate ARIA roles.
-        # Skip elements that are children of interactive elements (a, button, label, [role=button]).
         if tag in ("div", "span"):
             has_onclick = "onclick" in attrs_dict
-            has_role_interactive = role.lower().strip() in ("button", "link") if role else False
-            # Check if any ancestor is an interactive element
-            interactive_ancestors = {"a", "button", "label", "summary", "details"}
-            has_interactive_ancestor = any(t in interactive_ancestors for t in self.tag_stack)
-            if not has_onclick and not has_role_interactive and not has_interactive_ancestor:
+            has_role_interactive = (
+                role.lower().strip() in ("button", "link") if role else False
+            )
+            if not has_onclick and not has_role_interactive:
                 classes = attrs_dict.get("class", "").lower()
                 style = attrs_dict.get("style", "").lower()
-                interactive_class_keywords = ("clickable", "cursor-pointer", "btn", "button")
-                has_interactive_class = any(kw in classes for kw in interactive_class_keywords)
-                # Exclude pointer-events-none — it prevents interaction, not a fake affordance
-                if "pointer-events-none" in classes or "pointer-events: none" in style:
-                    has_interactive_class = False
-                has_pointer_style = "cursor:pointer" in style.replace(" ", "") or "cursor: pointer" in style
+                # Use word-boundary matching to avoid false positives on
+                # container classes like "cta-buttons" matching "button"
+                class_tokens = set(re.split(r"[-_\s]+", classes))
+                interactive_class_keywords = {
+                    "hover",
+                    "clickable",
+                    "pointer",
+                    "btn",
+                    "button",
+                    "link",
+                }
+                has_interactive_class = bool(class_tokens & interactive_class_keywords)
+                has_pointer_style = (
+                    "cursor:pointer" in style.replace(" ", "")
+                    or "cursor: pointer" in style
+                )
                 if has_interactive_class or has_pointer_style:
                     self.fake_affordance_count += 1
 
@@ -419,10 +513,6 @@ class FATHTMLAnalyser(HTMLParser):
         # Images
         if tag == "img":
             self.img_count += 1
-            # --- NEW: Collect image URLs (Wave 3) ---
-            img_src = attrs_dict.get("src", "")
-            if img_src:
-                self.image_urls.append(img_src)
             if "alt" not in attrs_dict:
                 self.img_missing_alt += 1
             if attrs_dict.get("loading") == "lazy":
@@ -433,25 +523,19 @@ class FATHTMLAnalyser(HTMLParser):
             # Srcset for responsive images
             if "srcset" in attrs_dict:
                 self.img_with_srcset += 1
-            # --- NEW: LCP animation detection — hidden inline styles ---
-            style = attrs_dict.get("style", "")
-            if style:
-                style_norm = style.lower().replace(" ", "")
-                if ("opacity:0" in style_norm or "visibility:hidden" in style_norm
-                        or "display:none" in style_norm):
-                    self.images_with_hidden_inline_style += 1
             # Modern image formats
             src = attrs_dict.get("src", "")
             if src:
                 src_lower = src.lower().split("?")[0]  # strip query params
-                if src_lower.endswith(".webp") or src_lower.endswith(".avif"):
-                    self.img_modern_format += 1
-                # Next.js /_next/image serves AVIF/WebP via content negotiation
-                elif "/_next/image" in src.lower():
+                if src_lower.endswith((".webp", ".avif", ".svg")):
                     self.img_modern_format += 1
                 self._check_mixed_content(src)
                 # --- NEW: Generic image filename detection ---
-                filename = src.split("/")[-1].split("?")[0] if "/" in src else src.split("?")[0]
+                filename = (
+                    src.split("/")[-1].split("?")[0]
+                    if "/" in src
+                    else src.split("?")[0]
+                )
                 if GENERIC_IMG_PATTERNS.search(filename):
                     self.img_generic_filenames += 1
 
@@ -490,7 +574,13 @@ class FATHTMLAnalyser(HTMLParser):
             self.in_svg = True
             self.svg_depth = len(self.tag_stack)
             self.svg_has_title = False
-            self.svg_has_aria = "aria-label" in attrs_dict or "aria-labelledby" in attrs_dict
+            # aria-hidden="true" means intentionally decorative — counts as accessible
+            is_aria_hidden = attrs_dict.get("aria-hidden", "").lower() == "true"
+            self.svg_has_aria = (
+                "aria-label" in attrs_dict
+                or "aria-labelledby" in attrs_dict
+                or is_aria_hidden
+            )
             if attrs_dict.get("role") == "img" and self.svg_has_aria:
                 pass  # Will check for title child too
         if tag == "title" and self.in_svg:
@@ -550,7 +640,7 @@ class FATHTMLAnalyser(HTMLParser):
             href = attrs_dict.get("href", "")
             hreflang = attrs_dict.get("hreflang", "")
             as_attr = attrs_dict.get("as", "")
-            link_type = attrs_dict.get("type", "")
+            attrs_dict.get("type", "")
             self.link_tags.append({"rel": rel, "href": href})
             if rel == "stylesheet":
                 self.external_stylesheets += 1
@@ -571,15 +661,9 @@ class FATHTMLAnalyser(HTMLParser):
             # Font preload
             if "preload" in rel and as_attr == "font":
                 self.font_preloads += 1
-                if "crossorigin" in attrs_dict:
-                    self.font_preloads_with_crossorigin += 1
             # Google Fonts preconnect
             if "preconnect" in rel and "fonts.googleapis.com" in href:
                 self.has_google_fonts_preconnect = True
-            # --- NEW: Preconnect count tracking ---
-            if "preconnect" in rel and href:
-                self.preconnect_count += 1
-                self.preconnect_urls.append(href)
             # Mixed content on link href
             if href:
                 self._check_mixed_content(href)
@@ -604,7 +688,11 @@ class FATHTMLAnalyser(HTMLParser):
             if src:
                 self.external_scripts += 1
                 self._check_mixed_content(src)
-                if self.in_head and "async" not in attrs_dict and "defer" not in attrs_dict:
+                if (
+                    self.in_head
+                    and "async" not in attrs_dict
+                    and "defer" not in attrs_dict
+                ):
                     self.head_scripts += 1
 
                 src_lower = src.lower()
@@ -618,7 +706,11 @@ class FATHTMLAnalyser(HTMLParser):
                         self.spa_indicators.append("Nuxt")
 
                 # Check for analytics — ORIGINAL providers
-                if "gtag" in src_lower or "google-analytics" in src_lower or "googletagmanager" in src_lower:
+                if (
+                    "gtag" in src_lower
+                    or "google-analytics" in src_lower
+                    or "googletagmanager" in src_lower
+                ):
                     self.has_analytics = True
                     self.analytics_providers.append("Google Analytics / GTM")
                 if "fbq" in src_lower or "facebook" in src_lower:
@@ -644,7 +736,10 @@ class FATHTMLAnalyser(HTMLParser):
                 if "heap-analytics" in src_lower or "heap.load" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Heap")
-                if "segment.com/analytics.js" in src_lower or "cdn.segment.com" in src_lower:
+                if (
+                    "segment.com/analytics.js" in src_lower
+                    or "cdn.segment.com" in src_lower
+                ):
                     self.has_analytics = True
                     self.analytics_providers.append("Segment")
                 if "amplitude.com" in src_lower:
@@ -665,13 +760,19 @@ class FATHTMLAnalyser(HTMLParser):
                 if "cloudflareinsights" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Cloudflare Web Analytics")
-                if "omniture" in src_lower or "s_code" in src_lower or "appmeasurement" in src_lower:
+                if (
+                    "omniture" in src_lower
+                    or "s_code" in src_lower
+                    or "appmeasurement" in src_lower
+                ):
                     self.has_analytics = True
                     self.analytics_providers.append("Adobe Analytics")
                 if "snaptr" in src_lower or "sc-static.net" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Snapchat Pixel")
-                if ("tiktok" in src_lower and "analytics" in src_lower) or "analytics.tiktok.com" in src_lower:
+                if (
+                    "tiktok" in src_lower and "analytics" in src_lower
+                ) or "analytics.tiktok.com" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("TikTok Pixel")
                 if "linkedin.com/px" in src_lower or "snap.licdn.com" in src_lower:
@@ -684,7 +785,11 @@ class FATHTMLAnalyser(HTMLParser):
                 # Cookie/consent management scripts — ORIGINAL
                 if "cookiebot" in src_lower or "consent.cookiebot" in src_lower:
                     self.consent_scripts.append("Cookiebot")
-                if "onetrust" in src_lower or "optanon" in src_lower or "cookielaw" in src_lower:
+                if (
+                    "onetrust" in src_lower
+                    or "optanon" in src_lower
+                    or "cookielaw" in src_lower
+                ):
                     self.consent_scripts.append("OneTrust")
                 if "cookieyes" in src_lower or "cookie-yes" in src_lower:
                     self.consent_scripts.append("CookieYes")
@@ -719,7 +824,10 @@ class FATHTMLAnalyser(HTMLParser):
                 if "aria-label" not in attrs_dict and "id" not in attrs_dict:
                     self.form_inputs_without_label += 1
                 # --- NEW: Form error association ---
-                if "aria-describedby" in attrs_dict or "aria-errormessage" in attrs_dict:
+                if (
+                    "aria-describedby" in attrs_dict
+                    or "aria-errormessage" in attrs_dict
+                ):
                     self.form_inputs_with_describedby += 1
 
         # Skip link detection
@@ -767,7 +875,13 @@ class FATHTMLAnalyser(HTMLParser):
         # Landmarks
         if tag in ("main", "nav", "header", "footer", "aside"):
             self.landmarks.add(tag)
-        if attrs_dict.get("role") in ("main", "navigation", "banner", "contentinfo", "complementary"):
+        if attrs_dict.get("role") in (
+            "main",
+            "navigation",
+            "banner",
+            "contentinfo",
+            "complementary",
+        ):
             self.landmarks.add(attrs_dict["role"])
 
     def handle_endtag(self, tag):
@@ -853,7 +967,10 @@ class FATHTMLAnalyser(HTMLParser):
                 self.has_prefers_reduced_motion = True
 
         # Check for JSON-LD
-        if self.current_tag == "script" and self.current_attrs.get("type") == "application/ld+json":
+        if (
+            self.current_tag == "script"
+            and self.current_attrs.get("type") == "application/ld+json"
+        ):
             try:
                 parsed = json.loads(data)
                 self.json_ld_blocks.append(parsed)
@@ -866,19 +983,9 @@ class FATHTMLAnalyser(HTMLParser):
             if "lorem ipsum" in text:
                 self.placeholder_text_found.append("Lorem ipsum text detected")
             if "placeholder" in text and len(text) < 50:
-                self.placeholder_text_found.append(f"Possible placeholder: '{data.strip()[:50]}'")
-
-        # --- NEW: Inline dynamic script loader detection in <head> ---
-        if self.current_tag == "script" and self.in_head and not self.script_has_src:
-            if "googletagmanager.com/gtm.js" in data and "createElement" in data:
-                if "GTM" not in self.inline_dynamic_script_loaders:
-                    self.inline_dynamic_script_loaders.append("GTM")
-            if "connect.facebook.net" in data and "fbevents.js" in data:
-                if "Meta Pixel" not in self.inline_dynamic_script_loaders:
-                    self.inline_dynamic_script_loaders.append("Meta Pixel")
-            if "static.hotjar.com" in data:
-                if "Hotjar" not in self.inline_dynamic_script_loaders:
-                    self.inline_dynamic_script_loaders.append("Hotjar")
+                self.placeholder_text_found.append(
+                    f"Possible placeholder: '{data.strip()[:50]}'"
+                )
 
         # Analytics in inline scripts
         if self.current_tag == "script":
@@ -950,70 +1057,11 @@ class FATHTMLAnalyser(HTMLParser):
             if "prefers-reduced-motion" in data:
                 self.has_prefers_reduced_motion = True
 
-    @staticmethod
-    def check_image_sizes(image_urls, page_url, threshold_bytes=1048576):
-        """HEAD-request each image URL and flag those exceeding threshold.
-
-        Returns (sizes_dict, oversized_list) where:
-            sizes_dict: {url: content_length_bytes or None}
-            oversized_list: [{url, size}] for images > threshold
-        """
-        from urllib.parse import urljoin
-
-        sizes = {}
-        oversized = []
-        for img_url in image_urls:
-            resolved = urljoin(page_url, img_url) if page_url else img_url
-            try:
-                req = urllib.request.Request(resolved, method="HEAD")
-                req.add_header("User-Agent", "FAT-Agent/1.0")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    cl = resp.getheader("Content-Length")
-                    if cl:
-                        size = int(cl)
-                        sizes[img_url] = size
-                        if size > threshold_bytes:
-                            oversized.append({"url": img_url, "size": size})
-                    else:
-                        sizes[img_url] = None
-            except Exception:
-                sizes[img_url] = None
-        return sizes, oversized
-
     def compile_report(self, html_length: int) -> dict:
         """Compile all findings into a structured report."""
 
         title = self.title_text.strip() or None
         description = self.meta_tags.get("description", None)
-
-        # --- NEW: Duplicate title suffix detection ---
-        title_duplicate_suffix = None
-        if title:
-            # Split on common separators: |, -, —, –, :
-            segments = re.split(r'\s*[|:\u2014\u2013]\s*|\s+-\s+', title)
-            segments = [s.strip() for s in segments if s.strip()]
-            if len(segments) >= 2:
-                seen = set()
-                duplicates = []
-                for seg in segments:
-                    seg_lower = seg.lower()
-                    if seg_lower in seen:
-                        duplicates.append(seg)
-                    else:
-                        seen.add(seg_lower)
-                if duplicates:
-                    title_duplicate_suffix = duplicates
-
-        # --- NEW: Next.js font-display inference ---
-        font_display_swap_source = None
-        if self.has_font_display_swap:
-            font_display_swap_source = "inline_css"
-        elif self.font_preloads > 0 and "Next.js" in self.spa_indicators:
-            # Next.js with font preloads infers font-display: swap via
-            # next/font optimisation — check for crossorigin font preloads
-            if self.font_preloads_with_crossorigin > 0:
-                self.has_font_display_swap = True
-                font_display_swap_source = "nextjs_font_preload"
 
         # Validate viewport content
         viewport_valid = False
@@ -1040,6 +1088,7 @@ class FATHTMLAnalyser(HTMLParser):
         url_issues = []
         if self.page_url:
             from urllib.parse import urlparse
+
             try:
                 parsed = urlparse(self.page_url)
                 path = parsed.path
@@ -1060,9 +1109,9 @@ class FATHTMLAnalyser(HTMLParser):
         canonical_self_referencing = None
         canonical_trailing_slash_mismatch = False
         if self.canonical_url and self.page_url:
-            canonical_self_referencing = (
-                self.canonical_url.rstrip("/") == self.page_url.rstrip("/")
-            )
+            canonical_self_referencing = self.canonical_url.rstrip(
+                "/"
+            ) == self.page_url.rstrip("/")
             # Trailing slash consistency — only flag if the canonical differs
             # from the page URL beyond just a trailing slash on the root path.
             # Don't flag when --url was typed without slash but canonical has one
@@ -1083,7 +1132,6 @@ class FATHTMLAnalyser(HTMLParser):
         duplicate_og_tags = {k: v for k, v in self.og_tag_counts.items() if v > 1}
 
         # --- NEW: Tables without th ---
-        tables_without_th = 0
         # We track this simply: tables_total - tables_with_th would require per-table tracking
         # Simplified: track in handle_endtag pattern — already done via table_has_th flag
         # For accurate counting, we use a simpler heuristic:
@@ -1170,7 +1218,6 @@ class FATHTMLAnalyser(HTMLParser):
                 "poor_anchor_text_count": self.poor_anchor_text_count,
                 "nofollow_total_count": self.nofollow_total_count,
                 "nofollow_internal_count": self.nofollow_internal_count,
-                "title_duplicate_suffix": title_duplicate_suffix,
             },
             "accessibility": {
                 "has_lang_attribute": self.has_lang,
@@ -1194,7 +1241,8 @@ class FATHTMLAnalyser(HTMLParser):
                 "deprecated_aria_roles": self.deprecated_aria_roles,
                 "link_as_button_count": self.link_as_button_count,
                 "tables_total": self.tables_total,
-                "tables_without_th": self.tables_total - (1 if self.table_has_th and self.tables_total > 0 else 0),
+                "tables_without_th": self.tables_total
+                - (1 if self.table_has_th and self.tables_total > 0 else 0),
                 "svg_total": self.svg_total,
                 "svg_without_accessible_name": self.svg_without_accessible_name,
                 "iframes_total": self.iframes_total,
@@ -1226,13 +1274,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "font_preloads": self.font_preloads,
                 "has_font_display_swap": self.has_font_display_swap,
                 "has_google_fonts_preconnect": self.has_google_fonts_preconnect,
-                "font_display_swap_source": font_display_swap_source,
-                "preconnect_count": self.preconnect_count,
-                "preconnect_urls": self.preconnect_urls,
-                "images_with_hidden_inline_style": self.images_with_hidden_inline_style,
                 "budget_violations": budget_violations,
-                "inline_dynamic_script_loaders": list(self.inline_dynamic_script_loaders),
-                "_image_urls": list(self.image_urls),
             },
             "security": {
                 "mixed_content_urls": self.mixed_content_urls,
@@ -1242,7 +1284,8 @@ class FATHTMLAnalyser(HTMLParser):
                 "response_headers_available": len(self.response_headers) > 0,
                 "has_hsts": "strict-transport-security" in self.response_headers,
                 "has_csp": "content-security-policy" in self.response_headers,
-                "has_x_content_type_options": "x-content-type-options" in self.response_headers,
+                "has_x_content_type_options": "x-content-type-options"
+                in self.response_headers,
                 "has_x_frame_options": "x-frame-options" in self.response_headers,
                 "has_referrer_policy": "referrer-policy" in self.response_headers,
                 "has_permissions_policy": "permissions-policy" in self.response_headers,
@@ -1294,7 +1337,9 @@ class FATHTMLAnalyser(HTMLParser):
             issues["critical"].append("Missing <html lang> attribute")
         if report["security"]["has_mixed_content"]:
             count = len(report["security"]["mixed_content_urls"])
-            issues["critical"].append(f"Mixed content: {count} HTTP resource(s) on HTTPS page")
+            issues["critical"].append(
+                f"Mixed content: {count} HTTP resource(s) on HTTPS page"
+            )
         # Security headers (only when response headers are available)
         if report["security"]["response_headers_available"]:
             missing_headers = []
@@ -1314,10 +1359,14 @@ class FATHTMLAnalyser(HTMLParser):
                 for h in missing_headers:
                     issues["high"].append(f"Missing security header: {h}")
         else:
-            issues["low"].append("Response headers not available — run with --fetch --url <url> to check security headers")
+            issues["low"].append(
+                "Response headers not available — run with --fetch --url <url> to check security headers"
+            )
         # --- NEW: Zoom disabled is P0 Critical ---
         if report["accessibility"]["zoom_disabled"]:
-            issues["critical"].append("Viewport disables user zoom (user-scalable=no or maximum-scale=1)")
+            issues["critical"].append(
+                "Viewport disables user zoom (user-scalable=no or maximum-scale=1)"
+            )
 
         # High (P1)
         if not report["seo"]["meta_description"]:
@@ -1333,29 +1382,28 @@ class FATHTMLAnalyser(HTMLParser):
         if not report["seo"]["og_tags"]:
             issues["high"].append("No Open Graph tags found")
         if report["seo"]["duplicate_title_tags"] > 1:
-            issues["high"].append(f"Duplicate <title> tags ({report['seo']['duplicate_title_tags']})")
+            issues["high"].append(
+                f"Duplicate <title> tags ({report['seo']['duplicate_title_tags']})"
+            )
         if report["seo"]["duplicate_meta_descriptions"] > 1:
-            issues["high"].append(f"Duplicate meta descriptions ({report['seo']['duplicate_meta_descriptions']})")
+            issues["high"].append(
+                f"Duplicate meta descriptions ({report['seo']['duplicate_meta_descriptions']})"
+            )
         if report["seo"]["duplicate_canonicals"] > 1:
-            issues["high"].append(f"Duplicate canonical tags ({report['seo']['duplicate_canonicals']})")
-        if report["accessibility"]["has_viewport"] and not report["seo"]["viewport_valid"]:
-            issues["high"].append("Viewport meta tag present but missing width=device-width")
+            issues["high"].append(
+                f"Duplicate canonical tags ({report['seo']['duplicate_canonicals']})"
+            )
+        if (
+            report["accessibility"]["has_viewport"]
+            and not report["seo"]["viewport_valid"]
+        ):
+            issues["high"].append(
+                "Viewport meta tag present but missing width=device-width"
+            )
         # --- NEW: Autoplay without muted is P1 ---
         if report["accessibility"]["autoplay_without_muted"] > 0:
             issues["high"].append(
                 f"{report['accessibility']['autoplay_without_muted']} media element(s) autoplay without muted attribute"
-            )
-        # --- NEW: LCP animation — hidden inline style on images ---
-        if report["performance"]["images_with_hidden_inline_style"] > 0:
-            issues["high"].append(
-                f"{report['performance']['images_with_hidden_inline_style']} image(s) with hidden inline style (opacity:0, visibility:hidden, display:none) — may delay LCP"
-            )
-        # --- NEW: Inline dynamic script loaders in <head> ---
-        loaders = report["performance"]["inline_dynamic_script_loaders"]
-        if loaders:
-            loader_names = ", ".join(loaders)
-            issues["high"].append(
-                f"Inline scripts in <head> dynamically load heavy third-party resources: {loader_names} — defer with setTimeout"
             )
 
         # Medium (P2)
@@ -1383,7 +1431,9 @@ class FATHTMLAnalyser(HTMLParser):
         if not report["seo"]["has_charset"]:
             issues["medium"].append("Missing <meta charset> declaration")
         if report["accessibility"]["empty_headings"] > 0:
-            issues["medium"].append(f"{report['accessibility']['empty_headings']} empty heading tag(s)")
+            issues["medium"].append(
+                f"{report['accessibility']['empty_headings']} empty heading tag(s)"
+            )
         if report["accessibility"]["broken_anchors"]:
             issues["medium"].append(
                 f"Broken same-page anchors: {', '.join(report['accessibility']['broken_anchors'][:5])}"
@@ -1439,18 +1489,11 @@ class FATHTMLAnalyser(HTMLParser):
         if report["seo"]["duplicate_og_tags"]:
             dup_keys = ", ".join(report["seo"]["duplicate_og_tags"].keys())
             issues["medium"].append(f"Duplicate Open Graph tags: {dup_keys}")
-        # --- NEW: Title duplicate suffix ---
-        if report["seo"]["title_duplicate_suffix"]:
-            dups = ", ".join(report["seo"]["title_duplicate_suffix"])
-            issues["medium"].append(f"Title contains repeated segment(s): {dups}")
-        # --- NEW: Excess preconnects ---
-        if report["performance"]["preconnect_count"] > 4:
-            issues["medium"].append(
-                f"{report['performance']['preconnect_count']} preconnect hints found (recommend \u2264 4)"
-            )
         # --- NEW: Canonical trailing slash mismatch ---
         if report["seo"]["canonical_trailing_slash_mismatch"]:
-            issues["medium"].append("Canonical URL trailing slash doesn't match page URL")
+            issues["medium"].append(
+                "Canonical URL trailing slash doesn't match page URL"
+            )
         # --- NEW: Positive tabindex ---
         if report["accessibility"]["positive_tabindex_count"] > 0:
             issues["medium"].append(
@@ -1501,8 +1544,14 @@ class FATHTMLAnalyser(HTMLParser):
             )
         img_total = report["performance"]["images_total"]
         if img_total > 0 and report["accessibility"]["img_with_dimensions"] == 0:
-            issues["low"].append("No images have explicit width/height attributes (CLS risk)")
-        if img_total > 3 and report["performance"]["images_with_srcset"] == 0 and report["performance"]["picture_elements"] == 0:
+            issues["low"].append(
+                "No images have explicit width/height attributes (CLS risk)"
+            )
+        if (
+            img_total > 3
+            and report["performance"]["images_with_srcset"] == 0
+            and report["performance"]["picture_elements"] == 0
+        ):
             issues["low"].append("No responsive images (srcset or <picture>) detected")
         # --- NEW: Poor anchor text ---
         if report["seo"]["poor_anchor_text_count"] > 0:
@@ -1559,7 +1608,12 @@ class FATHTMLAnalyser(HTMLParser):
         return report
 
 
-def analyse_html(html_content: str, page_url: str = "", budget: dict = None, response_headers: dict = None) -> dict:
+def analyse_html(
+    html_content: str,
+    page_url: str = "",
+    budget: dict = None,
+    response_headers: dict = None,
+) -> dict:
     """Analyse HTML content and return a FAT report."""
     analyser = FATHTMLAnalyser(page_url=page_url, budget=budget)
     analyser.response_headers = response_headers or {}
@@ -1567,66 +1621,12 @@ def analyse_html(html_content: str, page_url: str = "", budget: dict = None, res
     return analyser.compile_report(len(html_content.encode("utf-8")))
 
 
-def analyse_batch(urls, budget=None, timeout=10):
-    """Fetch and analyse multiple URLs in sequence.
-
-    Returns a list of report dicts, each augmented with _url and _status.
-    Sleeps 0.5s between requests (polite crawling).
-    """
-    import time
-
-    results = []
-    for i, url in enumerate(urls):
-        if i > 0:
-            time.sleep(0.5)
-        report = {"_url": url, "_status": None}
-        try:
-            req = urllib.request.Request(url)
-            req.add_header("User-Agent", "FAT-Agent/1.0")
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                html = resp.read().decode("utf-8", errors="replace")
-                report["_status"] = resp.status
-                analysis = analyse_html(html, page_url=url, budget=budget)
-                report.update(analysis)
-        except urllib.error.HTTPError as e:
-            report["_status"] = e.code
-        except Exception as e:
-            report["_status"] = str(e)
-        results.append(report)
-    return results
-
-
-def check_url_status(urls, timeout=10):
-    """HEAD-request each URL and return status information.
-
-    Returns list of {url, status, final_url, redirected}.
-    """
-    results = []
-    for url in urls:
-        entry = {"url": url, "status": None, "final_url": url, "redirected": False}
-        try:
-            req = urllib.request.Request(url, method="HEAD")
-            req.add_header("User-Agent", "FAT-Agent/1.0")
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                entry["status"] = resp.status
-                entry["final_url"] = resp.url
-                entry["redirected"] = resp.url != url
-        except urllib.error.HTTPError as e:
-            entry["status"] = e.code
-        except Exception as e:
-            entry["status"] = str(e)
-        results.append(entry)
-    return results
-
-
 def main():
     page_url = ""
     filepath = None
     budget = None
     fetch_headers = False
-    check_images = False
-    batch_file = None
-    check_urls_file = None
+    modules_arg = None  # disabled when none, "auto" or comma-separated ids
 
     args = sys.argv[1:]
     i = 0
@@ -1640,56 +1640,20 @@ def main():
                 with open(budget_path, "r", encoding="utf-8") as f:
                     budget = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError) as e:
-                print(f"Warning: Could not load budget file '{budget_path}': {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not load budget file '{budget_path}': {e}",
+                    file=sys.stderr,
+                )
+            i += 2
+        elif args[i] == "--modules" and i + 1 < len(args):
+            modules_arg = args[i + 1]
             i += 2
         elif args[i] == "--fetch":
             fetch_headers = True
             i += 1
-        elif args[i] == "--check-images":
-            check_images = True
-            i += 1
-        elif args[i] == "--batch" and i + 1 < len(args):
-            batch_file = args[i + 1]
-            i += 2
-        elif args[i] == "--check-urls" and i + 1 < len(args):
-            check_urls_file = args[i + 1]
-            i += 2
         else:
             filepath = args[i]
             i += 1
-
-    # --- Batch mode ---
-    if batch_file:
-        with open(batch_file, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        # Try JSON array first, then line-delimited
-        try:
-            urls = json.loads(content)
-        except json.JSONDecodeError:
-            urls = [line.strip() for line in content.splitlines() if line.strip()]
-        results = analyse_batch(urls, budget=budget)
-        pages_ok = sum(1 for r in results if isinstance(r.get("_status"), int) and 200 <= r["_status"] < 400)
-        pages_failed = len(results) - pages_ok
-        output = {
-            "pages_tested": len(results),
-            "pages_ok": pages_ok,
-            "pages_failed": pages_failed,
-            "results": results,
-        }
-        print(json.dumps(output, indent=2))
-        return
-
-    # --- URL status check mode ---
-    if check_urls_file:
-        with open(check_urls_file, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        try:
-            urls = json.loads(content)
-        except json.JSONDecodeError:
-            urls = [line.strip() for line in content.splitlines() if line.strip()]
-        results = check_url_status(urls)
-        print(json.dumps(results, indent=2))
-        return
 
     # Auto-detect .fat-budget.json if no --budget flag
     if budget is None:
@@ -1710,31 +1674,44 @@ def main():
     response_headers = {}
     if fetch_headers and page_url:
         try:
-            req = urllib.request.Request(page_url, method='HEAD')
-            req.add_header('User-Agent', 'FAT-Agent/1.0')
+            req = urllib.request.Request(page_url, method="HEAD")
+            req.add_header("User-Agent", "FAT-Agent/1.0")
             with urllib.request.urlopen(req, timeout=10) as resp:
                 response_headers = {k.lower(): v for k, v in resp.getheaders()}
         except Exception as e:
-            print(f"Warning: Could not fetch headers from '{page_url}': {e}", file=sys.stderr)
-
-    report = analyse_html(html_content, page_url=page_url, budget=budget, response_headers=response_headers)
-
-    # --- Image size check ---
-    if check_images and page_url and report.get("performance", {}).get("_image_urls"):
-        image_urls = report["performance"]["_image_urls"]
-        sizes, oversized = FATHTMLAnalyser.check_image_sizes(image_urls, page_url)
-        if oversized:
-            for item in oversized:
-                size_mb = round(item["size"] / (1024 * 1024), 2)
-                report["summary"]["high"].append(
-                    f"Oversized image ({size_mb}MB): {item['url']}"
-                )
-            report["summary"]["issues_found"] = (
-                len(report["summary"]["critical"])
-                + len(report["summary"]["high"])
-                + len(report["summary"]["medium"])
-                + len(report["summary"]["low"])
+            print(
+                f"Warning: Could not fetch headers from '{page_url}': {e}",
+                file=sys.stderr,
             )
+
+    report = analyse_html(
+        html_content,
+        page_url=page_url,
+        budget=budget,
+        response_headers=response_headers,
+    )
+
+    # run module system when --modules is provided
+    if modules_arg is not None:
+        from modules import detect_modules, get_module
+
+        if modules_arg == "auto":
+            module_ids = detect_modules(html_content)
+        else:
+            module_ids = [m.strip() for m in modules_arg.split(",") if m.strip()]
+
+        module_results = {}
+        for mid in module_ids:
+            mod_cls = get_module(mid)
+            if mod_cls is None:
+                continue
+            instance = mod_cls()
+            analysis = instance.analyse(
+                html_content, url=page_url, headers=response_headers
+            )
+            module_results[mid] = analysis
+
+        report["modules"] = module_results
 
     print(json.dumps(report, indent=2))
 

@@ -1,10 +1,14 @@
-# 🍔 FAT Agent — Fix, Audit, Test
+# 🍔 FAT Agent with Superpowers — Fix, Audit, Test
 
 ![FAT Score](./fat-badge.svg)
+[![CI](https://github.com/spruikco/fat-agent-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/spruikco/fat-agent-skill/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-630%2B%20passing-brightgreen)]()
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**A Claude plugin that acts as your post-launch QA engineer.**
+**A modular Claude plugin that acts as your post-launch QA engineer.**
 
-FAT Agent systematically audits deployed websites for SEO, performance, security, accessibility, and content issues — then walks you through fixing every one.
+FAT Agent systematically audits deployed websites across SEO, security, accessibility, performance, local SEO, e-commerce, email deliverability, internationalisation, DNS infrastructure, and more — then walks you through fixing every issue found.
 
 ---
 
@@ -12,24 +16,46 @@ FAT Agent systematically audits deployed websites for SEO, performance, security
 
 After you deploy a site, say **"run FAT agent"** and it will:
 
-1. **Gather context** — Asks smart questions about your site, stack, and critical user flows
-2. **Audit** — Runs 8 automated check categories against your live URL
-3. **Report** — Generates a prioritised punch list (P0 Critical → P3 Nice-to-have)
-4. **Fix** — Offers to generate code fixes for every issue found
-5. **Re-test** — After you redeploy, verifies the fixes are live
+1. **Gather context** — Asks about your site, stack, and critical user flows
+2. **Auto-detect modules** — Analyses your HTML for e-commerce, local business, i18n, and email signals
+3. **Audit** — Runs core + detected modules against your live URL
+4. **Report** — Generates a prioritised punch list, HTML dashboard, and shareable reports
+5. **Fix** — Offers to generate code fixes for every issue found
+6. **Re-test** — After you redeploy, verifies the fixes are live
 
-### Audit Categories
+### Core Modules (always enabled)
 
-| Category | Automated? | What It Checks |
-|----------|-----------|----------------|
-| 🌐 Availability & Response | ✅ | HTTP status, redirects, response headers, caching |
-| 🔍 SEO Essentials | ✅ | Title, meta, headings, OG tags, structured data, sitemap, robots.txt |
-| ⚡ Performance | ✅ | HTML size, render-blocking scripts, lazy loading, resource hints |
-| 🔒 Security Headers | ✅ | HSTS, CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy |
-| ♿ Accessibility | Partial | Alt text, labels, landmarks, skip links + targeted user questions |
-| 🧪 Functional Checks | 👤 User | Forms, navigation, mobile, 404 page, integrations |
-| 📝 Content & Legal | Partial | Placeholder text, privacy policy, copyright year |
-| 📊 Analytics & Tracking | ✅ | GA4, GTM, Facebook Pixel, Plausible, Hotjar, Fathom, Umami, Mixpanel, PostHog + 10 more |
+| Module | What It Checks |
+|--------|----------------|
+| 🔍 SEO | Title, meta, headings, OG tags, structured data, sitemap, robots.txt, CWV |
+| 🔒 Security | HSTS, CSP, X-Frame-Options, Referrer-Policy, mixed content |
+| ♿ Accessibility | Alt text, labels, landmarks, ARIA, skip links, focus, motion, zoom |
+| ⚡ Performance | HTML size, render-blocking scripts, lazy loading, resource hints, fonts |
+
+### Conditional Modules (auto-detected or user-selected)
+
+| Module | Trigger Signal | What It Checks |
+|--------|---------------|----------------|
+| 📍 Local SEO | LocalBusiness schema, Google Maps, tel: links | NAP, GBP, service area, trust signals, CTAs |
+| 🛒 E-commerce | Product schema, cart elements | Product schema validation, payment badges, breadcrumbs |
+| 📧 Email Deliverability | Contact forms with email inputs | SPF, DKIM, DMARC records |
+| 🌐 i18n | hreflang tags, language switcher | Hreflang validation, x-default, RTL support, lang attribute |
+| 🔗 Link Checker | Always available | Internal/external links, broken anchors, noopener, mailto validation |
+| 🛰️ DNS & Infrastructure | Opt-in | DNSSEC, CAA, SSL expiry, CDN detection, HTTP/2 |
+| 📦 JS Bundle Analysis | Script tags detected | Heavy libraries, async/defer, module scripts, bundle patterns |
+
+Plus Content Quality, GDPR/Cookie consent, Schema validation, and Sitemap modules.
+
+### Audit Profiles
+
+| Profile | Modules |
+|---------|---------|
+| `quick` | SEO, Security |
+| `full` | All modules |
+| `local` | SEO, Security, A11y, Perf, Local SEO, Email, Links |
+| `ecommerce` | SEO, Security, A11y, Perf, E-commerce, Links |
+| `seo` | SEO only |
+| `security` | Security only |
 
 ---
 
@@ -37,11 +63,13 @@ After you deploy a site, say **"run FAT agent"** and it will:
 
 ### Claude Code Plugin (Recommended)
 
-```bash
-claude plugins add https://github.com/spruikco/fat-agent-skill
+```
+/plugin marketplace add spruikco/fat-agent-skill
+/plugin install fat-agent@fat-agent-marketplace
 ```
 
-This installs the FAT Agent plugin with the `/fat-audit` slash command.
+This installs the FAT Agent plugin with the `/fat-audit` slash command. Already installed an
+earlier version? Run `/plugin update` to pull the latest superpowers.
 
 ### Claude Code (Manual)
 
@@ -56,7 +84,7 @@ Then in any conversation:
 You: Run FAT agent on https://mysite.com
 You: Audit my site
 You: I just deployed — is everything working?
-You: Post-launch check on https://example.com
+You: Audit my site with the local business profile
 You: /fat-audit https://example.com
 ```
 
@@ -64,123 +92,74 @@ You: /fat-audit https://example.com
 
 1. Create a new **Project** in Claude.ai
 2. Upload `plugins/fat-agent/skills/fat-agent/SKILL.md` as a project file — this is the core instruction set Claude follows
-3. Upload the reference files you want available:
-   - `plugins/fat-agent/references/security-headers.md`
-   - `plugins/fat-agent/references/seo-checklist.md`
-   - `plugins/fat-agent/references/accessibility-guide.md`
-   - Any relevant `plugins/fat-agent/references/platform-fixes/*.md` for your hosting platform
-   - Any relevant `plugins/fat-agent/references/framework-fixes/*.md` for your tech stack
+3. Upload the reference files you want available (security headers, SEO checklist, accessibility guide, and any relevant `platform-fixes/` or `framework-fixes/` for your stack)
 4. Start a conversation and say "audit my site" or "run FAT agent"
 
-> **Note:** The Python scripts (`analyse-html.py`, `calculate-score.py`) are designed for Claude Code, which can execute them directly. Claude.ai performs the same checks conversationally using `web_fetch`.
-
-### What Happens When You Trigger It
-
-1. **Phase 0 — Context** — FAT Agent asks for your live URL, site type, tech stack, and hosting platform
-2. **Phase 1 — Audit** — Fetches your URL, runs 9 check categories (SEO, security, accessibility, performance, analytics, content, functional, platform-specific), asks targeted yes/no questions for things that can't be automated
-3. **Phase 2 — Fix** — Generates a prioritised punch list (P0 Critical → P3 Low) with specific code/config fixes tailored to your stack and hosting platform
-4. **Phase 3 — Test** — After you redeploy with fixes, re-fetches the URL and verifies each issue is resolved
-
-Fix suggestions are loaded on-demand from the `references/platform-fixes/` and `references/framework-fixes/` directories based on what you told it in Phase 0. A Next.js site on Vercel gets different fix code than a WordPress site on Apache.
+> **Note:** The Python scripts are designed for Claude Code, which executes them directly. Claude.ai performs the same checks conversationally using `web_fetch`.
 
 ### Works With Any Hosting Platform
 
-FAT Agent is **platform-agnostic**. It audits the live URL regardless of where it's hosted:
-
-- Netlify, Vercel, Cloudflare Pages
-- AWS (S3, CloudFront, Amplify, EC2)
-- DigitalOcean, shared hosting (cPanel, Plesk)
-- Self-hosted (Nginx, Apache)
-- WordPress hosting (WP Engine, Kinsta, etc.)
-- Any platform that serves a URL
+FAT Agent is **platform-agnostic** — it audits the live URL regardless of where it's hosted: Netlify, Vercel, Cloudflare Pages, AWS, DigitalOcean, shared hosting, self-hosted Nginx/Apache, WordPress hosting, or anything that serves a URL.
 
 ---
 
-## Project Structure
+## Superpowers
 
-```
-fat-agent-skill/                          # Marketplace root
-├── .claude-plugin/
-│   └── marketplace.json                  # Marketplace manifest
-├── plugins/
-│   └── fat-agent/                        # The plugin
-│       ├── .claude-plugin/
-│       │   └── plugin.json               # Plugin manifest
-│       ├── skills/
-│       │   └── fat-agent/
-│       │       └── SKILL.md              # Core skill instructions
-│       ├── commands/
-│       │   └── fat-audit.md              # /fat-audit slash command
-│       ├── scripts/
-│       │   ├── analyse-html.py           # HTML analysis helper
-│       │   ├── calculate-score.py        # Scoring calculator (SEO, Security, A11y, Perf, FAT)
-│       │   ├── generate-badge.py         # SVG badge generator for READMEs
-│       │   ├── track-history.py          # Historical audit tracking
-│       │   └── test_fat_agent.py         # Full test suite (285 tests)
-│       ├── references/
-│       │   ├── security-headers.md       # Security header reference
-│       │   ├── seo-checklist.md          # Extended SEO criteria
-│       │   ├── accessibility-guide.md    # WCAG 2.1 quick reference
-│       │   ├── performance-budgets.md   # Performance budget configuration
-│       │   ├── ci-cd-integration.md     # CI/CD integration examples
-│       │   ├── platform-fixes/           # Hosting platform config guides
-│       │   │   ├── netlify.md
-│       │   │   ├── vercel.md
-│       │   │   ├── cloudflare-pages.md
-│       │   │   ├── apache.md
-│       │   │   ├── nginx.md
-│       │   │   ├── wordpress.md
-│       │   │   └── aws.md
-│       │   └── framework-fixes/          # Framework-specific fix patterns
-│       │       ├── nextjs.md
-│       │       ├── astro.md
-│       │       ├── sveltekit.md
-│       │       ├── nuxt.md
-│       │       ├── gatsby.md
-│       │       ├── wordpress.md
-│       │       └── static-html.md
-│       ├── evals/
-│       │   └── evals.json                # Test cases for skill validation
-│       ├── assets/
-│       │   ├── fat-agent-badge-icon.png
-│       │   └── social-preview.png
-│       └── README.md                     # Plugin documentation
-├── fat-badge.svg                         # Generated FAT score badge
-├── README.md                             # This file
-├── CLAUDE.md                             # Project conventions for Claude Code
-├── LICENSE                               # MIT License
-├── .gitignore
-└── .github/
-    └── LLM-BRIEF.md                     # Project brief for LLM continuation
+### Multi-Page Crawling
+
+```bash
+python plugins/fat-agent/scripts/crawl.py --url https://example.com --depth 2 --max-pages 10 --output-dir /tmp/crawl
 ```
 
----
+Breadth-first crawler with robots.txt support, same-domain filtering, and optional link checking.
 
-## Usage Examples
+### Bulk Site Auditing
 
-### Basic Audit
-```
-User: Run FAT agent on https://mysite.com
-Claude: Ready to run a FAT audit! I just need a few details...
+```bash
+python plugins/fat-agent/scripts/bulk_audit.py --sites sites.json --output-dir /tmp/bulk --profile quick
 ```
 
-### Post-Deploy Check
-```
-User: I just deployed. Is everything working?
-Claude: Let me run a FAT audit on your site to check...
+Audit multiple sites from a JSON list with a comparison table output.
+
+### HTML Dashboard
+
+```bash
+python plugins/fat-agent/scripts/generate_html_dashboard.py --scores scores.json --url example.com --output-dir ./reports
 ```
 
-### Targeted Audit
-```
-User: Can you check the SEO on my new landing page?
-Claude: I'll focus the FAT audit on SEO — fetching your page now...
+Self-contained HTML report with colour-coded grades, progress bars, and a findings table. Supports `--client-facing` mode for non-technical stakeholders.
+
+### Lighthouse Integration
+
+```bash
+python plugins/fat-agent/scripts/lighthouse.py --url https://example.com --output /tmp/lighthouse.json
 ```
 
-### Slash Command
+Wraps the Lighthouse CLI for accurate Core Web Vitals. Falls back gracefully when not installed.
+
+### Visual Regression
+
+```bash
+python plugins/fat-agent/scripts/visual_regression.py --url https://example.com --output-dir .fat-screenshots
 ```
-User: /fat-audit https://mysite.com
-Claude: Running FAT Agent audit on https://mysite.com...
+
+Screenshot comparison across viewports using Playwright (with fallback).
+
+### CI/CD Gate
+
+```bash
+python plugins/fat-agent/scripts/ci_gate.py --scores scores.json --threshold 70 --fail-on P0
 ```
+
+Exit codes: `0` = pass, `1` = score below threshold, `2` = priority findings found.
+
+### Client-Facing Mode
+
+Transforms technical jargon into plain English for non-technical stakeholders — e.g. "HSTS" becomes "browser security header", "P0 Critical" becomes "Urgent", and code blocks are stripped from fix suggestions.
+
+### Competitive Analysis
+
+Say "compare my site with [competitor URL]" for a side-by-side score comparison with actionable improvement suggestions.
 
 ---
 
@@ -195,40 +174,30 @@ Issues are prioritised with clear labels:
 | 🟡 P2 | **Medium** | Best practice violations, minor issues |
 | 🟢 P3 | **Low** | Nice-to-haves, polish items |
 
-Each finding includes:
-- **What's wrong** — One-line description
-- **Why it matters** — Impact explanation
-- **How to fix** — Specific code/config changes
-- **Effort** — ⚡ 5 min, 🔧 30 min, or 🏗️ 1+ hour
+Each finding includes what's wrong, why it matters, how to fix it, and an effort estimate (⚡ 5 min, 🔧 30 min, 🏗️ 1+ hour).
 
 ---
 
 ## Scoring
 
-FAT Agent generates scores across four dimensions:
+| Category | Weight |
+|----------|--------|
+| SEO | 30% |
+| Security | 25% |
+| Accessibility | 30% |
+| Performance | 15% |
 
-- **SEO Score** (0-100) — Based on meta tags, headings, structured data, sitemap, etc.
-- **Security Score** (0-100) — Based on presence and correctness of security headers
-- **Accessibility Score** (0-100) — Based on automated checks + user-reported items
-- **Performance Score** (0-100) — Based on HTML size, render-blocking scripts, images, fonts, lazy loading
-- **Overall FAT Score** — Weighted composite (SEO 30%, Security 25%, A11y 30%, Perf 15%)
+Module scores (Local SEO, E-commerce, etc.) are reported separately as supplementary scores.
+Grades: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, F < 60.
 
 ### FAT Badge
 
 Generate shields.io-style SVG badges from your audit scores:
 
 ```bash
-# Overall FAT badge (grade + score)
-python plugins/fat-agent/scripts/analyse-html.py page.html | python plugins/fat-agent/scripts/calculate-score.py | python plugins/fat-agent/scripts/generate-badge.py --output badge.svg
-
-# Category badges
-python plugins/fat-agent/scripts/generate-badge.py scores.json --category seo --output seo-badge.svg
-python plugins/fat-agent/scripts/generate-badge.py scores.json --category security --output security-badge.svg
-python plugins/fat-agent/scripts/generate-badge.py scores.json --category accessibility --output a11y-badge.svg
-python plugins/fat-agent/scripts/generate-badge.py scores.json --category performance --output perf-badge.svg
-
-# Flat-square style
-python plugins/fat-agent/scripts/generate-badge.py scores.json --style flat-square --output badge.svg
+python plugins/fat-agent/scripts/analyse-html.py page.html \
+  | python plugins/fat-agent/scripts/calculate-score.py \
+  | python plugins/fat-agent/scripts/generate-badge.py --output badge.svg
 ```
 
 Then embed in your README:
@@ -238,41 +207,38 @@ Then embed in your README:
 
 ---
 
-## Customisation
+## Project Structure
 
-### Adding Check Categories
+The repo root is the marketplace; the plugin lives under `plugins/fat-agent/`:
 
-Edit `plugins/fat-agent/skills/fat-agent/SKILL.md` to add new audit sections. Follow the existing pattern:
-1. Add the check to the appropriate phase
-2. Specify whether it's automated or user-prompted
-3. Define the priority level for findings
-4. Add fix templates
-
-### Extending References
-
-Drop additional `.md` files in `plugins/fat-agent/references/` and reference them from `SKILL.md`.
+- **skills/fat-agent/SKILL.md** — Core skill instructions (the orchestration guide)
+- **commands/fat-audit.md** — `/fat-audit` slash command definition
+- **scripts/** — Python analysis pipeline (`analyse-html.py`, `calculate-score.py`, `crawl.py`, `bulk_audit.py`, `lighthouse.py`, `pagespeed.py`, `visual_regression.py`, `ci_gate.py`, `client_facing.py`, `profiles.py`, badge/chart/report/dashboard generators)
+  - **scripts/modules/** — Audit modules (local_seo, ecommerce, email_deliverability, i18n, links, dns_infra, js_bundle, content_quality, cookie_gdpr, pwa, schema_validator, sitemap, plus core SEO/security/accessibility/performance) with a base class and registry
+- **templates/** — HTML dashboard template and CSS
+- **references/** — Security headers, SEO checklist, accessibility guide, performance budgets, CI/CD integration, local SEO & e-commerce checklists
+  - **platform-fixes/** — Netlify, Vercel, Cloudflare Pages, Apache, Nginx, WordPress, AWS, Docker
+  - **framework-fixes/** — Next.js, Astro, SvelteKit, Nuxt, Gatsby, Remix, WordPress, Static HTML
+- **tests/** — 630 tests across 17 test files with fixtures
+- **evals/** — Skill evaluation test cases
+- **assets/** — Brand images
 
 ---
 
-## Contributing
+## Testing
 
-PRs welcome! All roadmap items are now implemented:
+```bash
+cd plugins/fat-agent
+python3 -m pytest tests/ -v
+```
 
-- [x] More comprehensive accessibility checks (ARIA validation, tabindex, autoplay, zoom, tables, SVGs, iframes)
-- [x] Performance budget configuration (`.fat-budget.json` + `--budget` flag)
-- [x] CI/CD integration examples (GitHub Actions, Netlify, Vercel, GitLab CI, generic shell)
-- [x] Additional analytics provider detection (17+ new providers + 3 consent platforms)
-- [x] FAT Badge generator (SVG score badge for READMEs)
-- [x] Historical audit tracking (`track-history.py` — save, show, diff, trend)
-- [x] Competitive analysis mode (side-by-side comparison in SKILL.md)
-- [x] Hardened SEO checks (thin content, anchor text, link audit, URL structure, image filenames, duplicate OG, canonical validation, CWV integration)
+630 tests covering all modules, the registry, crawler, bulk audit, Lighthouse, visual regression, dashboard, CI gate, client-facing transforms, and profiles.
 
 ---
 
 ## Credits
 
 Built by [Spruik Co](https://spruik.co) — Digital Marketing & SEO Consultancy.
-
 Designed as a Claude Agent Skill for post-launch quality assurance.
 
 ---

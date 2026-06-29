@@ -381,6 +381,189 @@ pipeline {
 
 ---
 
+## CI Gate Script (`ci_gate.py`)
+
+The `ci_gate.py` script provides structured pass/fail decisions for CI
+pipelines. It reads a `scores.json` file, checks the overall score against a
+configurable threshold, and optionally fails the build when high-priority
+findings are present.
+
+### Basic Usage
+
+```bash
+# Fail if overall score is below 70
+python scripts/ci_gate.py --scores scores.json --threshold 70
+
+# Fail if score < 70 OR any P0 (critical) issues exist
+python scripts/ci_gate.py --scores scores.json --threshold 70 --fail-on P0
+
+# Fail on P0 or P1 issues regardless of score
+python scripts/ci_gate.py --scores scores.json --threshold 60 --fail-on P0 --fail-on P1
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | **Pass** -- score meets threshold and no priority findings matched |
+| `1`  | **Fail (score)** -- overall score is below the configured threshold |
+| `2`  | **Fail (priority findings)** -- one or more findings match the `--fail-on` priority level(s) |
+
+> When both conditions fail, exit code `2` (priority findings) takes precedence
+> over `1` (score threshold).
+
+### Flags
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--scores` | Yes | -- | Path to `scores.json` produced by `calculate-score.py` |
+| `--threshold` | No | `60` | Minimum overall score to pass |
+| `--fail-on` | No | -- | Priority level(s) that cause an immediate failure (`P0`, `P1`, `P2`, `P3`). Repeatable. |
+
+---
+
+## GitHub Actions with `ci_gate.py`
+
+A complete workflow that audits a staging URL on every push/PR and uses
+`ci_gate.py` for the pass/fail decision.
+
+### `.github/workflows/fat-audit-gate.yml`
+
+```yaml
+name: FAT Audit Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  fat-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch staging page
+        run: |
+          curl -sL -o page.html "${{ vars.STAGING_URL }}"
+          echo "Fetched $(wc -c < page.html) bytes"
+
+      - name: Run FAT audit
+        run: |
+          python scripts/analyse-html.py --url "${{ vars.STAGING_URL }}" page.html \
+            | python scripts/calculate-score.py > scores.json
+
+      - name: Gate check
+        run: |
+          python scripts/ci_gate.py \
+            --scores scores.json \
+            --threshold ${{ vars.FAT_THRESHOLD || '70' }} \
+            --fail-on P0
+
+      - name: Upload scores artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fat-scores
+          path: scores.json
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const scores = JSON.parse(fs.readFileSync('scores.json', 'utf8'));
+            const o = scores.overall;
+            const summary = scores.summary || {};
+            const critical = (summary.critical || []).length;
+            const high = (summary.high || []).length;
+
+            const body = `## FAT Audit Gate
+
+            | Metric | Score |
+            |--------|-------|
+            | **Overall** | **${o.grade} ${o.score}/100** |
+            | SEO | ${scores.seo.score}/100 |
+            | Security | ${scores.security.score}/100 |
+            | Accessibility | ${scores.accessibility.score}/100 |
+            | Performance | ${scores.performance.score}/100 |
+
+            **P0 issues:** ${critical} | **P1 issues:** ${high}
+
+            _Gate threshold: ${{ vars.FAT_THRESHOLD || '70' }} | Fail-on: P0_`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+```
+
+### Repository Variables
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `STAGING_URL` | `https://staging.mysite.com` | URL to audit before promoting |
+| `FAT_THRESHOLD` | `70` | Minimum passing score (default: 70) |
+
+---
+
+## GitLab CI with `ci_gate.py`
+
+### `.gitlab-ci.yml`
+
+```yaml
+stages:
+  - build
+  - deploy
+  - audit
+
+fat-audit-gate:
+  stage: audit
+  image: python:3.11-slim
+  needs: [deploy]
+  script:
+    - curl -sL -o page.html "$STAGING_URL"
+    - python scripts/analyse-html.py --url "$STAGING_URL" page.html
+        | python scripts/calculate-score.py > scores.json
+    - python scripts/ci_gate.py
+        --scores scores.json
+        --threshold "${FAT_THRESHOLD:-70}"
+        --fail-on P0
+  artifacts:
+    paths:
+      - scores.json
+    when: always
+    reports:
+      dotenv: gate-result.env
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    STAGING_URL: "https://staging.mysite.com"
+    FAT_THRESHOLD: "70"
+  after_script:
+    - |
+      if [ -n "$CI_MERGE_REQUEST_IID" ] && [ -f scores.json ]; then
+        SCORE=$(python -c "import json; print(json.load(open('scores.json'))['overall']['score'])")
+        GRADE=$(python -c "import json; print(json.load(open('scores.json'))['overall']['grade'])")
+        curl --request POST \
+          --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+          --data-urlencode "body=**FAT Audit Gate:** $GRADE $SCORE/100 (threshold: $FAT_THRESHOLD, fail-on: P0)" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes"
+      fi
+```
+
+---
+
 ## Tips
 
 - **Set realistic thresholds** — Start at 50-60 and increase as you fix issues

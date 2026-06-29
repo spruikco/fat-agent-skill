@@ -4,31 +4,61 @@
     {
       "id": 1,
       "prompt": "Run FAT agent on https://example.com",
-      "expected_output": "Claude should ask clarifying questions about site type and tech stack, then begin fetching the URL and running through audit categories systematically",
+      "expected_output": "Claude asks for site type, tech stack, and hosting platform, then offers an audit profile selection (quick, full, local, ecommerce, custom). After gathering context it fetches the URL HTML, runs module auto-detection, and begins the core audit (SEO, Security, Accessibility, Performance) producing a prioritised findings list with P0-P3 ratings.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "I just deployed my Next.js site to Netlify at https://mysite.netlify.app — can you check if everything looks good?",
-      "expected_output": "Claude should recognise this as a FAT trigger, note the tech stack (Next.js/Netlify), fetch the URL, and run the audit without needing to ask for the URL or stack",
+      "prompt": "Audit https://shopify-store.example.com — it's a Shopify e-commerce site on Shopify hosting",
+      "expected_output": "Claude detects e-commerce signals (Product schema, cart elements, add-to-cart buttons) from the HTML and auto-enables the E-commerce module alongside core modules. Findings include product schema validation, payment trust badges, breadcrumb checks, and price/availability markup. The output explicitly lists 'E-commerce module: auto-detected'.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "Audit my site https://example.com — I only care about SEO",
-      "expected_output": "Claude should focus the audit on SEO checks (section 1.2) but briefly mention it can run a full audit if desired. Should check title, meta, headings, OG tags, sitemap, robots.txt, and structured data",
+      "prompt": "Audit https://joes-plumbing.example.com — it's a local plumbing business website built with WordPress",
+      "expected_output": "Claude detects local business signals (LocalBusiness schema, Google Maps embed, tel: links) and auto-enables the Local SEO module. Findings include NAP consistency check, Google Business Profile verification, service area markup, local trust signals, and call-to-action placement. Output explicitly lists 'Local SEO module: auto-detected'.",
       "files": []
     },
     {
       "id": 4,
-      "prompt": "What's left to fix from the FAT audit?",
-      "expected_output": "Claude should reference the current punch list status from the conversation, showing resolved vs remaining items with their priority levels",
+      "prompt": "Audit https://multilingual.example.com — the site has hreflang tags and a language switcher",
+      "expected_output": "Claude detects i18n signals (hreflang tags, language switcher elements) and auto-enables the i18n module. Findings include hreflang validation, x-default presence, RTL support check, and lang attribute verification. Output explicitly lists 'i18n module: auto-detected'.",
       "files": []
     },
     {
       "id": 5,
-      "prompt": "I've redeployed with the fixes — can you re-check?",
-      "expected_output": "Claude should re-fetch the URL, verify the specific issues that were previously flagged, and report which are resolved vs still present. Should update the punch list.",
+      "prompt": "Crawl https://example.com to depth 2 and audit all discovered pages",
+      "expected_output": "Claude runs scripts/crawl.py with --url https://example.com --depth 2, respecting robots.txt and same-domain filtering. It then runs the audit pipeline on each discovered page and produces a consolidated findings list across all crawled URLs, noting which findings appear on which pages.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Audit these sites in bulk: [{\"url\": \"https://site-a.com\", \"name\": \"Site A\"}, {\"url\": \"https://site-b.com\", \"name\": \"Site B\"}]",
+      "expected_output": "Claude writes the site list to a JSON file, then runs scripts/bulk_audit.py with --sites and --profile quick. Output includes a comparison table showing each site's overall score, grade (A-F), and per-category scores side by side.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Run the CI gate on this scores file with threshold 70 and fail on P0 findings. The scores.json has overall_score 85 and no P0 findings.",
+      "expected_output": "Claude runs scripts/ci_gate.py --scores scores.json --threshold 70 --fail-on P0. Since overall_score (85) exceeds threshold (70) and there are no P0 findings, the script exits with code 0. Claude reports: 'CI gate passed: score 85 >= 70, no P0 findings detected.'",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Run the CI gate on this scores file with threshold 80 and fail on P0 findings. The scores.json has overall_score 65 and 2 P0 findings.",
+      "expected_output": "Claude runs scripts/ci_gate.py --scores scores.json --threshold 80 --fail-on P0. The script exits with code 1 (score 65 < threshold 80) or code 2 (P0 findings detected). Claude reports: 'CI gate failed: score 65 is below threshold 80, and 2 P0 findings were detected.' Lists the specific P0 findings.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Audit https://example.com and give me the report in client-facing mode — my client is non-technical",
+      "expected_output": "Claude runs the audit with --client-facing flag. Output replaces technical jargon: 'HSTS' becomes 'browser security header', 'CSP' becomes 'content security policy', 'P0 Critical' becomes 'Urgent', 'P1 High' becomes 'Important'. Code blocks are stripped from fix suggestions. The HTML dashboard uses plain-English labels throughout.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Compare my site https://mysite.com with competitor https://competitor.com",
+      "expected_output": "Claude runs the full audit on both URLs, then presents a side-by-side score comparison table showing overall score, grade, and per-category scores (SEO, Security, Accessibility, Performance) for both sites. Includes actionable suggestions listing which specific checks the competitor passes that mysite.com fails, prioritised by impact.",
       "files": []
     }
   ]

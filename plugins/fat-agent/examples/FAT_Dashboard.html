@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAT Agent Audit — https://example.com</title>
+<style>
+/* fat agent html dashboard — inline-ready css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f7fa;
+    color: #1e293b;
+    line-height: 1.6;
+    padding: 2rem;
+}
+
+.container { max-width: 960px; margin: 0 auto; }
+
+/* header */
+.header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+.header h1 { font-size: 1.75rem; font-weight: 700; color: #0f172a; }
+.header .url { font-size: 1rem; color: #64748b; margin-top: 0.25rem; }
+.header .date { font-size: 0.85rem; color: #94a3b8; margin-top: 0.25rem; }
+
+/* overall score badge */
+.overall-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+.score-circle {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+}
+.score-circle .number { font-size: 2.5rem; line-height: 1; }
+.score-circle .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* grade colours */
+.grade-a { background: #16a34a; }
+.grade-b { background: #2563eb; }
+.grade-c { background: #ca8a04; }
+.grade-d { background: #ea580c; }
+.grade-f { background: #dc2626; }
+
+.grade-text-a { color: #16a34a; }
+.grade-text-b { color: #2563eb; }
+.grade-text-c { color: #ca8a04; }
+.grade-text-d { color: #ea580c; }
+.grade-text-f { color: #dc2626; }
+
+/* category scores */
+.categories {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+.category-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.category-card h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+.category-card .score-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+.progress-bar {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+.progress-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+/* findings table */
+.findings { margin: 2rem 0; }
+.findings h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #0f172a;
+}
+.findings table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.findings th, .findings td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+}
+.findings th {
+    background: #f8fafc;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    font-weight: 600;
+}
+.findings td { font-size: 0.9rem; }
+
+.priority-high { color: #dc2626; font-weight: 600; }
+.priority-medium { color: #ea580c; font-weight: 600; }
+.priority-low { color: #ca8a04; font-weight: 600; }
+
+/* module scores */
+.module-scores { margin: 2rem 0; }
+.module-scores h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #0f172a;
+}
+.module-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+.module-row .module-label {
+    flex: 0 0 200px;
+    font-size: 0.9rem;
+    color: #334155;
+}
+.module-row .module-bar {
+    flex: 1;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.module-row .module-bar .fill { height: 100%; border-radius: 4px; }
+.module-row .module-value {
+    flex: 0 0 40px;
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* charts */
+.charts { margin: 2rem 0; }
+.charts h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #0f172a;
+}
+.charts img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* footer */
+.footer {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e2e8f0;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+/* print */
+@media print {
+    body { background: #fff; padding: 0; }
+    .container { max-width: 100%; }
+    .category-card, .findings table { box-shadow: none; border: 1px solid #e2e8f0; }
+    .score-circle { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .progress-bar .fill, .module-bar .fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+/* responsive */
+@media (max-width: 600px) {
+    body { padding: 1rem; }
+    .categories { grid-template-columns: 1fr; }
+    .module-row .module-label { flex: 0 0 120px; font-size: 0.8rem; }
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+    <h1>FAT Agent Audit Report</h1>
+    <div class="url">https://example.com</div>
+    <div class="date">2026-04-14</div>
+</div>
+
+<div class="overall-badge">
+    <div class="score-circle grade-b">
+        <span class="number">87</span>
+        <span class="label">overall</span>
+    </div>
+    <div>
+        <div style="font-size:2.5rem;font-weight:700;" class="grade-text-b">Grade: B</div>
+    </div>
+</div>
+
+<div class="categories">
+    <div class="category-card">
+        <h3>SEO</h3>
+        <div class="score-value grade-text-a">91</div>
+        <div class="progress-bar"><div class="fill grade-a" style="width:91%"></div></div>
+    </div>
+    <div class="category-card">
+        <h3>Security</h3>
+        <div class="score-value grade-text-b">85</div>
+        <div class="progress-bar"><div class="fill grade-b" style="width:85%"></div></div>
+    </div>
+    <div class="category-card">
+        <h3>Accessibility</h3>
+        <div class="score-value grade-text-b">88</div>
+        <div class="progress-bar"><div class="fill grade-b" style="width:88%"></div></div>
+    </div>
+    <div class="category-card">
+        <h3>Performance</h3>
+        <div class="score-value grade-text-c">79</div>
+        <div class="progress-bar"><div class="fill grade-c" style="width:79%"></div></div>
+    </div>
+</div>
+
+<div class="module-scores"><h2>Module Scores</h2><div class="module-row"><span class="module-label">Local SEO</span><div class="module-bar"><div class="fill grade-b" style="width:84%"></div></div><span class="module-value">84</span></div><div class="module-row"><span class="module-label">E-commerce SEO</span><div class="module-bar"><div class="fill grade-c" style="width:72%"></div></div><span class="module-value">72</span></div></div>
+
+<div class="findings">
+    <h2>Findings</h2>
+    <table><thead><tr><th>Category</th><th>Issue</th><th>Priority</th></tr></thead><tbody><tr><td>Security</td><td>Missing Permissions-Policy header<br><small style='color:#64748b'>The Permissions-Policy header restricts browser features like camera, microphone, and geolocation. Without it, embedded third-party content can access these APIs.</small></td><td class="priority-p1">P1</td></tr><tr><td>Security</td><td>HSTS missing includeSubDomains and preload directives<br><small style='color:#64748b'>Strict-Transport-Security is present but lacks includeSubDomains and preload. Add these to harden HTTPS enforcement across all subdomains.</small></td><td class="priority-p2">P2</td></tr><tr><td>Performance</td><td>1 render-blocking script in document head<br><small style='color:#64748b'>Move the script to the end of body or add async/defer to prevent blocking the initial paint.</small></td><td class="priority-p2">P2</td></tr><tr><td>Accessibility</td><td>3 form inputs missing associated labels<br><small style='color:#64748b'>Inputs in the newsletter and search forms lack for/id label associations. Screen readers cannot identify these fields.</small></td><td class="priority-p1">P1</td></tr><tr><td>SEO</td><td>Title tag slightly over 60 characters<br><small style='color:#64748b'>Title is 67 characters. Search engines may truncate it in results. Aim for 50-60 characters.</small></td><td class="priority-p3">P3</td></tr><tr><td>Accessibility</td><td>Missing skip navigation link<br><small style='color:#64748b'>No skip-to-content link found. Keyboard users must tab through the entire navigation on every page.</small></td><td class="priority-p2">P2</td></tr><tr><td>Performance</td><td>No lazy loading on below-fold images<br><small style='color:#64748b'>Found 8 images below the fold without loading="lazy". This delays initial page load on slower connections.</small></td><td class="priority-p2">P2</td></tr><tr><td>SEO</td><td>2 images missing alt attributes<br><small style='color:#64748b'>Decorative images should use alt="" and content images need descriptive alt text for search engines and screen readers.</small></td><td class="priority-p1">P1</td></tr><tr><td>Performance</td><td>No font-display: swap detected<br><small style='color:#64748b'>Web fonts may cause invisible text during loading. Use font-display: swap in @font-face declarations.</small></td><td class="priority-p3">P3</td></tr><tr><td>Performance</td><td>Only 3 of 12 images use modern formats (WebP/AVIF)<br><small style='color:#64748b'>Serving images in WebP or AVIF can reduce file sizes by 25-50%. Use <picture> elements with format fallbacks.</small></td><td class="priority-p0">P0</td></tr></tbody></table>
+</div>
+
+
+
+<div class="footer">
+    Generated by FAT Agent &mdash; Fix, Audit, Test
+</div>
+
+</div>
+</body>
+</html>

@@ -11,7 +11,11 @@ Output: JSON report with SEO, Security, Accessibility, Performance, and Overall 
 """
 
 import sys
+import os
 import json
+
+# ensure the scripts directory is on the path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def calculate_seo_score(seo: dict, performance: dict) -> dict:
@@ -54,9 +58,6 @@ def calculate_seo_score(seo: dict, performance: dict) -> dict:
         title_meta = max(title_meta - 3, 0)
     if seo.get("duplicate_meta_descriptions", 1) > 1:
         title_meta = max(title_meta - 3, 0)
-    # Penalise duplicate title suffix
-    if seo.get("title_duplicate_suffix"):
-        title_meta = max(title_meta - 2, 0)
     details["title_meta"] = {"score": title_meta, "max": 18}
     score += title_meta
 
@@ -221,6 +222,11 @@ def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
     details["link_safety"] = {"score": link_safety, "max": 5}
     score += link_safety
 
+    # If no raw headers dict but HTML analysis detected headers via --fetch,
+    # use the boolean flags from analyse-html.py's security section
+    if not headers and html_sec.get("response_headers_available"):
+        headers = {"_from_html_flags": True}  # truthy marker to skip early return
+
     if not headers:
         return {
             "score": score,
@@ -233,7 +239,7 @@ def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
 
     # CSP (30 points)
     csp = 0
-    if "content-security-policy" in h:
+    if "content-security-policy" in h or html_sec.get("has_csp"):
         csp = 30
     elif "content-security-policy-report-only" in h:
         csp = 13
@@ -249,12 +255,16 @@ def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
             hsts += 5
         if "preload" in hsts_val.lower():
             hsts += 5
+    elif html_sec.get("has_hsts"):
+        hsts = 18  # Full credit when detected via --fetch (value not available for granular scoring)
     details["hsts"] = {"score": hsts, "max": 18}
     score += hsts
 
     # X-Content-Type-Options (8 points)
     xcto = 0
-    if h.get("x-content-type-options", "").lower() == "nosniff":
+    if h.get("x-content-type-options", "").lower() == "nosniff" or html_sec.get(
+        "has_x_content_type_options"
+    ):
         xcto = 8
     details["x_content_type_options"] = {"score": xcto, "max": 8}
     score += xcto
@@ -262,9 +272,12 @@ def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
     # X-Frame-Options (8 points)
     xfo = 0
     xfo_val = h.get("x-frame-options", "").upper()
-    if xfo_val in ("DENY", "SAMEORIGIN"):
+    if xfo_val in ("DENY", "SAMEORIGIN") or html_sec.get("has_x_frame_options"):
         xfo = 8
-    elif "content-security-policy" in h and "frame-ancestors" in h["content-security-policy"]:
+    elif (
+        "content-security-policy" in h
+        and "frame-ancestors" in h["content-security-policy"]
+    ):
         xfo = 8
     details["x_frame_options"] = {"score": xfo, "max": 8}
     score += xfo
@@ -272,14 +285,14 @@ def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
     # Referrer-Policy (8 points)
     rp = 0
     rp_val = h.get("referrer-policy", "")
-    if rp_val:
+    if rp_val or html_sec.get("has_referrer_policy"):
         rp = 8
     details["referrer_policy"] = {"score": rp, "max": 8}
     score += rp
 
     # Permissions-Policy (13 points)
     pp = 0
-    if "permissions-policy" in h:
+    if "permissions-policy" in h or html_sec.get("has_permissions_policy"):
         pp = 13
     details["permissions_policy"] = {"score": pp, "max": 13}
     score += pp
@@ -385,15 +398,27 @@ def calculate_accessibility_score(a11y: dict) -> dict:
     pos_tab = a11y.get("positive_tabindex_count", 0)
     if pos_tab > 0:
         keyboard = max(keyboard - min(pos_tab * 2, 4), 0)
-    details["keyboard"] = {"score": keyboard, "max": 12, "note": "user-reported or default"}
+    details["keyboard"] = {
+        "score": keyboard,
+        "max": 12,
+        "note": "user-reported or default",
+    }
     score += keyboard
 
     focus = a11y.get("focus_score", 5)
-    details["focus_visibility"] = {"score": focus, "max": 9, "note": "user-reported or default"}
+    details["focus_visibility"] = {
+        "score": focus,
+        "max": 9,
+        "note": "user-reported or default",
+    }
     score += focus
 
     contrast = a11y.get("contrast_score", 5)
-    details["contrast"] = {"score": contrast, "max": 9, "note": "user-reported or default"}
+    details["contrast"] = {
+        "score": contrast,
+        "max": 9,
+        "note": "user-reported or default",
+    }
     score += contrast
 
     return {"score": min(score, 100), "max": 100, "details": details}
@@ -438,11 +463,6 @@ def calculate_performance_score(performance: dict) -> dict:
         block_pts = 3
     else:
         block_pts = 0
-    # --- NEW: Deduct for inline dynamic script loaders ---
-    loaders = performance.get("inline_dynamic_script_loaders", [])
-    if loaders:
-        deduction = min(len(loaders) * 3, 6)
-        block_pts = max(block_pts - deduction, 0)
     details["render_blocking"] = {"score": block_pts, "max": 15}
     score += block_pts
 
@@ -452,37 +472,32 @@ def calculate_performance_score(performance: dict) -> dict:
     if img_total == 0:
         img_pts = 20
     else:
+        modern = performance.get("images_modern_format", 0)
+        # If all images are already in modern/vector formats (SVG, WebP, AVIF),
+        # srcset/picture is unnecessary — give full credit
+        all_modern = modern >= img_total
         # Srcset / picture elements (10 points)
         srcset = performance.get("images_with_srcset", 0)
         picture = performance.get("picture_elements", 0)
         responsive = srcset + picture
-        if responsive >= img_total:
+        if all_modern or responsive >= img_total:
             img_pts += 10
         elif responsive > 0:
             img_pts += round((responsive / img_total) * 10)
         # Modern formats (10 points)
-        modern = performance.get("images_modern_format", 0)
-        if modern >= img_total:
+        if all_modern:
             img_pts += 10
         elif modern > 0:
             img_pts += round((modern / img_total) * 10)
         else:
             img_pts += 3  # Partial — not everyone uses WebP/AVIF yet
-    # Penalise hidden inline styles on images (LCP risk)
-    hidden_imgs = performance.get("images_with_hidden_inline_style", 0)
-    if hidden_imgs > 0:
-        img_pts = max(img_pts - min(hidden_imgs * 4, 8), 0)
     details["image_optimisation"] = {"score": img_pts, "max": 20}
     score += img_pts
 
     # Resource hints (15 points)
     hints = 0
     if performance.get("has_preconnect"):
-        # Excessive preconnects (>4) reduce the benefit
-        if performance.get("preconnect_count", 0) > 4:
-            hints += 4
-        else:
-            hints += 8
+        hints += 8
     if performance.get("has_preload"):
         hints += 7
     details["resource_hints"] = {"score": hints, "max": 15}
@@ -537,7 +552,9 @@ def calculate_performance_score(performance: dict) -> dict:
     return {"score": min(score, 100), "max": 100, "details": details}
 
 
-def calculate_fat_score(seo_score: int, security_score: int, a11y_score: int, perf_score: int = None) -> dict:
+def calculate_fat_score(
+    seo_score: int, security_score: int, a11y_score: int, perf_score: int = None
+) -> dict:
     """
     Overall FAT Score — weighted composite:
       SEO:            30%
@@ -548,8 +565,18 @@ def calculate_fat_score(seo_score: int, security_score: int, a11y_score: int, pe
     If performance score not available, uses original 3-category weighting.
     """
     if perf_score is not None:
-        weighted = (seo_score * 0.30) + (security_score * 0.25) + (a11y_score * 0.30) + (perf_score * 0.15)
-        weights = {"seo": 0.30, "security": 0.25, "accessibility": 0.30, "performance": 0.15}
+        weighted = (
+            (seo_score * 0.30)
+            + (security_score * 0.25)
+            + (a11y_score * 0.30)
+            + (perf_score * 0.15)
+        )
+        weights = {
+            "seo": 0.30,
+            "security": 0.25,
+            "accessibility": 0.30,
+            "performance": 0.15,
+        }
     else:
         weighted = (seo_score * 0.35) + (security_score * 0.30) + (a11y_score * 0.35)
         weights = {"seo": 0.35, "security": 0.30, "accessibility": 0.35}
@@ -575,82 +602,6 @@ def calculate_fat_score(seo_score: int, security_score: int, a11y_score: int, pe
     }
 
 
-def generate_csp_recommendation(report: dict) -> str:
-    """
-    Generate a Content-Security-Policy recommendation based on detected
-    analytics providers. Starts with a safe base policy and appends
-    domains required by each known provider.
-    """
-    providers = report.get("analytics", {}).get("providers", [])
-
-    # Provider → directive domains mapping
-    provider_domains = {
-        "Google Analytics / GTM": {
-            "script-src": ["googletagmanager.com", "google-analytics.com"],
-            "connect-src": ["google-analytics.com", "analytics.google.com"],
-            "frame-src": ["googletagmanager.com"],
-        },
-        "Facebook Pixel": {
-            "script-src": ["connect.facebook.net"],
-            "connect-src": ["facebook.com"],
-            "img-src": ["facebook.com"],
-        },
-        "Hotjar": {
-            "script-src": ["static.hotjar.com"],
-            "connect-src": ["*.hotjar.com"],
-        },
-        "Stripe": {
-            "script-src": ["js.stripe.com"],
-            "frame-src": ["js.stripe.com"],
-            "connect-src": ["api.stripe.com"],
-        },
-    }
-
-    # Collect extra domains per directive
-    extra = {
-        "script-src": [],
-        "connect-src": [],
-        "frame-src": [],
-        "img-src": [],
-    }
-
-    for provider in providers:
-        mapping = provider_domains.get(provider, {})
-        for directive, domains in mapping.items():
-            for d in domains:
-                if d not in extra.get(directive, []):
-                    extra.setdefault(directive, []).append(d)
-
-    # Build base directives
-    directives = {
-        "default-src": "'self'",
-        "script-src": "'self' 'unsafe-inline'",
-        "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data: https:",
-        "font-src": "'self'",
-        "connect-src": "'self'",
-        "frame-src": "'none'",
-        "object-src": "'none'",
-        "base-uri": "'self'",
-    }
-
-    # Merge extra domains into directives
-    for directive, domains in extra.items():
-        if domains:
-            base = directives.get(directive, "'self'")
-            # Replace 'none' with 'self' when we have domains to add
-            if base == "'none'":
-                base = "'self'"
-            directives[directive] = base + " " + " ".join(domains)
-
-    # Build policy string
-    parts = []
-    for directive, value in directives.items():
-        parts.append(f"{directive} {value}")
-
-    return "; ".join(parts)
-
-
 def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     """
     Main entry point. Takes a full analyse-html.py report and optional
@@ -664,29 +615,14 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     html_security = report.get("security", {})
 
     # Merge image data into SEO for the scorer
-    seo_input = {**seo, "img_total": a11y.get("img_total", 0), "img_missing_alt": a11y.get("img_missing_alt", 0)}
-
-    # If analyse-html.py was run with --fetch, it stores boolean flags for each
-    # security header (has_hsts, has_csp, etc.) but calculate_security_score needs
-    # actual header key-value pairs.  When no separate headers dict is provided,
-    # reconstruct a synthetic one from the boolean flags so the scorer can work.
-    effective_headers = headers
-    if not effective_headers and html_security.get("response_headers_available"):
-        effective_headers = {}
-        flag_to_header = {
-            "has_hsts": ("strict-transport-security", "max-age=63072000; includeSubDomains; preload"),
-            "has_csp": ("content-security-policy", "default-src 'self'"),
-            "has_x_content_type_options": ("x-content-type-options", "nosniff"),
-            "has_x_frame_options": ("x-frame-options", "SAMEORIGIN"),
-            "has_referrer_policy": ("referrer-policy", "strict-origin-when-cross-origin"),
-            "has_permissions_policy": ("permissions-policy", "camera=()"),
-        }
-        for flag, (header_name, placeholder_value) in flag_to_header.items():
-            if html_security.get(flag):
-                effective_headers[header_name] = placeholder_value
+    seo_input = {
+        **seo,
+        "img_total": a11y.get("img_total", 0),
+        "img_missing_alt": a11y.get("img_missing_alt", 0),
+    }
 
     seo_result = calculate_seo_score(seo_input, performance)
-    security_result = calculate_security_score(effective_headers or {}, html_security)
+    security_result = calculate_security_score(headers or {}, html_security)
     a11y_result = calculate_accessibility_score(a11y)
     perf_result = calculate_performance_score(performance)
     fat_result = calculate_fat_score(
@@ -696,7 +632,7 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         perf_result["score"],
     )
 
-    result = {
+    return {
         "seo": seo_result,
         "security": security_result,
         "accessibility": a11y_result,
@@ -704,28 +640,61 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         "overall": fat_result,
         "summary": report.get("summary", {}),
     }
-    result["csp_recommendation"] = generate_csp_recommendation(report)
-    return result
 
 
 def main():
-    if len(sys.argv) >= 2:
-        filepath = sys.argv[1]
+    filepath = None
+    headers_path = None
+    profile = None
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--profile" and i + 1 < len(args):
+            profile = args[i + 1]
+            i += 2
+        elif filepath is None:
+            filepath = args[i]
+            i += 1
+        elif headers_path is None:
+            headers_path = args[i]
+            i += 1
+        else:
+            i += 1
+
+    if filepath:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
     else:
         data = json.load(sys.stdin)
 
-    # Support optional headers file as second arg
     headers = None
-    if len(sys.argv) >= 3:
-        with open(sys.argv[2], "r", encoding="utf-8") as f:
+    if headers_path:
+        with open(headers_path, "r", encoding="utf-8") as f:
             headers = json.load(f)
 
-    # If data has a top-level "report" key, unwrap it
+    # if data has a top-level "report" key, unwrap it
     report = data.get("report", data) if isinstance(data, dict) else data
 
     result = calculate_scores(report, headers)
+
+    # score module analyses if present
+    if isinstance(report, dict) and "modules" in report:
+        from modules import get_module
+
+        module_scores = {}
+        for mid, analysis in report["modules"].items():
+            mod_cls = get_module(mid)
+            if mod_cls is None:
+                continue
+            instance = mod_cls()
+            module_scores[mid] = instance.score(analysis)
+
+        result["module_scores"] = module_scores
+
+    if profile:
+        result["profile"] = profile
+
     print(json.dumps(result, indent=2))
 
 

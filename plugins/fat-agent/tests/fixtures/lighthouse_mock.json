@@ -1,0 +1,64 @@
+{
+  "lighthouseVersion": "12.0.0",
+  "requestedUrl": "https://example.com",
+  "finalUrl": "https://example.com/",
+  "fetchTime": "2026-04-14T12:00:00.000Z",
+  "categories": {
+    "performance": {
+      "id": "performance",
+      "title": "Performance",
+      "score": 0.92
+    },
+    "accessibility": {
+      "id": "accessibility",
+      "title": "Accessibility",
+      "score": 0.88
+    },
+    "best-practices": {
+      "id": "best-practices",
+      "title": "Best Practices",
+      "score": 0.95
+    },
+    "seo": {
+      "id": "seo",
+      "title": "SEO",
+      "score": 0.91
+    }
+  },
+  "audits": {
+    "largest-contentful-paint": {
+      "id": "largest-contentful-paint",
+      "title": "Largest Contentful Paint",
+      "numericValue": 1850.5,
+      "numericUnit": "millisecond",
+      "displayValue": "1.9 s"
+    },
+    "cumulative-layout-shift": {
+      "id": "cumulative-layout-shift",
+      "title": "Cumulative Layout Shift",
+      "numericValue": 0.042,
+      "displayValue": "0.042"
+    },
+    "experimental-interaction-to-next-paint": {
+      "id": "experimental-interaction-to-next-paint",
+      "title": "Interaction to Next Paint",
+      "numericValue": 180,
+      "numericUnit": "millisecond",
+      "displayValue": "180 ms"
+    },
+    "first-contentful-paint": {
+      "id": "first-contentful-paint",
+      "title": "First Contentful Paint",
+      "numericValue": 1200.3,
+      "numericUnit": "millisecond",
+      "displayValue": "1.2 s"
+    },
+    "server-response-time": {
+      "id": "server-response-time",
+      "title": "Initial server response time was short",
+      "numericValue": 320.7,
+      "numericUnit": "millisecond",
+      "displayValue": "Root document took 320 ms"
+    }
+  }
+}

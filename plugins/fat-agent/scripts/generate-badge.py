@@ -291,8 +291,7 @@ def generate_badge_with_image(image_path, scores, width=200, style="flat"):
     )
 
 
-def generate_badge(scores, category=None, style="flat",
-                   image_path=None, width=None):
+def generate_badge(scores, category=None, style="flat", image_path=None, width=None):
     """Generate a badge from a FAT scores dict.
 
     Args:
@@ -327,8 +326,10 @@ def generate_badge(scores, category=None, style="flat",
 
     if image_path:
         return generate_badge_with_image(
-            image_path, scores,
-            width=width or 200, style=style,
+            image_path,
+            scores,
+            width=width or 200,
+            style=style,
         )
     return generate_badge_svg(label, value, colour, style=style)
 
@@ -377,8 +378,9 @@ def main():
     else:
         data = json.load(sys.stdin)
 
-    svg = generate_badge(data, category=category, style=style,
-                         image_path=image, width=width)
+    svg = generate_badge(
+        data, category=category, style=style, image_path=image, width=width
+    )
 
     if output:
         with open(output, "w", encoding="utf-8") as f:

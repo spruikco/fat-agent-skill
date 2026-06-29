@@ -1,0 +1,7 @@
+{
+  "html_size_kb": 100,
+  "inline_size_kb": 50,
+  "max_render_blocking_scripts": 2,
+  "max_external_scripts": 15,
+  "max_external_stylesheets": 5
+}

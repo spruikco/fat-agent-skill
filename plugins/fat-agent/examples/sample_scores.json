@@ -1,0 +1,175 @@
+{
+  "seo": {
+    "score": 91,
+    "max": 100,
+    "details": {
+      "title_meta": {"score": 16, "max": 18},
+      "headings_content": {"score": 13, "max": 13},
+      "images": {"score": 8, "max": 10},
+      "technical": {"score": 20, "max": 20},
+      "structured_data": {"score": 10, "max": 10},
+      "social": {"score": 8, "max": 10},
+      "mobile_performance": {"score": 11, "max": 13},
+      "i18n_charset": {"score": 5, "max": 6}
+    }
+  },
+  "security": {
+    "score": 85,
+    "max": 100,
+    "details": {
+      "mixed_content": {"score": 10, "max": 10},
+      "link_safety": {"score": 5, "max": 5},
+      "csp": {"score": 30, "max": 30},
+      "hsts": {"score": 13, "max": 18},
+      "x_content_type_options": {"score": 8, "max": 8},
+      "x_frame_options": {"score": 8, "max": 8},
+      "referrer_policy": {"score": 8, "max": 8},
+      "permissions_policy": {"score": 3, "max": 13}
+    }
+  },
+  "accessibility": {
+    "score": 88,
+    "max": 100,
+    "details": {
+      "images_alt": {"score": 18, "max": 18},
+      "lang_attribute": {"score": 5, "max": 5},
+      "form_accessibility": {"score": 10, "max": 13},
+      "heading_structure": {"score": 10, "max": 10},
+      "skip_navigation": {"score": 0, "max": 5},
+      "landmarks": {"score": 9, "max": 10},
+      "image_dimensions": {"score": 4, "max": 4},
+      "empty_headings": {"score": 5, "max": 5},
+      "keyboard": {"score": 10, "max": 12, "note": "user-reported or default"},
+      "focus_visibility": {"score": 8, "max": 9, "note": "user-reported or default"},
+      "contrast": {"score": 9, "max": 9, "note": "user-reported or default"}
+    }
+  },
+  "performance": {
+    "score": 79,
+    "max": 100,
+    "details": {
+      "html_size": {"score": 12, "max": 15},
+      "render_blocking": {"score": 10, "max": 15},
+      "image_optimisation": {"score": 13, "max": 20},
+      "resource_hints": {"score": 15, "max": 15},
+      "font_loading": {"score": 7, "max": 15},
+      "inline_assets": {"score": 7, "max": 10},
+      "lazy_loading": {"score": 5, "max": 10}
+    }
+  },
+  "overall": {
+    "score": 87,
+    "max": 100,
+    "grade": "B",
+    "weights": {
+      "seo": 0.30,
+      "security": 0.25,
+      "accessibility": 0.30,
+      "performance": 0.15
+    }
+  },
+  "findings": [
+    {
+      "category": "Security",
+      "issue": "Missing Permissions-Policy header",
+      "priority": "P1",
+      "detail": "The Permissions-Policy header restricts browser features like camera, microphone, and geolocation. Without it, embedded third-party content can access these APIs."
+    },
+    {
+      "category": "Security",
+      "issue": "HSTS missing includeSubDomains and preload directives",
+      "priority": "P2",
+      "detail": "Strict-Transport-Security is present but lacks includeSubDomains and preload. Add these to harden HTTPS enforcement across all subdomains."
+    },
+    {
+      "category": "Performance",
+      "issue": "1 render-blocking script in document head",
+      "priority": "P2",
+      "detail": "Move the script to the end of body or add async/defer to prevent blocking the initial paint."
+    },
+    {
+      "category": "Accessibility",
+      "issue": "3 form inputs missing associated labels",
+      "priority": "P1",
+      "detail": "Inputs in the newsletter and search forms lack for/id label associations. Screen readers cannot identify these fields."
+    },
+    {
+      "category": "SEO",
+      "issue": "Title tag slightly over 60 characters",
+      "priority": "P3",
+      "detail": "Title is 67 characters. Search engines may truncate it in results. Aim for 50-60 characters."
+    },
+    {
+      "category": "Accessibility",
+      "issue": "Missing skip navigation link",
+      "priority": "P2",
+      "detail": "No skip-to-content link found. Keyboard users must tab through the entire navigation on every page."
+    },
+    {
+      "category": "Performance",
+      "issue": "No lazy loading on below-fold images",
+      "priority": "P2",
+      "detail": "Found 8 images below the fold without loading=\"lazy\". This delays initial page load on slower connections."
+    },
+    {
+      "category": "SEO",
+      "issue": "2 images missing alt attributes",
+      "priority": "P1",
+      "detail": "Decorative images should use alt=\"\" and content images need descriptive alt text for search engines and screen readers."
+    },
+    {
+      "category": "Performance",
+      "issue": "No font-display: swap detected",
+      "priority": "P3",
+      "detail": "Web fonts may cause invisible text during loading. Use font-display: swap in @font-face declarations."
+    },
+    {
+      "category": "Performance",
+      "issue": "Only 3 of 12 images use modern formats (WebP/AVIF)",
+      "priority": "P0",
+      "detail": "Serving images in WebP or AVIF can reduce file sizes by 25-50%. Use <picture> elements with format fallbacks."
+    }
+  ],
+  "module_scores": {
+    "ecommerce": {
+      "score": 72,
+      "label": "E-commerce SEO",
+      "details": {
+        "product_schema": {"score": 10, "max": 15},
+        "price_visibility": {"score": 8, "max": 10},
+        "review_markup": {"score": 12, "max": 15},
+        "breadcrumbs": {"score": 10, "max": 10},
+        "pagination": {"score": 7, "max": 10},
+        "faceted_navigation": {"score": 5, "max": 10},
+        "internal_linking": {"score": 12, "max": 15},
+        "canonical_handling": {"score": 8, "max": 15}
+      }
+    },
+    "local_seo": {
+      "score": 84,
+      "label": "Local SEO",
+      "details": {
+        "nap_consistency": {"score": 15, "max": 15},
+        "local_schema": {"score": 12, "max": 15},
+        "google_maps_embed": {"score": 10, "max": 10},
+        "local_keywords": {"score": 12, "max": 15},
+        "reviews_markup": {"score": 10, "max": 15},
+        "geo_meta_tags": {"score": 10, "max": 15},
+        "service_area": {"score": 15, "max": 15}
+      }
+    }
+  },
+  "summary": {
+    "url": "https://example.com",
+    "title": "Example Corp - Leading Solutions Provider",
+    "html_size_kb": 87,
+    "external_scripts": 9,
+    "external_stylesheets": 3,
+    "total_images": 12
+  },
+  "overall_score": 87,
+  "seo_score": 91,
+  "security_score": 85,
+  "accessibility_score": 88,
+  "performance_score": 79
+}

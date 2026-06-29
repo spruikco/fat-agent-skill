@@ -1,0 +1,100 @@
+{
+  "id": "https://example.com/",
+  "loadingExperience": {
+    "id": "https://example.com/",
+    "metrics": {
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": {
+        "percentile": 1,
+        "category": "FAST"
+      },
+      "EXPERIMENTAL_TIME_TO_FIRST_BYTE": {
+        "percentile": 342,
+        "category": "FAST"
+      },
+      "FIRST_CONTENTFUL_PAINT_MS": {
+        "percentile": 1200,
+        "category": "AVERAGE"
+      },
+      "INTERACTION_TO_NEXT_PAINT": {
+        "percentile": 150,
+        "category": "FAST"
+      },
+      "LARGEST_CONTENTFUL_PAINT_MS": {
+        "percentile": 1800,
+        "category": "FAST"
+      }
+    },
+    "overall_category": "FAST"
+  },
+  "lighthouseResult": {
+    "configSettings": {
+      "formFactor": "mobile",
+      "locale": "en-US"
+    },
+    "categories": {
+      "performance": {
+        "id": "performance",
+        "title": "Performance",
+        "score": 0.91
+      }
+    },
+    "audits": {
+      "first-contentful-paint": {
+        "id": "first-contentful-paint",
+        "title": "First Contentful Paint",
+        "numericValue": 1234.5,
+        "numericUnit": "millisecond",
+        "displayValue": "1.2 s"
+      },
+      "largest-contentful-paint": {
+        "id": "largest-contentful-paint",
+        "title": "Largest Contentful Paint",
+        "numericValue": 1800.0,
+        "numericUnit": "millisecond",
+        "displayValue": "1.8 s"
+      },
+      "cumulative-layout-shift": {
+        "id": "cumulative-layout-shift",
+        "title": "Cumulative Layout Shift",
+        "numericValue": 0.003,
+        "numericUnit": "unitless",
+        "displayValue": "0.003"
+      },
+      "interaction-to-next-paint": {
+        "id": "interaction-to-next-paint",
+        "title": "Interaction to Next Paint",
+        "numericValue": 150,
+        "numericUnit": "millisecond",
+        "displayValue": "150 ms"
+      },
+      "max-potential-fid": {
+        "id": "max-potential-fid",
+        "title": "Max Potential First Input Delay",
+        "numericValue": 95,
+        "numericUnit": "millisecond",
+        "displayValue": "95 ms"
+      },
+      "server-response-time": {
+        "id": "server-response-time",
+        "title": "Initial server response time was short",
+        "numericValue": 45.0,
+        "numericUnit": "millisecond",
+        "displayValue": "Root document took 45 ms"
+      },
+      "speed-index": {
+        "id": "speed-index",
+        "title": "Speed Index",
+        "numericValue": 2100.5,
+        "numericUnit": "millisecond",
+        "displayValue": "2.1 s"
+      },
+      "total-blocking-time": {
+        "id": "total-blocking-time",
+        "title": "Total Blocking Time",
+        "numericValue": 120.0,
+        "numericUnit": "millisecond",
+        "displayValue": "120 ms"
+      }
+    }
+  }
+}
