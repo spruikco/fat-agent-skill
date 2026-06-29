@@ -1,6 +1,6 @@
 {
   "name": "fat-agent",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "FAT Agent with Superpowers (Fix, Audit, Test) — modular post-launch QA audit with 14 modules: SEO, Security, Accessibility, Performance, Local SEO, E-commerce, Email, i18n, Links, DNS, JS Bundles, Content Quality, GDPR/Cookie, PWA, Schema, Sitemap.",
   "author": {
     "name": "Spruik Co",

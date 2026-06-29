@@ -65,6 +65,24 @@ SEMrush Data Format (--semrush):
       "competitors": [
         {"domain": "competitor.com", "mentions": 7},
         ...
+      ],
+
+      # ---- Report-only insight fields (consumed by generate-report.py, NOT by
+      #      this chart script). Populate them so the docx/pptx are actionable
+      #      rather than "just numbers". See generate-report.py + SKILL.md.
+      "opportunity_keywords": [
+        {"keyword": "virtual office melbourne", "volume": 880, "cpc": 7.53,
+         "position": 24, "url": "https://site/virtual-office", "priority": "Virtual Office"},
+        ...
+      ],
+      "cannibalization": [
+        {"keyword": "training room hire", "volume": 140,
+         "urls": ["https://site/blog/x", "https://site/training", "https://site/meeting"]},
+        ...
+      ],
+      "action_plan": [
+        {"phase": "Now — stop the bleeding", "items": ["Fix cannibalisation ...", "..."]},
+        {"phase": "This month", "items": ["Strengthen money pages ...", "..."]}
       ]
     }
 """
@@ -143,6 +161,47 @@ def _clean_ax(ax):
     ax.spines["bottom"].set_color(LGRAY)
 
 
+# Map flat findings[] priority codes (P0-P3) to severity buckets.
+_PRIORITY_TO_BUCKET = {
+    "P0": "critical",
+    "P1": "high",
+    "P2": "medium",
+    "P3": "low",
+}
+
+
+def _finding_counts(scores):
+    """Return (n_crit, n_high, n_med, n_low) from the ACTUAL findings.
+
+    Prefers the canonical schema (``summary.critical/high/medium/low`` lists),
+    falling back to a top-level flat ``findings[]`` array whose objects carry a
+    ``priority`` of P0-P3. Counts are always derived from real data — never from
+    ``summary.issues_found`` — so an empty findings set yields all zeros and the
+    caller can skip drawing a misleading placeholder.
+    """
+    summary = scores.get("summary", {}) or {}
+    has_canonical = any(
+        isinstance(summary.get(k), list) for k in ("critical", "high", "medium", "low")
+    )
+    if has_canonical:
+        return (
+            len(summary.get("critical", []) or []),
+            len(summary.get("high", []) or []),
+            len(summary.get("medium", []) or []),
+            len(summary.get("low", []) or []),
+        )
+
+    # Flat fallback: group top-level findings[] by priority.
+    counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for finding in scores.get("findings", []) or []:
+        if not isinstance(finding, dict):
+            continue
+        bucket = _PRIORITY_TO_BUCKET.get(str(finding.get("priority", "")).upper())
+        if bucket:
+            counts[bucket] += 1
+    return counts["critical"], counts["high"], counts["medium"], counts["low"]
+
+
 # ---------- chart generators ----------
 
 
@@ -154,12 +213,11 @@ def chart_fat_scores(scores, output_dir, dpi=200):
     perf = scores.get("performance", {}).get("score", 0)
     overall = scores.get("overall", {}).get("score", 0)
 
-    summary = scores.get("summary", {})
-    n_crit = len(summary.get("critical", []))
-    n_high = len(summary.get("high", []))
-    n_med = len(summary.get("medium", []))
-    n_low = len(summary.get("low", []))
-    total = summary.get("issues_found", n_crit + n_high + n_med + n_low)
+    # Finding counts come from the ACTUAL findings (canonical summary.* lists,
+    # or a flat top-level findings[] grouped by priority) — not from the
+    # potentially-stale summary.issues_found counter.
+    n_crit, n_high, n_med, n_low = _finding_counts(scores)
+    total = n_crit + n_high + n_med + n_low
 
     fig, (ax1, ax2) = plt.subplots(
         1, 2, figsize=(11, 4.5), gridspec_kw={"width_ratios": [3, 2]}
@@ -199,13 +257,12 @@ def chart_fat_scores(scores, output_dir, dpi=200):
     ax1.text(61, -0.5, "D", fontsize=8, color=YELLOW)
     _clean_ax(ax1)
 
-    # Issues donut
+    # Issues donut — only drawn when there are REAL findings to show. When the
+    # actual priority sum is 0 the pie is skipped entirely (no fabricated
+    # all-red "P0 Critical (0)" placeholder wedge).
     ax2.set_facecolor(WHITE)
     if total > 0:
         sizes = [max(n_crit, 0), max(n_high, 0), max(n_med, 0), max(n_low, 0)]
-        # Ensure at least one non-zero for pie chart
-        if sum(sizes) == 0:
-            sizes = [1, 0, 0, 0]
         labels = [
             f"P0 Critical\n({n_crit})",
             f"P1 High\n({n_high})",
@@ -231,9 +288,27 @@ def chart_fat_scores(scores, output_dir, dpi=200):
                 at.set_fontsize(9)
                 at.set_fontweight("bold")
                 at.set_color(WHITE)
-    ax2.set_title(
-        f"{total} Issues Found", fontsize=14, fontweight="bold", color=GRAY, pad=12
-    )
+        ax2.set_title(
+            f"{total} Issues Found",
+            fontsize=14,
+            fontweight="bold",
+            color=GRAY,
+            pad=12,
+        )
+    else:
+        # No real findings — show a clean message instead of an empty/fake pie.
+        ax2.text(
+            0.5,
+            0.5,
+            "No issues found",
+            ha="center",
+            va="center",
+            fontsize=13,
+            fontweight="bold",
+            color=GREEN,
+            transform=ax2.transAxes,
+        )
+        ax2.axis("off")
 
     plt.tight_layout()
     path = os.path.join(output_dir, "chart_fat_scores.png")
@@ -242,39 +317,45 @@ def chart_fat_scores(scores, output_dir, dpi=200):
     return path
 
 
-def chart_pagespeed(scores, output_dir, dpi=200, mobile=None, desktop=None):
+def chart_pagespeed(pagespeed, output_dir, dpi=200):
     """PageSpeed mobile vs desktop bar comparison.
 
-    If mobile/desktop dicts aren't provided, uses placeholder data from the
-    scores dict (PageSpeed data isn't part of the standard pipeline — it's
-    typically fetched separately via fetch-pagespeed.py).
+    Renders ONLY from real PageSpeed Insights data supplied via ``--pagespeed``.
+    No values are ever inferred from HTML-derived scores or hardcoded — if real
+    mobile/desktop measurements aren't present, the chart is skipped entirely so
+    reports never show fabricated PageSpeed numbers.
+
+    Expected ``pagespeed`` shape (any numeric fields optional, default 0)::
+
+        {
+          "mobile":  {"performance": N, "seo": N, "accessibility": N, "best_practices": N},
+          "desktop": {"performance": N, "seo": N, "accessibility": N, "best_practices": N}
+        }
     """
+    pagespeed = pagespeed or {}
+    mobile = pagespeed.get("mobile")
+    desktop = pagespeed.get("desktop")
+    # Require real data for at least one form factor; otherwise skip.
+    if not isinstance(mobile, dict) and not isinstance(desktop, dict):
+        return None
+    mobile = mobile if isinstance(mobile, dict) else {}
+    desktop = desktop if isinstance(desktop, dict) else {}
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
     fig.patch.set_facecolor(WHITE)
 
     categories = ["Performance", "SEO", "Accessibility", "Best\nPractices"]
 
-    # Defaults if not provided
-    mob_scores = [
-        mobile.get("performance", 0) if mobile else 0,
-        mobile.get("seo", 0) if mobile else scores.get("seo", {}).get("score", 0),
-        (
-            mobile.get("accessibility", 0)
-            if mobile
-            else scores.get("accessibility", {}).get("score", 0)
-        ),
-        mobile.get("best_practices", 0) if mobile else 73,
-    ]
-    desk_scores = [
-        desktop.get("performance", 0) if desktop else 0,
-        desktop.get("seo", 0) if desktop else scores.get("seo", {}).get("score", 0),
-        (
-            desktop.get("accessibility", 0)
-            if desktop
-            else scores.get("accessibility", {}).get("score", 0)
-        ),
-        desktop.get("best_practices", 0) if desktop else 73,
-    ]
+    def _row(src):
+        return [
+            src.get("performance", 0),
+            src.get("seo", 0),
+            src.get("accessibility", 0),
+            src.get("best_practices", 0),
+        ]
+
+    mob_scores = _row(mobile)
+    desk_scores = _row(desktop)
 
     def _color(v):
         if v >= 90:
@@ -704,13 +785,15 @@ def chart_overview(semrush, output_dir, dpi=200):
 
 # ---------- main ----------
 
+# (func_name, data_source) — data_source selects which loaded dataset the
+# chart function receives: "scores", "semrush", or "pagespeed".
 CHART_REGISTRY = {
-    "fat-scores": ("chart_fat_scores", False),  # (func_name, needs_semrush)
-    "pagespeed": ("chart_pagespeed", False),
-    "traffic-trend": ("chart_traffic_trend", True),
-    "keywords-trend": ("chart_keywords_trend", True),
-    "top-keywords": ("chart_top_keywords", True),
-    "overview": ("chart_overview", True),
+    "fat-scores": ("chart_fat_scores", "scores"),
+    "pagespeed": ("chart_pagespeed", "pagespeed"),
+    "traffic-trend": ("chart_traffic_trend", "semrush"),
+    "keywords-trend": ("chart_keywords_trend", "semrush"),
+    "top-keywords": ("chart_top_keywords", "semrush"),
+    "overview": ("chart_overview", "semrush"),
 }
 
 
@@ -723,6 +806,11 @@ def main():
     parser = argparse.ArgumentParser(description="Generate FAT Agent audit charts")
     parser.add_argument("--scores", help="Path to scored JSON file (default: stdin)")
     parser.add_argument("--semrush", help="Path to SEMrush data JSON file")
+    parser.add_argument(
+        "--pagespeed",
+        help="Path to real PageSpeed Insights JSON (mobile/desktop). "
+        "Required for the pagespeed chart — it is skipped without this.",
+    )
     parser.add_argument(
         "--output-dir", default="./charts", help="Output directory (default: ./charts)"
     )
@@ -738,7 +826,7 @@ def main():
     # Load scores
     scores = {}
     if args.scores:
-        with open(args.scores, "r") as f:
+        with open(args.scores, "r", encoding="utf-8") as f:
             scores = json.load(f)
     elif not sys.stdin.isatty():
         scores = json.load(sys.stdin)
@@ -746,8 +834,15 @@ def main():
     # Load SEMrush data
     semrush = {}
     if args.semrush:
-        with open(args.semrush, "r") as f:
+        with open(args.semrush, "r", encoding="utf-8") as f:
             semrush = json.load(f)
+
+    # Load real PageSpeed Insights data (optional). Without it, the pagespeed
+    # chart is skipped rather than fabricated.
+    pagespeed = {}
+    if args.pagespeed:
+        with open(args.pagespeed, "r", encoding="utf-8") as f:
+            pagespeed = json.load(f)
 
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
@@ -767,15 +862,22 @@ def main():
             skipped.append(chart_name)
             continue
 
-        func_name, needs_semrush = CHART_REGISTRY[chart_name]
-        if needs_semrush and not semrush:
+        func_name, data_source = CHART_REGISTRY[chart_name]
+        if data_source == "semrush" and not semrush:
+            skipped.append(chart_name)
+            continue
+        if data_source == "pagespeed" and not pagespeed:
+            # No real PageSpeed data wired in — never invent numbers.
+            print("PageSpeed data unavailable — chart skipped", file=sys.stderr)
             skipped.append(chart_name)
             continue
 
         try:
             func = globals()[func_name]
-            if needs_semrush:
+            if data_source == "semrush":
                 path = func(semrush, args.output_dir, args.dpi)
+            elif data_source == "pagespeed":
+                path = func(pagespeed, args.output_dir, args.dpi)
             else:
                 path = func(scores, args.output_dir, args.dpi)
 

@@ -1040,6 +1040,28 @@ score chart and all audit findings tables.
 
 See `references/semrush-integration.md` for the full setup and field reference.
 
+#### Turn the data into INSIGHT, not just numbers
+
+A report full of metrics is not actionable. Whenever SEMrush organic data is
+collected, **compute and add these fields to the SEMrush JSON** so the docx and
+pptx render the insight automatically (see the `generate-report.py` schema):
+
+- **`opportunity_keywords`** — non-branded, winnable (position ~4–30), high-value
+  keywords, ranked by `volume × CPC × position-proximity`. Each item:
+  `{"keyword","volume","cpc","position","url","priority"}`. This is the
+  front-foot "what to work on" board. Flag the user's stated priority pages.
+- **`cannibalization`** — keywords ranking on more than one URL (the pages
+  compete and split signals). Each item: `{"keyword","volume","urls":[...]}`.
+- **`action_plan`** — a phased, prioritised list of next steps. Either a list of
+  strings, or a list of `{"phase","items":[...]}` objects. Tie each action to a
+  finding (e.g. "commercial term X ranks via a blog post → strengthen the money
+  page and internal-link to it"). Also accepted via `scores["recommendations"]`
+  or a separate `--actions actions.json` file.
+
+Also surface the **branded vs non-branded** traffic split and the **position
+distribution** (top3 / 4-10 / 11-20 / 21-50 / 51-100) — a heavily branded
+profile with money terms stuck on page 2-3 is the most common local-SEO finding.
+
 ### Report Contents
 
 **Word report (.docx) includes:**
@@ -1055,9 +1077,19 @@ See `references/semrush-integration.md` for the full setup and field reference.
 **PowerPoint (.pptx) includes:**
 - Title slide with FAT Agent branding
 - Executive summary with colour-coded score cards
-- One slide per available chart (auto-generated)
+- One slide per available chart (auto-generated, **aspect-ratio preserved** —
+  charts are fit-to-box and centred, never stretched)
+- **SEO Priority Opportunities** slide (table) — when `opportunity_keywords` is provided
+- **Keyword Cannibalisation** slide (table) — when `cannibalization` is provided
+- **Recommended Action Plan** slide(s) — when an action plan / `recommendations`
+  is provided (auto-overflows across multiple slides)
 - Key findings with priority-coloured bullets
 - Closing slide with branding
+
+> The SEMrush insight slides and the action plan are what make the deck
+> actionable. Always populate `opportunity_keywords`, `cannibalization` and
+> `action_plan` (see *SEMrush Data Collection → Turn the data into INSIGHT*)
+> when SEMrush data is available — otherwise the deck is "just numbers".
 
 **HTML dashboard (.html) includes:**
 - Self-contained single HTML file (no external dependencies)

@@ -22,11 +22,12 @@ Options:
     --semrush FILE      Path to supplementary SEMrush data JSON
     --url URL           The audited site URL (for report title)
     --output-dir DIR    Output directory (default: ./reports)
-    --format FORMAT     Output format: docx, pptx, or both (default: both)
+    --format FORMAT     Output format: docx, pptx, html, or both (default: both)
     --charts-dir DIR    Directory containing chart PNG images
     --brand IMAGE       Path to brand/logo image for cover pages
     --font FONT         Font family name (default: Plus Jakarta Sans)
     --pagespeed FILE    Path to PageSpeed data JSON (mobile + desktop)
+    --client-facing     Rewrite findings into plain-English, jargon-free language
 
 Dependencies:
     python-docx (pip install python-docx)
@@ -41,8 +42,122 @@ Output:
 import sys
 import json
 import os
+import re
 import argparse
+import subprocess
 from datetime import date
+
+# Make sibling scripts importable (client_facing helpers).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def score_to_grade(score):
+    """Single source of truth for letter grades.
+
+    Bands match calculate-score.py: A>=90, B>=75, C>=60, D>=40, else F.
+    Used by BOTH the Word score table and the PPTX score cards so a given
+    score always maps to the same grade across deliverables.
+    """
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        s = 0
+    if s >= 90:
+        return "A"
+    if s >= 75:
+        return "B"
+    if s >= 60:
+        return "C"
+    if s >= 40:
+        return "D"
+    return "F"
+
+
+def _category_score(scores, category):
+    """Read a category score from the nested schema, falling back to the
+    flat `<category>_score` key (sample_scores.json shape). Prefers nested."""
+    val = scores.get(category)
+    if isinstance(val, dict) and val.get("score") is not None:
+        return val.get("score")
+    return scores.get(f"{category}_score", 0) or 0
+
+
+def safe_report_slug(url):
+    """Build a filesystem-safe slug from an arbitrary URL.
+
+    Strips path separators and traversal sequences so a malicious --url
+    cannot escape the output directory. Returns '' for falsy input.
+    """
+    if not url:
+        return ""
+    slug = re.sub(r"[^A-Za-z0-9._-]", "_", url)
+    # basename collapses any residual separators; guards against '..' too.
+    slug = os.path.basename(slug)
+    # A bare '..' (or empty) is not a usable component.
+    if slug in ("", ".", ".."):
+        return ""
+    return slug
+
+
+def _safe_output_path(output_dir, filename):
+    """Join output_dir/filename and assert the realpath stays inside output_dir."""
+    base = os.path.realpath(output_dir)
+    candidate = os.path.realpath(os.path.join(base, filename))
+    if candidate != base and not candidate.startswith(base + os.sep):
+        raise ValueError(
+            f"Refusing to write outside output directory: {candidate!r} not under {base!r}"
+        )
+    return candidate
+
+
+def _client_facing_string(text):
+    """Apply client-facing transforms to a single finding string.
+
+    Reuses scripts/client_facing.py helpers: strip code snippets, then relabel
+    jargon (incl. P0-P3 -> Urgent/Important/Recommended/Nice to Have).
+    """
+    from client_facing import transform_text, strip_code_blocks
+
+    return transform_text(strip_code_blocks(str(text))).strip()
+
+
+def make_client_facing(scores):
+    """Return a copy of the scored data with findings/labels made client-friendly.
+
+    Transforms the canonical `summary.{critical,high,medium,low}` string lists
+    AND the flat `findings[]` objects (sample_scores.json shape), stripping code
+    snippets and replacing technical jargon BEFORE the data is rendered into any
+    deliverable (docx, pptx, html).
+    """
+    import copy
+
+    from client_facing import transform_text, strip_code_blocks
+
+    data = copy.deepcopy(scores)
+
+    summary = data.get("summary")
+    if isinstance(summary, dict):
+        for bucket in ("critical", "high", "medium", "low"):
+            items = summary.get(bucket)
+            if isinstance(items, list):
+                summary[bucket] = [_client_facing_string(it) for it in items]
+
+    flat = data.get("findings")
+    if isinstance(flat, list):
+        for f in flat:
+            if not isinstance(f, dict):
+                continue
+            if "priority" in f:
+                f["priority"] = transform_text(str(f["priority"]))
+            for key in ("issue", "title", "category"):
+                if key in f and isinstance(f[key], str):
+                    f[key] = transform_text(strip_code_blocks(f[key])).strip()
+            for key in ("detail", "fix"):
+                if key in f and isinstance(f[key], str):
+                    f[key] = transform_text(strip_code_blocks(f[key])).strip()
+
+    return data
+
 
 # Defer imports for helpful error messages
 MISSING_DEPS = []
@@ -223,6 +338,8 @@ def _prect(slide, left, top, width, height, color):
 
 
 def _pcard(slide, left, top, width, height, label, score, color):
+    """Render a score card: the numeric ``score`` is the large text and the
+    category ``label`` is the small caption beneath it."""
     _prect(slide, left, top, width, height, color)
     _ptb(
         slide,
@@ -242,7 +359,7 @@ def _pcard(slide, left, top, width, height, label, score, color):
         top + height * 0.55,
         width,
         height * 0.4,
-        label,
+        str(label),
         10,
         P_WHITE,
         True,
@@ -264,6 +381,100 @@ def _pbullet(slide, x, y, text, size, text_color, dot_color):
     _ptb(slide, x + 0.15, y, 11.0, 0.3, text, size, text_color)
 
 
+def _add_chart_fit(slide, path, left, top, max_w, max_h):
+    """Place a chart image scaled to FIT inside a (max_w x max_h) inch box while
+    preserving its native aspect ratio, then centre it in that box.
+
+    The old code forced every chart into a fixed width AND height, which
+    stretched/squashed charts whose real aspect ratio differed from the box
+    (the "stretched graphs" problem). Reading the true pixel dimensions and
+    scaling by the limiting axis keeps every chart undistorted.
+    """
+    iw = ih = None
+    try:
+        from PIL import Image
+
+        with Image.open(path) as im:
+            iw, ih = im.size
+    except Exception:
+        iw = ih = None
+
+    if iw and ih:
+        ratio = iw / ih
+        box_ratio = max_w / max_h
+        if ratio >= box_ratio:
+            w, h = max_w, max_w / ratio
+        else:
+            h, w = max_h, max_h * ratio
+        cx = left + (max_w - w) / 2
+        cy = top + (max_h - h) / 2
+        return slide.shapes.add_picture(
+            path, PInches(cx), PInches(cy), PInches(w), PInches(h)
+        )
+    # Unknown dimensions (no Pillow): constrain by width only — python-pptx then
+    # derives the height from the image's own ratio, so it still won't stretch.
+    return slide.shapes.add_picture(
+        path, PInches(left), PInches(top), width=PInches(max_w)
+    )
+
+
+def _ptable(
+    slide,
+    left,
+    top,
+    width,
+    headers,
+    rows,
+    col_widths=None,
+    header_color=None,
+    font_size=10,
+    row_height=0.34,
+):
+    """Render a styled table on a slide. Explicit per-cell fills override the
+    default banded table style so colours stay on-brand and legible."""
+    header_color = header_color or P_DARK
+    nrows, ncols = len(rows) + 1, len(headers)
+    gfx = slide.shapes.add_table(
+        nrows,
+        ncols,
+        PInches(left),
+        PInches(top),
+        PInches(width),
+        PInches(row_height * nrows),
+    )
+    table = gfx.table
+    if col_widths and len(col_widths) == ncols:
+        total = float(sum(col_widths))
+        for i, cw in enumerate(col_widths):
+            table.columns[i].width = PInches(width * cw / total)
+
+    def _fill(cell, text, color, bold=False):
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = color
+        cell.margin_top = PInches(0.02)
+        cell.margin_bottom = PInches(0.02)
+        para = cell.text_frame.paragraphs[0]
+        para.text = str(text)
+        para.font.size = PPt(font_size)
+        para.font.bold = bold
+        para.font.name = FONT
+        para.font.color.rgb = P_WHITE if bold else P_GRAY
+
+    for j, h in enumerate(headers):
+        _fill(table.cell(0, j), h, header_color, bold=True)
+    for i, row in enumerate(rows, start=1):
+        band = P_WHITE if i % 2 else P_LGRAY
+        for j, val in enumerate(row):
+            _fill(table.cell(i, j), val, band)
+    return table
+
+
+def _strip_host(u):
+    """Reduce a full URL to its path so target pages read cleanly in tables."""
+    p = re.sub(r"^https?://[^/]+", "", str(u or ""))
+    return p or "/"
+
+
 # ---------- Word Report Generator ----------
 
 
@@ -276,6 +487,7 @@ def generate_docx(
     brand=None,
     pagespeed=None,
     font=FONT,
+    recommendations=None,
 ):
     global FONT
     FONT = font
@@ -324,11 +536,11 @@ def generate_docx(
     _heading(doc, "1. Scoring Summary")
 
     overall = scores.get("overall", {})
-    seo_score = scores.get("seo", {}).get("score", 0)
-    sec_score = scores.get("security", {}).get("score", 0)
-    a11y_score = scores.get("accessibility", {}).get("score", 0)
-    perf_score = scores.get("performance", {}).get("score", 0)
-    fat_score = overall.get("score", 0)
+    seo_score = _category_score(scores, "seo")
+    sec_score = _category_score(scores, "security")
+    a11y_score = _category_score(scores, "accessibility")
+    perf_score = _category_score(scores, "performance")
+    fat_score = overall.get("score", scores.get("overall_score", 0)) or 0
 
     score_table = _make_table(doc, ["Category", "FAT Score", "Grade"])
     for cat, sc in [
@@ -339,11 +551,8 @@ def generate_docx(
         ("Overall", fat_score),
     ]:
         row = score_table.add_row()
-        g = (
-            "A"
-            if sc >= 90
-            else "B" if sc >= 75 else "C" if sc >= 60 else "D" if sc >= 40 else "F"
-        )
+        # Single shared grade function — identical bands to the PPTX cards.
+        g = score_to_grade(sc)
         for i, v in enumerate([cat, f"{sc}/100", g]):
             _set_cell(
                 row.cells[i],
@@ -492,6 +701,109 @@ def generate_docx(
             "Figure: Top Keywords by Volume",
             5.5,
         )
+
+        # Priority opportunities table (striking-distance, high-value keywords)
+        opps = semrush.get("opportunity_keywords")
+        if opps:
+            _para(
+                doc,
+                "Priority Keyword Opportunities",
+                bold=True,
+                size=12,
+                color=DARK_GRAY,
+            )
+            _para(
+                doc,
+                "High-value keywords within striking distance, ranked by volume x CPC and winnability.",
+                size=9,
+                color=MID_GRAY,
+            )
+            opp_table = _make_table(
+                doc, ["Keyword", "Vol", "CPC", "Pos", "Target Page", "Priority"]
+            )
+            for k in opps[:15]:
+                try:
+                    cpc_s = f"${float(k.get('cpc')):.2f}"
+                except (TypeError, ValueError):
+                    cpc_s = "-"
+                r = opp_table.add_row()
+                _set_cell(r.cells[0], str(k.get("keyword", "")), size=9, bold=True)
+                _set_cell(
+                    r.cells[1],
+                    str(k.get("volume", "")),
+                    size=9,
+                    alignment=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell(
+                    r.cells[2], cpc_s, size=9, alignment=WD_ALIGN_PARAGRAPH.CENTER
+                )
+                _set_cell(
+                    r.cells[3],
+                    str(k.get("position", "")),
+                    size=9,
+                    alignment=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell(r.cells[4], _strip_host(k.get("url", "")), size=8)
+                _set_cell(
+                    r.cells[5],
+                    str(k.get("priority", "")),
+                    size=9,
+                    alignment=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            doc.add_paragraph()
+
+        # Cannibalisation table
+        cann = semrush.get("cannibalization")
+        if cann:
+            _para(doc, "Keyword Cannibalisation", bold=True, size=12, color=DARK_GRAY)
+            _para(
+                doc,
+                "Same keyword ranking on multiple URLs — pages compete and split ranking signals.",
+                size=9,
+                color=MID_GRAY,
+            )
+            cann_table = _make_table(
+                doc, ["Keyword", "Vol", "# URLs", "Competing Pages"]
+            )
+            for c in cann[:12]:
+                urls = c.get("urls", []) or []
+                count = len(urls) if urls else c.get("url_count", "")
+                r = cann_table.add_row()
+                _set_cell(r.cells[0], str(c.get("keyword", "")), size=9, bold=True)
+                _set_cell(
+                    r.cells[1],
+                    str(c.get("volume", "")),
+                    size=9,
+                    alignment=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell(
+                    r.cells[2], str(count), size=9, alignment=WD_ALIGN_PARAGRAPH.CENTER
+                )
+                _set_cell(
+                    r.cells[3], "  ".join(_strip_host(u) for u in urls[:4]), size=8
+                )
+
+        doc.add_page_break()
+
+    # --- Recommended Action Plan ---
+    if recommendations:
+        _heading(doc, "Recommended Action Plan")
+        if isinstance(recommendations[0], dict):
+            phases = [
+                (r.get("phase") or r.get("title") or "", r.get("items") or [])
+                for r in recommendations
+            ]
+        else:
+            phases = [("Recommended Actions", list(recommendations))]
+        for pname, items in phases:
+            if pname:
+                _para(doc, pname, bold=True, size=12, color=ACCENT_RED)
+            for it in items:
+                p = doc.add_paragraph(style="List Bullet")
+                run = p.add_run(str(it))
+                run.font.size = Pt(10)
+                run.font.name = FONT
+                run.font.color.rgb = DARK_GRAY
         doc.add_page_break()
 
     # --- PageSpeed ---
@@ -520,12 +832,9 @@ def generate_docx(
     run.font.color.rgb = MID_GRAY
     run.font.name = FONT
 
-    filename = (
-        f"FAT_Audit_Report_{url.replace('.', '_').replace('/', '')}.docx"
-        if url
-        else "FAT_Audit_Report.docx"
-    )
-    path = os.path.join(output_dir, filename)
+    slug = safe_report_slug(url)
+    filename = f"FAT_Audit_Report_{slug}.docx" if slug else "FAT_Audit_Report.docx"
+    path = _safe_output_path(output_dir, filename)
     doc.save(path)
     return path
 
@@ -542,6 +851,7 @@ def generate_pptx(
     brand=None,
     pagespeed=None,
     font=FONT,
+    recommendations=None,
 ):
     global FONT
     FONT = font
@@ -551,19 +861,24 @@ def generate_pptx(
     prs.slide_height = PInches(7.5)
 
     overall = scores.get("overall", {})
-    seo_score = scores.get("seo", {}).get("score", 0)
-    sec_score = scores.get("security", {}).get("score", 0)
-    a11y_score = scores.get("accessibility", {}).get("score", 0)
-    perf_score = scores.get("performance", {}).get("score", 0)
-    fat_score = overall.get("score", 0)
-    grade = overall.get("grade", "?")
+    seo_score = _category_score(scores, "seo")
+    sec_score = _category_score(scores, "security")
+    a11y_score = _category_score(scores, "accessibility")
+    perf_score = _category_score(scores, "performance")
+    fat_score = overall.get("score", scores.get("overall_score", 0)) or 0
+
+    # Colour cards by the SHARED grade so the colour matches the letter grade
+    # shown for the same score in the Word report.
+    _GRADE_CARD_COLOR = {
+        "A": P_GREEN,
+        "B": P_GREEN,
+        "C": P_ORANGE,
+        "D": P_ORANGE,
+        "F": P_RED,
+    }
 
     def _grade_color(sc):
-        if sc >= 80:
-            return P_GREEN
-        if sc >= 60:
-            return P_ORANGE
-        return P_RED
+        return _GRADE_CARD_COLOR.get(score_to_grade(sc), P_RED)
 
     def add_bg(slide, color=P_WHITE):
         slide.background.fill.solid()
@@ -635,12 +950,8 @@ def generate_pptx(
         1.5,
         2.4,
         1.3,
-        f"SEO\n{seo_score}/100",
-        (
-            grade
-            if seo_score == fat_score
-            else ("A" if seo_score >= 90 else "C+" if seo_score >= 70 else "D")
-        ),
+        "SEO",
+        f"{seo_score}/100",
         _grade_color(seo_score),
     )
     _pcard(
@@ -649,8 +960,8 @@ def generate_pptx(
         1.5,
         2.4,
         1.3,
-        f"PERFORMANCE\n{perf_score}/100",
-        "F" if perf_score < 40 else "D",
+        "PERFORMANCE",
+        f"{perf_score}/100",
         _grade_color(perf_score),
     )
     _pcard(
@@ -659,8 +970,8 @@ def generate_pptx(
         1.5,
         2.4,
         1.3,
-        f"SECURITY\n{sec_score}/100",
-        "F" if sec_score < 40 else "D",
+        "SECURITY",
+        f"{sec_score}/100",
         _grade_color(sec_score),
     )
     _pcard(
@@ -669,8 +980,8 @@ def generate_pptx(
         1.5,
         2.4,
         1.3,
-        f"ACCESSIBILITY\n{a11y_score}/100",
-        "D" if a11y_score < 60 else "B",
+        "ACCESSIBILITY",
+        f"{a11y_score}/100",
         _grade_color(a11y_score),
     )
     _pcard(
@@ -679,8 +990,8 @@ def generate_pptx(
         1.5,
         2.4,
         1.3,
-        f"OVERALL\n{fat_score}/100",
-        grade,
+        "OVERALL",
+        f"{fat_score}/100",
         _grade_color(fat_score),
     )
 
@@ -733,11 +1044,132 @@ def generate_pptx(
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         add_bg(slide)
         _pheader(slide, title, brand)
-        slide.shapes.add_picture(
-            chart_path, PInches(0.3), PInches(1.3), PInches(12.7), PInches(5.2)
-        )
+        # Fit-to-box (aspect-ratio preserving) instead of a fixed W×H that
+        # stretched charts whose native ratio differed from the slide.
+        _add_chart_fit(slide, chart_path, 0.3, 1.3, 12.7, 5.2)
         source = f"Source: FAT Agent Audit | {url or 'Website'} | {date.today().strftime('%B %Y')}"
         _ptb(slide, 0.5, 6.7, 12.3, 0.4, source, 9, P_MGRAY, False, PP_ALIGN.CENTER)
+
+    # --- SEO Priority Opportunities slide (SEMrush insight, not just numbers) ---
+    if semrush and semrush.get("opportunity_keywords"):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        add_bg(slide)
+        _pheader(slide, "SEO Priority Opportunities", brand)
+        _ptb(
+            slide,
+            0.5,
+            1.15,
+            12.3,
+            0.35,
+            "High-value keywords within striking distance — ranked by volume x CPC and how winnable the position is.",
+            12,
+            P_MGRAY,
+            False,
+        )
+        rows = []
+        for k in semrush["opportunity_keywords"][:12]:
+            cpc = k.get("cpc")
+            try:
+                cpc_s = f"${float(cpc):.2f}"
+            except (TypeError, ValueError):
+                cpc_s = "-"
+            rows.append(
+                [
+                    str(k.get("keyword", ""))[:40],
+                    str(k.get("volume", "")),
+                    cpc_s,
+                    str(k.get("position", "")),
+                    _strip_host(k.get("url", ""))[:30],
+                    str(k.get("priority", "")),
+                ]
+            )
+        _ptable(
+            slide,
+            0.4,
+            1.65,
+            12.5,
+            ["Keyword", "Vol", "CPC", "Pos", "Target page", "Priority"],
+            rows,
+            col_widths=[3.3, 0.8, 0.9, 0.7, 3.4, 1.4],
+            font_size=10,
+            row_height=0.36,
+        )
+
+    # --- Keyword Cannibalisation slide ---
+    if semrush and semrush.get("cannibalization"):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        add_bg(slide)
+        _pheader(slide, "Keyword Cannibalisation", brand)
+        _ptb(
+            slide,
+            0.5,
+            1.15,
+            12.3,
+            0.35,
+            "Same keyword ranking on multiple URLs — the pages compete with each other and split ranking signals.",
+            12,
+            P_MGRAY,
+            False,
+        )
+        rows = []
+        for c in semrush["cannibalization"][:10]:
+            urls = c.get("urls", []) or []
+            count = len(urls) if urls else c.get("url_count", "")
+            sample = ",  ".join(_strip_host(u) for u in urls[:3])
+            rows.append(
+                [
+                    str(c.get("keyword", ""))[:38],
+                    str(c.get("volume", "")),
+                    str(count),
+                    sample[:60],
+                ]
+            )
+        _ptable(
+            slide,
+            0.4,
+            1.65,
+            12.5,
+            ["Keyword", "Vol", "# URLs", "Competing pages (sample)"],
+            rows,
+            col_widths=[2.8, 0.8, 1.0, 5.6],
+            font_size=10,
+            row_height=0.42,
+        )
+
+    # --- Recommended Action Plan slide(s) — turns the report into next steps ---
+    if recommendations:
+        if isinstance(recommendations[0], dict):
+            phases = [
+                (r.get("phase") or r.get("title") or "", r.get("items") or [])
+                for r in recommendations
+            ]
+        else:
+            phases = [("Recommended Actions", list(recommendations))]
+        phase_colors = [P_RED, P_ORANGE, P_GREEN, P_BLUE]
+
+        def _new_action_slide():
+            s = prs.slides.add_slide(prs.slide_layouts[6])
+            add_bg(s)
+            _pheader(s, "Recommended Action Plan", brand)
+            return s
+
+        slide = _new_action_slide()
+        y = 1.4
+        for pi, (pname, items) in enumerate(phases):
+            color = phase_colors[pi % len(phase_colors)]
+            if y > 6.4:
+                slide = _new_action_slide()
+                y = 1.4
+            if pname:
+                _ptb(slide, 0.5, y, 12.3, 0.4, pname, 16, color, True)
+                y += 0.5
+            for it in items:
+                if y > 6.8:
+                    slide = _new_action_slide()
+                    y = 1.4
+                _pbullet(slide, 0.7, y, str(it)[:115], 12, P_GRAY, color)
+                y += 0.38
+            y += 0.15
 
     # --- Closing slide ---
     slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -773,17 +1205,74 @@ def generate_pptx(
         PP_ALIGN.CENTER,
     )
 
+    slug = safe_report_slug(url)
     filename = (
-        f"FAT_Audit_Presentation_{url.replace('.', '_').replace('/', '')}.pptx"
-        if url
-        else "FAT_Audit_Presentation.pptx"
+        f"FAT_Audit_Presentation_{slug}.pptx" if slug else "FAT_Audit_Presentation.pptx"
     )
-    path = os.path.join(output_dir, filename)
+    path = _safe_output_path(output_dir, filename)
     prs.save(path)
     return path
 
 
 # ---------- Main ----------
+
+
+def generate_html(
+    scores, url, output_dir, charts_dir=None, client_facing=False, brand=None
+):
+    """Generate the self-contained HTML dashboard deliverable.
+
+    Prefers importing generate_html_dashboard.generate_dashboard so the
+    already-loaded (and optionally client-facing) scores dict is rendered
+    in-process; falls back to subprocessing the script with --scores/--url/
+    --output-dir/--charts-dir if the import is unavailable.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    try:
+        from generate_html_dashboard import generate_dashboard
+
+        return generate_dashboard(
+            scores=scores,
+            url=url or "",
+            output_dir=output_dir,
+            charts_dir=charts_dir,
+            client_facing=client_facing,
+        )
+    except ImportError:
+        # Fallback: subprocess the dashboard script. It reads --scores from a
+        # file, so persist the effective (possibly transformed) scores first.
+        import tempfile
+
+        script = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "generate_html_dashboard.py"
+        )
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tf:
+            json.dump(scores, tf)
+            scores_path = tf.name
+        try:
+            cmd = [
+                sys.executable,
+                script,
+                "--scores",
+                scores_path,
+                "--url",
+                url or "",
+                "--output-dir",
+                output_dir,
+            ]
+            if charts_dir:
+                cmd += ["--charts-dir", charts_dir]
+            if client_facing:
+                cmd.append("--client-facing")
+            subprocess.run(cmd, check=True)
+        finally:
+            try:
+                os.unlink(scores_path)
+            except OSError:
+                pass
+        return os.path.join(output_dir, "FAT_Dashboard.html")
 
 
 def main():
@@ -799,17 +1288,31 @@ def main():
     parser.add_argument("--semrush", help="Path to SEMrush data JSON file")
     parser.add_argument("--url", help="Audited site URL")
     parser.add_argument("--output-dir", default="./reports", help="Output directory")
-    parser.add_argument("--format", default="both", choices=["docx", "pptx", "both"])
+    parser.add_argument(
+        "--format", default="both", choices=["docx", "pptx", "html", "both"]
+    )
     parser.add_argument("--charts-dir", help="Directory containing chart PNG images")
     parser.add_argument("--brand", help="Path to brand/logo image")
     parser.add_argument("--font", default="Plus Jakarta Sans", help="Font family")
     parser.add_argument("--pagespeed", help="Path to PageSpeed data JSON")
+    parser.add_argument(
+        "--actions",
+        help="Path to a JSON action plan (list of strings, or list of "
+        '{"phase","items":[...]} objects). Rendered as a Recommended Action '
+        "Plan in the docx and pptx. Falls back to semrush['action_plan'] or "
+        "scores['recommendations'] when omitted.",
+    )
+    parser.add_argument(
+        "--client-facing",
+        action="store_true",
+        help="Rewrite findings/labels into plain-English, jargon-free, code-free language",
+    )
     args = parser.parse_args()
 
     # Load scores
     scores = {}
     if args.scores:
-        with open(args.scores, "r") as f:
+        with open(args.scores, "r", encoding="utf-8") as f:
             scores = json.load(f)
     elif not sys.stdin.isatty():
         scores = json.load(sys.stdin)
@@ -821,15 +1324,33 @@ def main():
         )
         sys.exit(1)
 
+    # Transform findings/labels for non-technical clients BEFORE rendering any
+    # deliverable (docx, pptx, html).
+    if args.client_facing:
+        scores = make_client_facing(scores)
+
     semrush = None
     if args.semrush:
-        with open(args.semrush, "r") as f:
+        with open(args.semrush, "r", encoding="utf-8") as f:
             semrush = json.load(f)
 
     pagespeed = None
     if args.pagespeed:
-        with open(args.pagespeed, "r") as f:
+        with open(args.pagespeed, "r", encoding="utf-8") as f:
             pagespeed = json.load(f)
+
+    # Action plan / recommendations: explicit --actions file wins, then an
+    # action_plan embedded in the SEMrush JSON, then a recommendations key on
+    # the scored JSON. This is what makes the deliverables actionable rather
+    # than "just numbers".
+    recommendations = None
+    if args.actions:
+        with open(args.actions, "r", encoding="utf-8") as f:
+            recommendations = json.load(f)
+    elif semrush and semrush.get("action_plan"):
+        recommendations = semrush["action_plan"]
+    elif isinstance(scores, dict) and scores.get("recommendations"):
+        recommendations = scores["recommendations"]
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -844,6 +1365,7 @@ def main():
             args.brand,
             pagespeed,
             args.font,
+            recommendations=recommendations,
         )
         results["docx"] = path
         print(f"Word report: {path}")
@@ -858,9 +1380,21 @@ def main():
             args.brand,
             pagespeed,
             args.font,
+            recommendations=recommendations,
         )
         results["pptx"] = path
         print(f"PowerPoint:  {path}")
+
+    if args.format == "html":
+        path = generate_html(
+            scores,
+            args.url,
+            args.output_dir,
+            charts_dir=args.charts_dir,
+            client_facing=args.client_facing,
+        )
+        results["html"] = path
+        print(f"HTML dashboard: {path}")
 
     print(json.dumps(results, indent=2))
 

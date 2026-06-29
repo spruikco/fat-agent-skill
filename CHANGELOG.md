@@ -1,6 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0] - 2026-06-29
+
+### Added
+- **Actionable SEMrush report insight** — `generate-report.py` now renders **SEO
+  Priority Opportunities**, **Keyword Cannibalisation**, and **Recommended Action
+  Plan** sections in the Word/PowerPoint output, driven by `opportunity_keywords`,
+  `cannibalization`, and `action_plan` fields (also accepted via an `--actions`
+  file or `scores["recommendations"]`). SKILL.md "Turn the data into INSIGHT"
+  documents how to compute them.
+- PPTX charts are now **aspect-ratio preserved** (fit-to-box, centred) instead of
+  stretched. `generate-charts.py` updated to match.
+
+### Changed
+- **`spruikco/fat-agent-skill` is now the single canonical home for FAT Agent.**
+  The SEMrush enrichment and render-gap work (2.1.0) and the actionable-reports
+  work (previously developed in parallel) are unified in this repository.
+
+## [2.1.0] - 2026-06-29
 
 ### Added
 - **Render-gap crawlability check** for SPAs. `analyse-html.py --served <shell.html>`
@@ -34,8 +51,6 @@
   → low/ignore).
 - SKILL.md "SEMrush Data Collection" rewritten with a key/MCP/browser priority
   order; SEMrush enrichment is explicitly optional and off by default.
-
-## [2.1.0] - 2026-06-29
 
 ## [2.0.0] - 2026-04-14
 
