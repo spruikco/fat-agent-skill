@@ -179,6 +179,7 @@ Beyond the classic technical audit, FAT Agent checks what 2026 Google ranking ac
 - **AI Search / GEO** — flags your **AI-crawler posture** in `robots.txt` (GPTBot, OAI-SearchBot, Google-Extended, PerplexityBot, ClaudeBot, CCBot…) so a blanket `Disallow` isn't silently keeping you out of AI Overviews/ChatGPT/Perplexity; checks `llms.txt`, extraction-readiness, entity clarity.
 - **Technical depth** — `X-Robots-Tag` header noindex, canonical host/scheme consistency, intrusive interstitials, next-gen images + CLS dimensions.
 - **GSC behavioural (NavBoost proxy)** — feed a Search Console export to `scripts/gsc.py` for striking-distance keywords, low-CTR-at-good-position, and branded share — the click signals a URL-only audit can't see.
+- **Crawl & content depth** — robots-blocks-CSS/JS, JS-only nav, faceted-URL sprawl, redirect chains/loops + soft-404 (`scripts/redirects.py`), YMYL/ad-density/originality/freshness, plus Video SEO and deeper e-commerce merchant checks (GTIN, shipping/returns, out-of-stock schema).
 
 ### Schema Suggestions — from afar, no codebase needed
 

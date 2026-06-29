@@ -1,7 +1,7 @@
 {
   "name": "fat-agent",
-  "version": "2.4.0",
-  "description": "FAT Agent with Superpowers (Fix, Audit, Test) — modular post-launch QA audit with 18+ modules incl. SEO, E-E-A-T & Trust, AI Search/GEO, Technical SEO, Local SEO, E-commerce, Security, Accessibility, Performance, Schema, plus GSC behavioural analysis.",
+  "version": "2.5.0",
+  "description": "FAT Agent with Superpowers (Fix, Audit, Test) — modular post-launch QA audit with 22 modules incl. SEO, E-E-A-T & Trust, AI Search/GEO, Technical SEO, Crawlability, Content-Depth, Local SEO, E-commerce, Video, Schema, plus GSC behavioural & redirect analysis.",
   "author": {
     "name": "Spruik Co",
     "url": "https://github.com/spruikco"

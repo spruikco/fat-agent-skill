@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.5.0] - 2026-06-29
+
+### Added — "Hobo-parity" depth (cross-referenced against the Hobo Premium SEO Checklist)
+- **Crawlability & Indexation module** (`modules/crawlability.py`, always-on) —
+  robots.txt blocking CSS/JS (P1), JS-only navigation, faceted/parameter URL sprawl,
+  pagination crawlability.
+- **Redirect analyser** (`scripts/redirects.py`) — multi-hop chain tracing: redirect
+  chains (>1 hop), loops (P0), temporary (302/307) redirects for permanent moves,
+  meta-refresh, and **soft 404s** (a "not found" page returning HTTP 200).
+- **Content Depth & Quality module** (`modules/content_depth.py`, always-on) —
+  YMYL detection, main-content-vs-ad density, information-gain/originality signals,
+  freshness (published/updated date), featured-snippet readiness, product-review quality.
+- **Video SEO module** (`modules/video.py`, auto-detected) — VideoObject presence +
+  required properties (`name`/`description`/`thumbnailUrl`/`uploadDate`), thumbnail,
+  key-moments (`Clip`/`SeekToAction`); recommends a video sitemap.
+- **E-commerce merchant depth** (extends `modules/ecommerce.py`) — GTIN/MPN/SKU,
+  shipping info, return/refund policy, out-of-stock schema alignment, related/cross-sell links.
+- SKILL.md §1.20–1.23; 22 modules; 34 new tests (744 total). Schema-policy nuances and
+  Google Discover readiness documented as agent-judgement checks.
+
 ## [2.4.0] - 2026-06-29
 
 ### Added — the modern ranking layer (grounded in Google guidance + the 2024 leak)

@@ -48,6 +48,10 @@ DETECTION_SIGNALS: dict[str, list[re.Pattern]] = {
         re.compile(r"contact-form", re.IGNORECASE),
         re.compile(r'type="email"', re.IGNORECASE),
     ],
+    "video": [
+        re.compile(r"<video[\s>]", re.IGNORECASE),
+        re.compile(r"youtube\.com/embed|youtu\.be/|player\.vimeo\.com", re.IGNORECASE),
+    ],
 }
 
 
@@ -74,6 +78,8 @@ def detect_modules(
     enabled.add("eeat")
     enabled.add("ai_search")
     enabled.add("technical_seo")
+    enabled.add("content_depth")
+    enabled.add("crawlability")
 
     # auto-detect from html signals
     for module_id, patterns in DETECTION_SIGNALS.items():
@@ -137,4 +143,7 @@ from modules import (  # noqa: E402, F401
     eeat,
     ai_search,
     technical_seo,
+    content_depth,
+    crawlability,
+    video,
 )

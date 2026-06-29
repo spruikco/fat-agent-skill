@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "fat-agent-marketplace",
-  "description": "Marketplace for the FAT Agent with Superpowers plugin — a modular post-launch QA audit skill for Claude Code with 18+ audit modules (incl. E-E-A-T, AI Search/GEO, Technical SEO), multi-page crawling, HTML dashboards, and CI gating.",
-  "version": "2.4.0",
+  "description": "Marketplace for the FAT Agent with Superpowers plugin — a modular post-launch QA audit skill for Claude Code with 22 audit modules (incl. E-E-A-T, AI Search/GEO, Crawlability, Content-Depth, Video), multi-page crawling, HTML dashboards, and CI gating.",
+  "version": "2.5.0",
   "owner": {
     "name": "Spruik Co",
     "url": "https://github.com/spruikco"
@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "fat-agent",
-      "description": "FAT Agent with Superpowers (Fix, Audit, Test) — modular post-launch QA audit with 18+ modules incl. SEO, E-E-A-T & Trust, AI Search/GEO, Technical SEO, Local SEO, E-commerce, Security, Accessibility, Performance, Schema, plus GSC behavioural analysis.",
+      "description": "FAT Agent with Superpowers (Fix, Audit, Test) — modular post-launch QA audit with 22 modules incl. SEO, E-E-A-T & Trust, AI Search/GEO, Technical SEO, Crawlability, Content-Depth, Local SEO, E-commerce, Video, Schema, plus GSC behavioural & redirect analysis.",
       "source": "./plugins/fat-agent",
       "category": "development"
     }

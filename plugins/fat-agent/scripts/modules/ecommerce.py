@@ -34,6 +34,21 @@ _SSL_PATTERNS = [
     re.compile(r"ssl.cert", re.IGNORECASE),
 ]
 
+_GTIN_RE = re.compile(r'"(?:gtin1[234]?|gtin8|mpn|sku|productID)"\s*:', re.IGNORECASE)
+_SHIPPING_RE = re.compile(
+    r"shipping (?:policy|info|cost|rate)|delivery (?:policy|info)|free shipping",
+    re.IGNORECASE,
+)
+_RETURN_RE = re.compile(
+    r"return(?:s)? policy|refund policy|returns? &|exchange policy|30[- ]day return",
+    re.IGNORECASE,
+)
+_RELATED_RE = re.compile(
+    r"related products|you may also like|recommended for you|customers also|similar items|frequently bought",
+    re.IGNORECASE,
+)
+_OOS_RE = re.compile(r"out of stock|sold out|currently unavailable", re.IGNORECASE)
+
 
 @register_module
 class EcommerceModule(AuditModule):
@@ -78,6 +93,7 @@ class EcommerceModule(AuditModule):
         )
         ssl_badge = any(p.search(html) for p in _SSL_PATTERNS)
 
+        oos = bool(_OOS_RE.search(html))
         return {
             "product_schema": product_schema,
             "schema_valid": schema_valid,
@@ -86,6 +102,15 @@ class EcommerceModule(AuditModule):
             "payment_badges": payment_badges,
             "breadcrumb": breadcrumb,
             "ssl_badge": ssl_badge,
+            "is_pdp": product_schema
+            or bool(re.search(r"add[- ]to[- ]cart", html, re.IGNORECASE)),
+            "gtin": bool(_GTIN_RE.search(html)),
+            "shipping_policy": bool(_SHIPPING_RE.search(html)),
+            "return_policy": bool(_RETURN_RE.search(html)),
+            "related_items": bool(_RELATED_RE.search(html)),
+            "out_of_stock": oos,
+            "oos_schema_ok": (not oos)
+            or bool(re.search(r"outofstock", html, re.IGNORECASE)),
         }
 
     # ------------------------------------------------------------------
@@ -180,6 +205,56 @@ class EcommerceModule(AuditModule):
                 fix="Add a visible SSL/secure checkout badge near payment forms.",
                 effort="low",
             )
+
+        # --- deeper merchant/PDP checks (Hobo-parity) ---
+        if analysis.get("is_pdp"):
+            if analysis.get("product_schema") and not analysis.get("gtin"):
+                self.add_finding(
+                    priority="P2",
+                    title="Product schema missing GTIN/MPN/SKU identifier",
+                    description="No `gtin`/`mpn`/`sku` in the Product markup. Unique product "
+                    "identifiers are required/strongly recommended for Merchant listings and help "
+                    "Google match your product across the web.",
+                    fix="Add `gtin` (or `mpn`) and `sku` to the Product schema.",
+                    effort="low",
+                )
+            if not analysis.get("shipping_policy"):
+                self.add_finding(
+                    priority="P2",
+                    title="No shipping information on the product page",
+                    description="No shipping cost/policy detected. Shipping detail reduces cart "
+                    "abandonment and is used for Merchant/free-listing eligibility.",
+                    fix="Show shipping cost/time on the PDP and add `shippingDetails` to the Offer.",
+                    effort="medium",
+                )
+            if not analysis.get("return_policy"):
+                self.add_finding(
+                    priority="P2",
+                    title="No return/refund policy on the product page",
+                    description="No return/refund policy detected. A clear returns policy is a trust "
+                    "signal and a Merchant Center requirement.",
+                    fix="Link a clear returns/refund policy and add `hasMerchantReturnPolicy` to the Offer.",
+                    effort="medium",
+                )
+            if analysis.get("out_of_stock") and not analysis.get("oos_schema_ok"):
+                self.add_finding(
+                    priority="P2",
+                    title="Out-of-stock product not marked in schema",
+                    description="The page reads as out of stock, but the Offer doesn't declare "
+                    "`availability: OutOfStock`. Mismatches cause Merchant disapprovals and poor UX.",
+                    fix="Set `availability` to `https://schema.org/OutOfStock` (and 404/301 truly "
+                    "retired products).",
+                    effort="low",
+                )
+            if not analysis.get("related_items"):
+                self.add_finding(
+                    priority="P3",
+                    title="No related/cross-sell product links",
+                    description="No 'related products' / 'you may also like' links found. Related "
+                    "links aid internal linking, crawl discovery, and average order value.",
+                    fix="Add a related/recommended products block linking to relevant items.",
+                    effort="low",
+                )
 
         return {
             "total": total,

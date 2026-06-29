@@ -598,9 +598,56 @@ Header- and DOM-level technical checks beneath the core SEO module. Uses
 - **Intrusive interstitial / pop-up** heuristics (a page-experience demotion).
 - **Next-gen images** (WebP/AVIF) and **explicit width/height** (CLS).
 
-> **Redirect chains/loops** and **soft-404s** need multi-request following — drive
-> these manually: follow each redirect hop (flag chains > 1) and check that "not
-> found" pages return a real 404/410, not 200 with thin content.
+### 1.20 — Crawlability & Indexation (module: `crawlability`, always-on)
+
+Crawl-management depth. Uses `scripts/modules/crawlability.py`. Checks:
+- **robots.txt blocking CSS/JS** — blocked render resources stop Google rendering the
+  page (P1).
+- **JS-only navigation** — `<a>` without a crawlable `href`.
+- **Faceted / parameter URLs** — sort/filter/session/tracking links that explode crawl
+  space and create duplicates.
+- **Pagination** — crawlable `?page=`/`rel=next` links vs JS-only pagination.
+
+**Redirect chains, loops & soft-404s** (multi-request) — run `scripts/redirects.py`:
+
+```bash
+python scripts/redirects.py --url https://example.com/old-page
+```
+
+Flags chains > 1 hop, loops (P0), temporary (302/307) redirects used for permanent
+moves, meta-refresh, and **soft 404s** (a "not found" page returning HTTP 200). Run it
+on key URLs and on any URL that should 404. For **orphan pages / click-depth**, crawl
+with `scripts/crawl.py` (or the seo-crawler skill) and flag pages > 3 clicks deep or
+unreachable from internal links.
+
+### 1.21 — Content Depth & Quality (module: `content_depth`, always-on)
+
+Quality-Rater-aligned content signals. Uses `scripts/modules/content_depth.py`. Checks:
+- **YMYL detection** — flags Your-Money-or-Your-Life topics needing the highest E-E-A-T bar.
+- **Main-content vs ad density** — too many ad slots relative to content.
+- **Information gain / originality** — original media, data tables, statistics, citations.
+- **Freshness** — a real published/updated date.
+- **Featured-snippet readiness** — a concise lead answer near the top.
+- **Product-review quality** — first-hand testing, pros/cons, comparisons on review pages.
+
+### 1.22 — E-commerce / Merchant depth (module: `ecommerce`)
+
+Beyond Product schema/cart/price, the `ecommerce` module now checks PDPs for:
+**GTIN/MPN/SKU**, **shipping** info, **return/refund policy**, **out-of-stock** schema
+alignment (`availability: OutOfStock`, or 404/301 retired products), and **related/cross-sell
+links** — the fields that drive Merchant/free-listing eligibility and crawl discovery.
+
+### 1.23 — Video SEO (module: `video`, auto-detected)
+
+Enabled when a `<video>`/YouTube/Vimeo embed is present. Uses `scripts/modules/video.py`.
+Checks for **VideoObject** structured data with its required properties (`name`,
+`description`, `thumbnailUrl`, `uploadDate`), a thumbnail, and **key-moments** markup
+(`Clip`/`SeekToAction`); recommend submitting a **video sitemap**.
+
+> **Also handle by judgement (not auto-checked):** schema policy (mark up only
+> user-visible content; first-party reviews only — no externally-aggregated
+> `aggregateRating`; use the most specific type) and **Google Discover** readiness
+> (`max-image-preview:large`, images ≥1200px wide, an RSS/Atom feed).
 
 ---
 
@@ -982,6 +1029,7 @@ For extended check details, see:
 - `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
 - `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
 - `scripts/gsc.py` — Google Search Console behavioural analysis (NavBoost proxy) → striking-distance, low-CTR, branded share, `opportunity_keywords`
+- `scripts/redirects.py` — Redirect-chain / loop / 302-vs-301 / soft-404 analyser (multi-hop)
 - `scripts/profiles.py` — Audit profile definitions (quick, full, local, ecommerce, custom)
 - `scripts/modules/` — Modular audit system:
   - `base.py` — `AuditModule` abstract base class
@@ -996,6 +1044,9 @@ For extended check details, see:
   - `eeat.py` — E-E-A-T & Trust (authorship, trust pages, entity, transparency) — always-on
   - `ai_search.py` — AI Search / GEO (AI-crawler posture, llms.txt, extraction, entity) — always-on
   - `technical_seo.py` — Technical depth (X-Robots-Tag, canonical host, interstitials, images) — always-on
+  - `content_depth.py` — Content quality (YMYL, ad density, originality, freshness, review quality) — always-on
+  - `crawlability.py` — Crawl/indexation (robots-blocks-CSS/JS, JS-only nav, faceted URLs, pagination) — always-on
+  - `video.py` — Video SEO (VideoObject + required props, thumbnail, key moments) — auto-detected
 
 ### Platform-Specific Fix References
 Load the relevant file based on the hosting platform from Phase 0:
