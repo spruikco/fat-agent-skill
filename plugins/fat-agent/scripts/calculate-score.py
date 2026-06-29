@@ -18,7 +18,19 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
-def calculate_seo_score(seo: dict, performance: dict) -> dict:
+# Crawlability penalties applied when a render gap shows SEO signals exist only
+# after client-side JavaScript runs (non-rendering crawlers see the server shell).
+RENDER_GAP_PENALTIES = {
+    "content_client_only": 25,
+    "h1_client_only": 8,
+    "title_client_only": 8,
+    "meta_description_client_only": 6,
+    "canonical_client_only": 4,
+    "structured_data_client_only": 3,
+}
+
+
+def calculate_seo_score(seo: dict, performance: dict, render_gap: dict = None) -> dict:
     """
     SEO Score (0-100) based on seo-checklist.md weightings:
       Title & Meta:              18 points
@@ -29,6 +41,11 @@ def calculate_seo_score(seo: dict, performance: dict) -> dict:
       Social / OG Tags:          10 points
       Mobile & Performance:      13 points
       i18n & Charset:             6 points
+
+    When a ``render_gap`` (from analyse-html.py ``--served``) shows that key
+    signals are present only after client-side rendering, a crawlability penalty
+    is subtracted so the headline score reflects what non-rendering crawlers
+    actually receive — rather than the best-case JS-rendered DOM.
     """
     score = 0
     details = {}
@@ -183,7 +200,27 @@ def calculate_seo_score(seo: dict, performance: dict) -> dict:
     details["i18n_charset"] = {"score": i18n, "max": 6}
     score += i18n
 
-    return {"score": min(score, 100), "max": 100, "details": details}
+    score = min(score, 100)
+
+    # Crawlability penalty — applied when key SEO signals are client-only.
+    if render_gap and render_gap.get("rendered_compared"):
+        penalty = 0
+        issues = []
+        for key, points in RENDER_GAP_PENALTIES.items():
+            if render_gap.get(key):
+                penalty += points
+                issues.append(key)
+        if penalty:
+            details["crawlability"] = {
+                "score": -penalty,
+                "max": 0,
+                "severity": render_gap.get("severity", "high"),
+                "issues": issues,
+                "note": render_gap.get("summary", ""),
+            }
+            score = max(score - penalty, 0)
+
+    return {"score": score, "max": 100, "details": details}
 
 
 def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
@@ -613,6 +650,7 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     a11y = report.get("accessibility", {})
     performance = report.get("performance", {})
     html_security = report.get("security", {})
+    render_gap = report.get("render_gap")
 
     # Merge image data into SEO for the scorer
     seo_input = {
@@ -621,7 +659,7 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         "img_missing_alt": a11y.get("img_missing_alt", 0),
     }
 
-    seo_result = calculate_seo_score(seo_input, performance)
+    seo_result = calculate_seo_score(seo_input, performance, render_gap)
     security_result = calculate_security_score(headers or {}, html_security)
     a11y_result = calculate_accessibility_score(a11y)
     perf_result = calculate_performance_score(performance)
@@ -632,7 +670,7 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         perf_result["score"],
     )
 
-    return {
+    result = {
         "seo": seo_result,
         "security": security_result,
         "accessibility": a11y_result,
@@ -640,6 +678,9 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         "overall": fat_result,
         "summary": report.get("summary", {}),
     }
+    if render_gap is not None:
+        result["render_gap"] = render_gap
+    return result
 
 
 def main():

@@ -18,6 +18,7 @@ from importlib import import_module
 
 analyse_mod = import_module("analyse-html")
 analyse_html = analyse_mod.analyse_html
+compute_render_gap = analyse_mod.compute_render_gap
 
 score_mod = import_module("calculate-score")
 calculate_scores = score_mod.calculate_scores
@@ -2922,6 +2923,208 @@ class TestARIAValidation(unittest.TestCase):
         html = '<!DOCTYPE html><html lang="en"><head><title>T</title></head><body><div role="directory">X</div><main><h1>Hi</h1></main></body></html>'
         r = analyse_html(html)
         self.assertIn("directory", r["accessibility"]["deprecated_aria_roles"])
+
+
+# ---------------------------------------------------------------------------
+# NEW Test Classes — Generic SPA detection & render-gap crawlability
+# ---------------------------------------------------------------------------
+
+# Empty client-rendered shell (mirrors a Vite/React build: mount node + module
+# bundle, no content or head metadata in the served HTML).
+SPA_SHELL_HTML = """\
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script type="module" crossorigin src="/assets/index-DuSlvNww.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-rSnoxtJT.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+"""
+
+# The same route after the client framework has rendered it: real head metadata,
+# an H1, body copy and structured data are now present in the DOM.
+SPA_RENDERED_HTML = """\
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bathrooms projects in Glasgow | Example Directory</title>
+    <meta name="description" content="Browse bathroom renovation projects from independent contractors in Glasgow. Compare work, budgets and styles before you choose who to hire.">
+    <link rel="canonical" href="https://example.com/category/bathrooms/glasgow" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"ItemList"}</script>
+  </head>
+  <body>
+    <header><nav><a href="/">Home</a></nav></header>
+    <main>
+      <h1>Bathrooms projects in Glasgow</h1>
+      <p>%s</p>
+      <img src="/project-1.webp" alt="Modern bathroom renovation in the west end of Glasgow">
+    </main>
+    <footer><p>Example Directory</p></footer>
+  </body>
+</html>
+""" % (
+    "Discover bathroom renovation work across Glasgow from vetted independent "
+    "contractors. " * 20
+)
+
+# Genuinely server-rendered page that happens to use id="root" — must NOT be
+# flagged as a client-rendered SPA because the body already has content.
+SSR_WITH_ROOT_ID_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Server Rendered Page With A Good Descriptive Title Here</title>
+</head>
+<body>
+    <div id="root">
+      <main>
+        <h1>Fully Server Rendered</h1>
+        <p>%s</p>
+      </main>
+    </div>
+</body>
+</html>
+""" % ("This page ships its content in the server response. " * 20)
+
+
+class TestGenericSPADetection(unittest.TestCase):
+    def test_empty_shell_with_module_bundle_detected(self):
+        r = analyse_html(SPA_SHELL_HTML)
+        self.assertTrue(r["seo"]["spa_detected"])
+
+    def test_vite_bundle_identified(self):
+        r = analyse_html(SPA_SHELL_HTML)
+        self.assertIn("Vite", r["seo"]["spa_indicators"])
+
+    def test_generic_mount_without_known_bundler(self):
+        html = (
+            '<!doctype html><html lang="en"><head>'
+            '<script type="module" src="/main.js"></script></head>'
+            '<body><div id="app"></div></body></html>'
+        )
+        r = analyse_html(html)
+        self.assertTrue(r["seo"]["spa_detected"])
+        self.assertIn("Client-rendered SPA", r["seo"]["spa_indicators"])
+
+    def test_ssr_page_with_root_id_not_flagged(self):
+        # Content present in the served body → not a client-rendered shell.
+        r = analyse_html(SSR_WITH_ROOT_ID_HTML)
+        self.assertFalse(r["seo"]["spa_detected"])
+
+    def test_static_content_page_not_flagged(self):
+        html = (
+            '<!DOCTYPE html><html lang="en"><head><title>Real Page Title Here Now</title>'
+            "</head><body><main><h1>Hello</h1><p>"
+            + ("Plenty of real server-side words here. " * 20)
+            + "</p></main></body></html>"
+        )
+        r = analyse_html(html)
+        self.assertFalse(r["seo"]["spa_detected"])
+
+
+class TestRenderGap(unittest.TestCase):
+    def setUp(self):
+        self.shell = analyse_html(SPA_SHELL_HTML, page_url="https://example.com/")
+        self.rendered = analyse_html(
+            SPA_RENDERED_HTML, page_url="https://example.com/category/bathrooms/glasgow"
+        )
+
+    def test_content_client_only_flagged(self):
+        gap = compute_render_gap(self.shell, self.rendered)
+        self.assertTrue(gap["content_client_only"])
+        self.assertTrue(gap["h1_client_only"])
+
+    def test_metadata_client_only_flagged(self):
+        gap = compute_render_gap(self.shell, self.rendered)
+        self.assertTrue(gap["title_client_only"])
+        self.assertTrue(gap["meta_description_client_only"])
+        self.assertTrue(gap["canonical_client_only"])
+        self.assertTrue(gap["structured_data_client_only"])
+
+    def test_severity_critical_when_content_missing(self):
+        gap = compute_render_gap(self.shell, self.rendered)
+        self.assertEqual(gap["severity"], "critical")
+
+    def test_no_gap_when_server_already_rendered(self):
+        gap = compute_render_gap(self.rendered, self.rendered)
+        self.assertFalse(gap["content_client_only"])
+        self.assertFalse(gap["title_client_only"])
+        self.assertEqual(gap["severity"], "none")
+
+    def test_served_flag_produces_render_gap_via_analyse(self):
+        # compute_render_gap is the same path main() uses with --served.
+        gap = compute_render_gap(self.shell, self.rendered)
+        self.assertTrue(gap["rendered_compared"])
+        self.assertIn("title", gap["summary"])
+
+
+class TestCrawlabilityPenalty(unittest.TestCase):
+    def _report(self, render_gap=None):
+        base = analyse_html(
+            SPA_RENDERED_HTML, page_url="https://example.com/category/bathrooms/glasgow"
+        )
+        if render_gap is not None:
+            base["render_gap"] = render_gap
+        return base
+
+    def test_penalty_lowers_seo_score(self):
+        shell = analyse_html(SPA_SHELL_HTML, page_url="https://example.com/")
+        rendered = self._report()
+        gap = compute_render_gap(shell, rendered)
+
+        without = calculate_scores(rendered)["seo"]["score"]
+        rendered_with_gap = self._report(render_gap=gap)
+        with_gap = calculate_scores(rendered_with_gap)["seo"]["score"]
+
+        self.assertLess(with_gap, without)
+
+    def test_penalty_recorded_in_details(self):
+        shell = analyse_html(SPA_SHELL_HTML, page_url="https://example.com/")
+        rendered = self._report()
+        gap = compute_render_gap(shell, rendered)
+        scored = calculate_scores(self._report(render_gap=gap))
+        self.assertIn("crawlability", scored["seo"]["details"])
+        self.assertLess(scored["seo"]["details"]["crawlability"]["score"], 0)
+        self.assertEqual(
+            scored["seo"]["details"]["crawlability"]["severity"], "critical"
+        )
+
+    def test_render_gap_passed_through_to_scores(self):
+        shell = analyse_html(SPA_SHELL_HTML, page_url="https://example.com/")
+        rendered = self._report()
+        gap = compute_render_gap(shell, rendered)
+        scored = calculate_scores(self._report(render_gap=gap))
+        self.assertIn("render_gap", scored)
+
+    def test_no_penalty_without_render_gap(self):
+        scored = calculate_scores(self._report())
+        self.assertNotIn("crawlability", scored["seo"]["details"])
+
+    def test_seo_score_never_negative(self):
+        gap = {
+            "rendered_compared": True,
+            "content_client_only": True,
+            "h1_client_only": True,
+            "title_client_only": True,
+            "meta_description_client_only": True,
+            "canonical_client_only": True,
+            "structured_data_client_only": True,
+            "severity": "critical",
+            "summary": "all client-only",
+        }
+        # Minimal report with almost no SEO merit, then a full penalty stack.
+        report = analyse_html(SPA_SHELL_HTML, page_url="https://example.com/")
+        report["render_gap"] = gap
+        scored = calculate_scores(report)
+        self.assertGreaterEqual(scored["seo"]["score"], 0)
 
 
 if __name__ == "__main__":

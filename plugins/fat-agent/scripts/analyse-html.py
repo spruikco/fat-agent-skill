@@ -243,6 +243,12 @@ class FATHTMLAnalyser(HTMLParser):
 
         # SPA / client-side rendering framework detection
         self.spa_indicators = []
+        # Generic client-rendered-mount detection (React/Vue/Vite etc. that
+        # expose no framework-specific marker, only an empty mount node + a
+        # module bundle). Confirmed in compile_report once the body word count
+        # is known, so an empty shell is distinguished from a hydrated page.
+        self.has_spa_mount = False
+        self.module_script_count = 0
 
         # --- NEW: Thin content detection ---
         self.body_text_words = 0
@@ -414,6 +420,12 @@ class FATHTMLAnalyser(HTMLParser):
         if element_id == "__nuxt":
             if "Nuxt" not in self.spa_indicators:
                 self.spa_indicators.append("Nuxt")
+        # Generic SPA mount node (React/Vue/Vite/Svelte etc. with no
+        # framework-specific marker). Confirmed as an SPA in compile_report
+        # only when the served body is near-empty, so hydrated/SSR pages that
+        # happen to use these ids are not misflagged.
+        if element_id in ("root", "app", "application", "q-app"):
+            self.has_spa_mount = True
         if "data-reactroot" in attrs_dict:
             if "React" not in self.spa_indicators:
                 self.spa_indicators.append("React")
@@ -685,6 +697,11 @@ class FATHTMLAnalyser(HTMLParser):
                 if "Next.js" not in self.spa_indicators:
                     self.spa_indicators.append("Next.js")
 
+            # ES module bundle — a strong signal of a modern client-rendered
+            # build (Vite/Rollup/esbuild). Counted here, weighed in compile_report.
+            if script_type == "module":
+                self.module_script_count += 1
+
             if src:
                 self.external_scripts += 1
                 self._check_mixed_content(src)
@@ -704,6 +721,10 @@ class FATHTMLAnalyser(HTMLParser):
                 if "/_nuxt/" in src_lower:
                     if "Nuxt" not in self.spa_indicators:
                         self.spa_indicators.append("Nuxt")
+                # Vite default build emits /assets/index-<hash>.js as a module
+                if "/assets/index-" in src_lower and src_lower.endswith(".js"):
+                    if "Vite" not in self.spa_indicators:
+                        self.spa_indicators.append("Vite")
 
                 # Check for analytics — ORIGINAL providers
                 if (
@@ -1059,6 +1080,20 @@ class FATHTMLAnalyser(HTMLParser):
 
     def compile_report(self, html_length: int) -> dict:
         """Compile all findings into a structured report."""
+
+        # --- Generic client-rendered-SPA inference ---
+        # A mount node (#root/#app/...) or an ES-module bundle, combined with a
+        # near-empty served <body>, means the markup is produced client-side and
+        # no framework-specific marker was present. We only assert this when the
+        # body is essentially empty so genuinely server-rendered pages that reuse
+        # these ids/bundlers are never misflagged.
+        if (
+            self.body_text_words < 25
+            and (self.has_spa_mount or self.module_script_count > 0)
+            and (self.external_scripts > 0 or self.module_script_count > 0)
+            and not self.spa_indicators
+        ):
+            self.spa_indicators.append("Client-rendered SPA")
 
         title = self.title_text.strip() or None
         description = self.meta_tags.get("description", None)
@@ -1608,6 +1643,104 @@ class FATHTMLAnalyser(HTMLParser):
         return report
 
 
+# Minimum word counts used to distinguish an empty shell from a real page.
+RENDER_GAP_SERVER_MAX_WORDS = 50  # server body at/below this is "empty shell"
+RENDER_GAP_RENDERED_MIN_WORDS = 100  # rendered body at/above this is "real content"
+
+
+def _extract_render_signals(report: dict) -> dict:
+    """Pull the SEO-critical signals used for server-vs-rendered comparison."""
+    seo = report.get("seo", {})
+    return {
+        "has_title": bool(seo.get("title_tag")),
+        "title_length": seo.get("title_length", 0),
+        "has_meta_description": bool(seo.get("meta_description")),
+        "has_canonical": bool(seo.get("has_canonical")),
+        "h1_count": seo.get("h1_count", 0),
+        "body_word_count": seo.get("body_word_count", 0),
+        "json_ld_count": seo.get("json_ld_count", 0),
+        "has_og_title": "og:title" in seo.get("og_tags", {}),
+    }
+
+
+def compute_render_gap(server_report: dict, rendered_report: dict) -> dict:
+    """
+    Compare a raw server-response report against a browser-rendered report and
+    describe what only exists after client-side JavaScript runs.
+
+    This is the crawlability check: search engines that don't execute JS (and
+    most social/link-preview bots) see the *server* HTML. When title, meta
+    description, canonical, headings, or body content are present only in the
+    *rendered* DOM, those pages are effectively invisible to non-rendering
+    crawlers — critical for SEO-driven sites.
+    """
+    s = _extract_render_signals(server_report)
+    r = _extract_render_signals(rendered_report)
+
+    content_client_only = (
+        s["body_word_count"] <= RENDER_GAP_SERVER_MAX_WORDS
+        and r["body_word_count"] >= RENDER_GAP_RENDERED_MIN_WORDS
+    )
+    title_client_only = (not s["has_title"]) and r["has_title"]
+    meta_description_client_only = (not s["has_meta_description"]) and r[
+        "has_meta_description"
+    ]
+    canonical_client_only = (not s["has_canonical"]) and r["has_canonical"]
+    h1_client_only = s["h1_count"] == 0 and r["h1_count"] > 0
+    structured_data_client_only = s["json_ld_count"] == 0 and r["json_ld_count"] > 0
+
+    # Severity: content or H1 missing from the server shell is critical (the
+    # page body is invisible to non-rendering crawlers). Missing only head
+    # metadata (title/description/canonical) is high.
+    if content_client_only or h1_client_only:
+        severity = "critical"
+    elif title_client_only or meta_description_client_only or canonical_client_only:
+        severity = "high"
+    else:
+        severity = "none"
+
+    missing = []
+    if content_client_only:
+        missing.append("body content")
+    if title_client_only:
+        missing.append("title")
+    if meta_description_client_only:
+        missing.append("meta description")
+    if canonical_client_only:
+        missing.append("canonical")
+    if h1_client_only:
+        missing.append("H1")
+    if structured_data_client_only:
+        missing.append("structured data")
+
+    if missing:
+        summary = (
+            "Client-side rendering gap: "
+            + ", ".join(missing)
+            + " present only after JavaScript runs. Non-rendering crawlers "
+            "(Bing, social/link-preview bots, and Google before render) see a "
+            "server response missing these."
+        )
+    else:
+        summary = (
+            "No render gap detected — server HTML already contains the key SEO signals."
+        )
+
+    return {
+        "rendered_compared": True,
+        "server_signals": s,
+        "rendered_signals": r,
+        "content_client_only": content_client_only,
+        "title_client_only": title_client_only,
+        "meta_description_client_only": meta_description_client_only,
+        "canonical_client_only": canonical_client_only,
+        "h1_client_only": h1_client_only,
+        "structured_data_client_only": structured_data_client_only,
+        "severity": severity,
+        "summary": summary,
+    }
+
+
 def analyse_html(
     html_content: str,
     page_url: str = "",
@@ -1627,12 +1760,16 @@ def main():
     budget = None
     fetch_headers = False
     modules_arg = None  # disabled when none, "auto" or comma-separated ids
+    served_path = None  # raw server-response HTML for the render-gap check
 
     args = sys.argv[1:]
     i = 0
     while i < len(args):
         if args[i] == "--url" and i + 1 < len(args):
             page_url = args[i + 1]
+            i += 2
+        elif args[i] == "--served" and i + 1 < len(args):
+            served_path = args[i + 1]
             i += 2
         elif args[i] == "--budget" and i + 1 < len(args):
             budget_path = args[i + 1]
@@ -1690,6 +1827,21 @@ def main():
         budget=budget,
         response_headers=response_headers,
     )
+
+    # Render-gap check: compare the raw server response (--served) against the
+    # primary file (which, for an SPA, should be the browser-rendered DOM). This
+    # surfaces content/metadata that only exists after client-side JS runs.
+    if served_path:
+        try:
+            with open(served_path, "r", encoding="utf-8") as f:
+                served_html = f.read()
+            server_report = analyse_html(served_html, page_url=page_url)
+            report["render_gap"] = compute_render_gap(server_report, report)
+        except (FileNotFoundError, IOError) as e:
+            print(
+                f"Warning: Could not read served HTML '{served_path}': {e}",
+                file=sys.stderr,
+            )
 
     # run module system when --modules is provided
     if modules_arg is not None:
