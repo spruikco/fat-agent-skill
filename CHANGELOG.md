@@ -16,11 +16,26 @@
   (e.g. Vite's `/assets/index-*.js`) combined with a near-empty served `<body>`.
 - 15 tests covering generic SPA detection, render-gap computation, and the
   crawlability penalty (including the never-negative-score guard).
+- **Optional SEMrush API enrichment** (`scripts/semrush.py`). When a SEMrush API
+  key is available, pulls domain authority, organic keywords/traffic, the
+  historical trend, and top keyword positions, and emits a `semrush.json` in the
+  shape the chart/report scripts already consume. The key is read from the
+  `SEMRUSH_API_KEY` environment variable (or `--api-key`) — never hardcoded,
+  never written to output, and redacted from all error messages. Falls back to
+  SEMrush MCP or browser automation, and skips cleanly when no source is present.
+- `references/semrush-integration.md` and `.env.example` documenting the optional
+  `SEMRUSH_API_KEY` setup (bring-your-own-key).
+- 21 tests for the SEMrush integration (parsing, schema, key redaction, graceful
+  degradation) — no network calls, no real key.
 
 ### Changed
 - SKILL.md §1.2 SPA guidance rewritten to require the render-gap check on every
   SPA and to branch severity on site type (SEO-dependent → P0/P1; app-behind-auth
   → low/ignore).
+- SKILL.md "SEMrush Data Collection" rewritten with a key/MCP/browser priority
+  order; SEMrush enrichment is explicitly optional and off by default.
+
+## [2.1.0] - 2026-06-29
 
 ## [2.0.0] - 2026-04-14
 

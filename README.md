@@ -161,6 +161,16 @@ Transforms technical jargon into plain English for non-technical stakeholders â€
 
 Say "compare my site with [competitor URL]" for a side-by-side score comparison with actionable improvement suggestions.
 
+### SEMrush Enrichment (optional)
+
+If you have a SEMrush API key, FAT Agent layers in real domain authority, organic keyword/traffic figures, historical trends, and top keyword positions:
+
+```bash
+python plugins/fat-agent/scripts/semrush.py --domain example.com --database au --output /tmp/semrush.json
+```
+
+**Bring your own key** â€” the script reads it from the `SEMRUSH_API_KEY` environment variable (never hardcoded, never written to output, redacted from all errors). No key, no problem: the audit runs fully without it. A connected SEMrush MCP server or browser automation also work as sources. See [`references/semrush-integration.md`](plugins/fat-agent/references/semrush-integration.md).
+
 ---
 
 ## The FAT Report

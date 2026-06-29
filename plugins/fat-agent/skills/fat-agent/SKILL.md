@@ -865,6 +865,7 @@ For extended check details, see:
 - `references/ecommerce-checklist.md` — E-commerce audit criteria
 - `references/performance-budgets.md` — Performance budget configuration guide
 - `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
+- `references/semrush-integration.md` — Optional SEMrush enrichment (API key setup + field reference)
 
 ### Scripts
 - `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
@@ -877,6 +878,8 @@ For extended check details, see:
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
+- `scripts/pagespeed.py` — PageSpeed Insights API wrapper (Core Web Vitals)
+- `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
 - `scripts/profiles.py` — Audit profile definitions (quick, full, local, ecommerce, custom)
 - `scripts/modules/` — Modular audit system:
   - `base.py` — `AuditModule` abstract base class
@@ -1001,17 +1004,41 @@ file is provided. The `chart_fat_scores.png` chart is **always** generated.
 
 ### SEMrush Data Collection
 
-When browser automation tools are available, collect SEMrush data by:
+SEMrush enrichment is **optional** and **off by default**. When real SEMrush data
+is available, fold it into the SEO findings and generate the domain-intelligence
+charts. Try these sources in order and use the first that works:
 
-1. Navigate to `semrush.com/analytics/overview/?q={domain}&searchType=domain`
-2. Switch to the target country (e.g., AU for Australian sites)
-3. Extract: authority score, organic traffic, keywords, referring domains, backlinks
-4. Navigate to organic positions page for keyword ranking data
-5. Save the collected data as a JSON file matching the format documented in
-   the `generate-charts.py` docstring
+**1. SEMrush API key (preferred — no browser needed).**
+If the user has a SEMrush API key configured in their environment, the
+`semrush.py` script pulls authority, organic keywords/traffic, the historical
+trend, and top keyword positions, and writes a `semrush.json` in the exact shape
+the chart/report scripts consume:
 
-If browser automation is not available, skip SEMrush charts — the report will
-still include the FAT score chart and all audit findings tables.
+```bash
+python scripts/semrush.py --domain example.com --database au --output /tmp/semrush.json
+```
+
+The key is read from the `SEMRUSH_API_KEY` environment variable (or `--api-key`).
+**Never ask the user to paste their key into the chat and never hardcode it** —
+it must come from their own environment. If `SEMRUSH_API_KEY` is not set, the
+script emits `{"available": false}` and exits cleanly; just skip SEMrush charts.
+Database codes: `au`, `us`, `uk`, etc. — match the site's primary market.
+
+**2. SEMrush MCP server.**
+If a SEMrush MCP server is connected (its tools appear as available), use those
+tools to gather the same fields, then write them to `semrush.json` in the format
+documented in the `generate-charts.py` docstring.
+
+**3. Browser automation (fallback).**
+If browser tools are available but no key/MCP is, collect data by navigating to
+`semrush.com/analytics/overview/?q={domain}&searchType=domain`, switching to the
+target country, and reading authority score, organic traffic, keywords, referring
+domains, backlinks, and the organic positions table. Save as `semrush.json`.
+
+**4. None available.** Skip SEMrush charts — the report still includes the FAT
+score chart and all audit findings tables.
+
+See `references/semrush-integration.md` for the full setup and field reference.
 
 ### Report Contents
 
