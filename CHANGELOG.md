@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.1] - 2026-06-29
+
+### Fixed
+- **Plugin failed to load** under current Claude Code: the `skills` entry in
+  `plugin.json` pointed at the `SKILL.md` file, but skills entries must point at
+  the **directory** containing `SKILL.md`. Changed `./skills/fat-agent/SKILL.md`
+  → `./skills/fat-agent`. The plugin now loads cleanly.
+
 ## [2.2.0] - 2026-06-29
 
 ### Added
