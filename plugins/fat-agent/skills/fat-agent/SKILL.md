@@ -179,10 +179,15 @@ Ask the user:
 - "Is Google Search Console configured for this domain?"
 
 **SPA / Client-Side Rendering Caveat:**
-Modern frameworks (Next.js, Nuxt, React, Angular, Svelte, Astro) often render
-content client-side after hydration. The `analyse-html.py` script detects common
-SPA indicators and automatically downgrades several checks when a framework is
-detected:
+Modern frameworks (Next.js, Nuxt, React, Angular, Svelte, Astro, Vite builds)
+often render content client-side after hydration. `analyse-html.py` detects both
+framework-specific markers (`__next`, `__nuxt`, `data-reactroot`, `/_next/`,
+etc.) **and** generic client-rendered shells — a mount node (`#root`/`#app`) or
+an ES-module bundle (e.g. Vite's `/assets/index-*.js`) combined with a near-empty
+served `<body>`. The detected stack appears in `seo.spa_indicators` and
+`seo.spa_detected`.
+
+When an SPA is detected, several checks are downgraded:
 - **Missing `<h1>`**: Downgraded from P0 Critical to P1 High
 - **Skip navigation**: Downgraded from P2 Medium to P3 Low
 - **SVG accessibility**: Downgraded from P2 Medium to P3 Low
@@ -193,8 +198,47 @@ Use `--fetch --url <url>` to make a live HTTP request and score security headers
 (HSTS, CSP, X-Content-Type-Options, etc.). Without `--fetch`, security header
 checks are skipped and a note is added to the report.
 
-When an SPA is detected, recommend the user verify in DevTools or using browser
-automation tools rather than treating server-HTML-only findings as hard failures.
+**The render-gap check (do this for every SPA):**
+The single most important thing to verify on an SPA is whether the *server
+response* — what non-rendering crawlers actually receive — contains the SEO
+signals, or whether they only appear after JavaScript runs. Bing, social/
+link-preview bots, and Google-before-render see the server HTML. A page that
+looks perfect in the browser can be an empty `<div id="root">` to a crawler.
+
+Capture **both** versions and compare them:
+
+1. Save the **raw server response** (the shell): `curl -sL <url> -o served.html`
+2. Save the **browser-rendered DOM** (after JS runs) via browser automation:
+   `document.documentElement.outerHTML` → `rendered.html`
+3. Analyse the **rendered** DOM as the primary file (so accessibility, images,
+   and performance reflect what users get) and pass the shell with `--served`:
+
+   ```bash
+   python scripts/analyse-html.py rendered.html \
+       --served served.html --fetch --url https://example.com \
+       | python scripts/calculate-score.py > ./.fat-work/scores.json
+   ```
+
+`analyse-html.py` adds a `render_gap` block (`content_client_only`,
+`title_client_only`, `meta_description_client_only`, `canonical_client_only`,
+`h1_client_only`, `structured_data_client_only`, plus a `severity`).
+`calculate-score.py` then applies a **crawlability penalty** to the SEO score,
+so the headline number reflects the crawler-facing reality — not the best-case
+JS render. **Do not paper over this gap with a prose caveat; let the score and
+the `render_gap` finding carry it.**
+
+**Branch on site type — the same gap means different things:**
+- **SEO-dependent sites** (marketing, blog, e-commerce, directory, local
+  business, landing pages): a render gap is a **P0/P1 finding**. The fix is real
+  server-side rendering or pre-rendering (SSG / SSR / prerender step) so each
+  route ships its own `<head>` and content. Flag it as the top issue.
+- **Apps behind auth** (dashboards, internal tools, SaaS app shells that aren't
+  meant to rank): the gap is expected and **low/ignore**. Note it and move on —
+  don't tank the score over it. State which branch you applied and why.
+
+When an SPA is detected, also recommend the user verify in DevTools or using
+browser automation tools rather than treating server-HTML-only findings as hard
+failures *for content the page never intended crawlers to see*.
 
 ### 1.3 — Performance Indicators
 From the HTML response, check:

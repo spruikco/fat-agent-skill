@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Render-gap crawlability check** for SPAs. `analyse-html.py --served <shell.html>`
+  compares the raw server response against the browser-rendered DOM and emits a
+  `render_gap` block (content/title/meta-description/canonical/H1/structured-data
+  `*_client_only` flags + severity).
+- **Crawlability penalty** in `calculate-score.py`: when key SEO signals exist
+  only after client-side rendering, the SEO score is penalised so the headline
+  number reflects what non-rendering crawlers (Bing, social bots, Google before
+  render) actually receive — instead of the best-case JS render.
+- **Generic SPA detection**: client-rendered shells with no framework-specific
+  marker are now detected via mount nodes (`#root`/`#app`) and ES-module bundles
+  (e.g. Vite's `/assets/index-*.js`) combined with a near-empty served `<body>`.
+- 15 tests covering generic SPA detection, render-gap computation, and the
+  crawlability penalty (including the never-negative-score guard).
+
+### Changed
+- SKILL.md §1.2 SPA guidance rewritten to require the render-gap check on every
+  SPA and to branch severity on site type (SEO-dependent → P0/P1; app-behind-auth
+  → low/ignore).
+
 ## [2.0.0] - 2026-04-14
 
 ### Added
