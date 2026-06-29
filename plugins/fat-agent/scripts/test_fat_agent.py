@@ -2753,6 +2753,29 @@ class TestCanonicalValidation(unittest.TestCase):
         r = analyse_html(CANONICAL_HTML, page_url="https://example.com/page")
         self.assertTrue(any("trailing slash" in i for i in r["summary"]["medium"]))
 
+    def test_root_trailing_slash_not_flagged(self):
+        # Root path: https://example.com vs https://example.com/ are identical.
+        html = (
+            '<!DOCTYPE html><html lang="en"><head>'
+            "<title>Home Page With A Nice Descriptive Title Here</title>"
+            '<link rel="canonical" href="https://example.com/"></head>'
+            "<body><main><h1>Home</h1></main></body></html>"
+        )
+        r = analyse_html(html, page_url="https://example.com")
+        self.assertFalse(r["seo"]["canonical_trailing_slash_mismatch"])
+        self.assertFalse(any("trailing slash" in i for i in r["summary"]["medium"]))
+
+    def test_nonroot_trailing_slash_either_direction_flagged(self):
+        # Canonical without slash, page with slash → still a non-root mismatch.
+        html = (
+            '<!DOCTYPE html><html lang="en"><head>'
+            "<title>Page With A Nice Descriptive Title Here Now</title>"
+            '<link rel="canonical" href="https://example.com/page"></head>'
+            "<body><main><h1>Page</h1></main></body></html>"
+        )
+        r = analyse_html(html, page_url="https://example.com/page/")
+        self.assertTrue(r["seo"]["canonical_trailing_slash_mismatch"])
+
 
 # ---------------------------------------------------------------------------
 # NEW Test Classes — Performance Budgets
