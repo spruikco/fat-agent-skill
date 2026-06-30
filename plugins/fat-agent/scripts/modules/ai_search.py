@@ -23,13 +23,19 @@ import re
 import urllib.parse
 import urllib.request
 
-# AI crawlers worth reporting a posture for. (label -> user-agent token)
-AI_BOTS = {
-    "GPTBot": "gptbot",
+# Answer/search crawlers: blocking these makes you un-citable in AI answers — a
+# real visibility loss worth flagging.
+ANSWER_BOTS = {
     "OAI-SearchBot": "oai-searchbot",
     "ChatGPT-User": "chatgpt-user",
-    "Google-Extended": "google-extended",
     "PerplexityBot": "perplexitybot",
+    "Google-Extended": "google-extended",
+}
+# Training/opt-out crawlers: blocking these is a common, legitimate, deliberate
+# choice (Cloudflare/WP one-click) and does NOT affect AI-answer citability — so
+# it's reported informationally, never as a problem that tanks the score.
+TRAINING_BOTS = {
+    "GPTBot": "gptbot",
     "ClaudeBot": "claudebot",
     "anthropic-ai": "anthropic-ai",
     "CCBot": "ccbot",
@@ -38,6 +44,7 @@ AI_BOTS = {
     "Applebot-Extended": "applebot-extended",
     "Meta-ExternalAgent": "meta-externalagent",
 }
+AI_BOTS = {**ANSWER_BOTS, **TRAINING_BOTS}
 
 
 def parse_robots(robots_text):
@@ -173,10 +180,13 @@ class AISearchModule(AuditModule):
             llms_txt = self._fetch(url, "llms.txt")
 
         report = ai_bot_report(robots_txt or "")
+        blocked = [b for b, p in report.items() if p == "blocked"]
         return {
             "robots_available": robots_txt is not None,
             "ai_bots": report,
-            "blocked_bots": [b for b, p in report.items() if p == "blocked"],
+            "blocked_bots": blocked,
+            "blocked_answer_bots": [b for b in blocked if b in ANSWER_BOTS],
+            "blocked_training_bots": [b for b in blocked if b in TRAINING_BOTS],
             "llms_txt": bool(llms_txt),
             "extraction": extraction_readiness(html),
             "entity": entity_clarity(html),
@@ -186,8 +196,10 @@ class AISearchModule(AuditModule):
         total = 0
         details = {}
 
-        blocked = analysis["blocked_bots"]
-        access_pts = max(0, 45 - 9 * len(blocked))
+        # Only blocked ANSWER bots cost citability points; blocking training/opt-out
+        # bots is a legitimate choice and is not penalised.
+        blocked_answer = analysis.get("blocked_answer_bots", analysis["blocked_bots"])
+        access_pts = max(0, 45 - 11 * len(blocked_answer))
         details["ai_crawler_access"] = {"score": access_pts, "max": 45}
         total += access_pts
 
@@ -213,16 +225,26 @@ class AISearchModule(AuditModule):
         return {"total": total, "max": 100, "details": details}
 
     def _findings(self, a: dict):
-        if a["blocked_bots"]:
+        if a.get("blocked_answer_bots"):
             self.add_finding(
                 priority="P1",
-                title=f"AI crawlers blocked in robots.txt: {', '.join(a['blocked_bots'])}",
-                description="These AI/answer-engine crawlers are disallowed at the site root, so "
-                "your content cannot be cited in ChatGPT / Perplexity / Google AI Overviews / "
-                "Gemini. A blanket block is the #1 cause of AI-search invisibility.",
-                fix="Decide your posture deliberately. To be citable in AI answers, allow the "
-                "search/answer bots (e.g. OAI-SearchBot, PerplexityBot, Google-Extended) in "
-                "robots.txt. Block only training-only bots if that's your policy.",
+                title=f"AI answer engines blocked in robots.txt: {', '.join(a['blocked_answer_bots'])}",
+                description="These answer/search crawlers are disallowed at the site root, so your "
+                "content can't be cited in ChatGPT / Perplexity / Google AI Overviews. Blocking the "
+                "answer bots is the #1 cause of AI-search invisibility.",
+                fix="Allow the answer bots (OAI-SearchBot, PerplexityBot, Google-Extended, "
+                "ChatGPT-User) in robots.txt if you want to be citable in AI answers.",
+                effort="low",
+            )
+        if a.get("blocked_training_bots"):
+            self.add_finding(
+                priority="P3",
+                title=f"AI training bots blocked (deliberate opt-out?): {', '.join(a['blocked_training_bots'])}",
+                description="These training/opt-out crawlers are disallowed. This is a common, "
+                "legitimate choice and does NOT affect whether you're cited in AI answers — flagged "
+                "only so you can confirm it's intentional.",
+                fix="No action needed if this is your data-licensing/opt-out policy. Allow them only "
+                "if you want your content used for model training.",
                 effort="low",
             )
         if not a["llms_txt"]:

@@ -73,15 +73,27 @@ class TestFindings(unittest.TestCase):
         )
 
     def test_review_without_firsthand(self):
+        # a genuine review page (rating evidence present) but no first-hand testing
         rev = (
-            "<article><h1>Best Laptops Review</h1><p>"
+            "<article><h1>Laptop Review: Model X</h1>"
+            '<div class="star-rating">Rating: 4 out of 5</div><p>'
             + " ".join(["buy"] * 40)
             + "</p></article>"
         )
         self.assertTrue(
             any(
                 "first-hand" in t.lower()
-                for t in self._titles(rev, "https://x.example/best-laptops")
+                for t in self._titles(rev, "https://x.example/laptop-review")
+            )
+        )
+
+    def test_superlative_title_alone_is_not_a_review(self):
+        # "Best Plumber in Sydney" with no rating evidence must NOT be flagged a review
+        page = "<h1>Best Plumber in Sydney</h1><p>" + " ".join(["call"] * 30) + "</p>"
+        self.assertFalse(
+            any(
+                "first-hand" in t.lower()
+                for t in self._titles(page, "https://x.example/")
             )
         )
 

@@ -38,19 +38,70 @@ _KNOWN_TYPES: dict[str, list[str]] = {
     "Review": ["itemReviewed"],
     "HowTo": ["name", "step"],
     "VideoObject": ["name", "uploadDate"],
-    "ImageObject": ["contentUrl"],
+    "ImageObject": [],  # Yoast uses url, not contentUrl — don't false-flag
     "SoftwareApplication": ["name"],
     "Restaurant": ["name"],
     "Store": ["name"],
     "MedicalBusiness": ["name"],
     "Course": ["name", "provider"],
     "JobPosting": ["title", "datePosted"],
+    # common @graph node types (Yoast/RankMath/Woo) — recognised, no hard requireds
+    "CollectionPage": [],
+    "ProfilePage": [],
+    "SearchResultsPage": [],
+    "ItemList": [],
+    "ListItem": [],
+    "Offer": [],
+    "AggregateRating": [],
+    "Rating": [],
+    "Brand": [],
+    "PostalAddress": [],
+    "ContactPoint": [],
+    "OpeningHoursSpecification": [],
+    "PropertyValue": [],
+    "Question": [],
+    "Answer": [],
+    "SiteNavigationElement": [],
+    "WPHeader": [],
+    "WPFooter": [],
+    "Service": [],
+    "Place": [],
+    "GeoCoordinates": [],
 }
 
 # lower-cased lookup for case-insensitive matching
 _KNOWN_TYPES_LOWER: dict[str, list[str]] = {
     k.lower(): v for k, v in _KNOWN_TYPES.items()
 }
+
+# types that legitimately appear multiple times in a single @graph
+_REPEATABLE_TYPES = {
+    "imageobject",
+    "listitem",
+    "offer",
+    "person",
+    "review",
+    "comment",
+    "question",
+    "answer",
+    "postaladdress",
+    "contactpoint",
+    "propertyvalue",
+    "openinghoursspecification",
+    "sitenavigationelement",
+    "place",
+}
+
+
+def _context_ok(ctx):
+    """True if @context references schema.org — handles string, list, or object."""
+    if isinstance(ctx, str):
+        return bool(_SCHEMA_ORG_RE.match(ctx))
+    if isinstance(ctx, list):
+        return any(_context_ok(c) for c in ctx)
+    if isinstance(ctx, dict):
+        return any(_context_ok(str(v)) for v in ctx.values())
+    return False
 
 
 @register_module
@@ -98,22 +149,20 @@ class SchemaValidatorModule(AuditModule):
 
         blocks_with_context = [d for d in parsed if d.get("@context") is not None]
         has_context = len(blocks_with_context) > 0 and all(
-            _SCHEMA_ORG_RE.match(str(d.get("@context", "")))
-            for d in blocks_with_context
+            _context_ok(d.get("@context")) for d in blocks_with_context
         )
 
+        # @type may be a string, a list, or (malformed) a non-string — coerce safely.
         types_found: list[str] = []
         known_types = True
         for d in expanded:
-            schema_type = d.get("@type", "")
-            if isinstance(schema_type, list):
-                types_found.extend(schema_type)
-                for t in schema_type:
-                    if t.lower() not in _KNOWN_TYPES_LOWER:
-                        known_types = False
-            elif schema_type:
-                types_found.append(schema_type)
-                if schema_type.lower() not in _KNOWN_TYPES_LOWER:
+            t = d.get("@type", "")
+            for v in t if isinstance(t, list) else [t]:
+                if not v:
+                    continue
+                v = str(v)
+                types_found.append(v)
+                if v.lower() not in _KNOWN_TYPES_LOWER:
                     known_types = False
 
         if not types_found:
@@ -122,22 +171,22 @@ class SchemaValidatorModule(AuditModule):
         # check required properties
         has_required_props = True
         for d in expanded:
-            schema_type = d.get("@type", "")
-            if isinstance(schema_type, list):
-                check_types = schema_type
-            else:
-                check_types = [schema_type] if schema_type else []
-            for t in check_types:
-                required = _KNOWN_TYPES_LOWER.get(t.lower(), [])
-                for prop in required:
+            t = d.get("@type", "")
+            check_types = t if isinstance(t, list) else ([t] if t else [])
+            for v in check_types:
+                for prop in _KNOWN_TYPES_LOWER.get(str(v).lower(), []):
                     if not d.get(prop):
                         has_required_props = False
                         break
 
-        # duplicate types check
+        # duplicate types check — ignore types that legitimately repeat in a @graph
+        # (ImageObject, ListItem, Offer, Person, etc.), so Yoast/Woo graphs don't
+        # get a false "duplicate @type" finding.
         type_counts: dict[str, int] = {}
         for t in types_found:
             key = t.lower()
+            if key in _REPEATABLE_TYPES:
+                continue
             type_counts[key] = type_counts.get(key, 0) + 1
         no_duplicate_types = all(c == 1 for c in type_counts.values())
 
@@ -156,7 +205,7 @@ class SchemaValidatorModule(AuditModule):
         self_serving_review = False
         for d in expanded:
             t = d.get("@type", "")
-            tset = {x.lower() for x in (t if isinstance(t, list) else [t]) if x}
+            tset = {str(x).lower() for x in (t if isinstance(t, list) else [t]) if x}
             if tset & set(_ORG_LIKE) and (d.get("aggregateRating") or d.get("review")):
                 self_serving_review = True
                 break

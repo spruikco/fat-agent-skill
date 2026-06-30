@@ -53,29 +53,41 @@ def canonical_host_issue(html, url):
     if canon.startswith("/") or not re.match(r"https?://", canon):
         return None  # relative/self canonical
     cu, pu = urllib.parse.urlparse(canon), urllib.parse.urlparse(url)
-    if cu.scheme != pu.scheme and pu.scheme:
-        return f"Canonical scheme ({cu.scheme}) differs from the page ({pu.scheme})."
-    ch, ph = cu.netloc.lower(), pu.netloc.lower()
-    if ph and ch != ph:
-        if ch.lstrip("www.") == ph.lstrip("www.") and "www." in (ch + ph):
-            return (
-                f"Canonical host '{ch}' differs from page host '{ph}' (www vs non-www)."
-            )
-        return f"Canonical points to a different host: '{ch}' vs page '{ph}'."
+    # http→https and apex↔www are *correct* consolidation, not "split signals" —
+    # the audited URL is just a non-canonical variant pointing at its canonical.
+    # Only a genuinely different registrable host is a real problem (use a proper
+    # prefix strip, not lstrip("www.") which mangles hosts like "west.com").
+    ch = cu.netloc.lower()
+    ph = pu.netloc.lower()
+    ch = ch[4:] if ch.startswith("www.") else ch
+    ph = ph[4:] if ph.startswith("www.") else ph
+    if ph and ch and ch != ph:
+        return f"Canonical points to a different host: '{cu.netloc}' vs page '{pu.netloc}'."
     return None
 
 
 def interstitial_signals(html):
+    """Conservative: only true entry-modal / paywall / exit-intent patterns, and
+    NOT cookie/consent banners (legally required) or hidden component-library modals.
+    Static HTML can't see visibility reliably, so this errs toward NOT flagging."""
     low = html.lower()
-    hits = re.findall(
-        r'class=["\'][^"\']*(?:modal|popup|pop-up|interstitial|overlay|newsletter-?(?:modal|popup)|'
-        r"subscribe-?(?:modal|popup)|lightbox|gdpr-?wall|paywall)",
+    consent = bool(re.search(r"cookie|consent|gdpr", low))
+    # explicit interstitial-ish containers (exclude generic hidden .modal)
+    named = re.findall(
+        r'class=["\'][^"\']*(?:interstitial|paywall|exit-?intent|welcome-?(?:modal|popup)|'
+        r"newsletter-?(?:modal|popup)|subscribe-?(?:modal|popup))",
         low,
     )
-    fixed_fullscreen = bool(
-        re.search(r"position:\s*fixed[^}]*(?:width:\s*100|inset:\s*0|top:\s*0)", low)
+    # a generic modal/popup ONLY if shown on load (open/active state in initial HTML)
+    open_on_load = bool(
+        re.search(
+            r'class=["\'][^"\']*(?:modal|popup|lightbox|overlay)[^"\']*'
+            r"(?:--open|\bis-open\b|\bis-active\b|\bactive\b|\bshow\b|\bopen\b)",
+            low,
+        )
     )
-    return {"count": len(hits), "fixed_fullscreen": fixed_fullscreen}
+    intrusive = (bool(named) or open_on_load) and not consent
+    return {"count": len(named) + (1 if open_on_load else 0), "intrusive": intrusive}
 
 
 def image_signals(html):
@@ -149,7 +161,7 @@ class TechnicalSEOModule(AuditModule):
         total += redirects
 
         inter = analysis["interstitial"]
-        ux = 15 if inter["count"] == 0 else (7 if inter["count"] == 1 else 0)
+        ux = 7 if inter["intrusive"] else 15  # only deduct when we actually flag it
         details["page_experience"] = {"score": ux, "max": 15}
         total += ux
 
@@ -198,13 +210,14 @@ class TechnicalSEOModule(AuditModule):
                 effort="low",
             )
         inter = a["interstitial"]
-        if inter["count"] >= 1 and inter["fixed_fullscreen"]:
+        if inter["intrusive"]:
             self.add_finding(
-                priority="P2",
-                title="Possible intrusive interstitial / pop-up",
-                description="A full-screen fixed overlay (modal/pop-up/paywall pattern) was "
-                "detected. Intrusive interstitials are a confirmed page-experience demotion on "
-                "mobile.",
+                priority="P3",
+                title="Possible intrusive interstitial / pop-up (verify)",
+                description="An entry modal / paywall / exit-intent pattern shown on load was "
+                "detected (cookie/consent banners excluded). Intrusive interstitials are a "
+                "page-experience demotion on mobile — but static HTML can't confirm visibility, "
+                "so verify it actually blocks content on entry.",
                 fix="Avoid full-screen interstitials on entry; use a non-blocking banner or a "
                 "smaller, dismissible prompt.",
                 effort="medium",

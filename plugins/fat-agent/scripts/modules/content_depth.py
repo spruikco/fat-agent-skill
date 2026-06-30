@@ -18,19 +18,27 @@ all from the live HTML:
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 from modules import register_module
 from modules.base import AuditModule
 
+# Tightened with trailing boundaries/stems so "lawn", "taxi", "taxonomy",
+# "investigative", "drugstore", "treatment plant" etc. don't trigger YMYL.
 _YMYL_RE = re.compile(
-    r"\b(health|medical|medicine|symptom|diagnos|treatment|drug|disease|mental|"
-    r"finance|financial|invest|loan|mortgage|insurance|tax|retirement|crypto|"
-    r"legal|law|lawyer|attorney|immigration|divorce|safety|nutrition|pregnan)",
+    r"\b(health(?:care|y)?|medical|medicine|symptoms?|diagnos(?:is|tic)|"
+    r"disease|mental[- ]health|finance|financial|invest(?:ing|ment|or)?|loans?|"
+    r"mortgages?|insurance|tax(?:es|ation|payer)?|retirement|cryptocurrency|"
+    r"legal|lawyer|attorney|immigration|divorce|prescription|nutritional?|"
+    r"pregnan(?:t|cy))\b",
     re.IGNORECASE,
 )
+# True ad-network signals only — "banner"/"sponsor" hit hero/cookie/announcement
+# banners and sponsored-athlete prose, so they're excluded.
 _AD_RE = re.compile(
     r"adsbygoogle|googlesyndication|data-ad-client|data-ad-slot|"
-    r'class=["\'][^"\']*\b(?:ad|ads|advert|banner|sponsor)\b|id=["\'][^"\']*\bad[-_]',
+    r'class=["\'][^"\']*\bad-?(?:slot|unit|container|wrapper)\b|'
+    r'id=["\'][^"\']*\bad[-_]',
     re.IGNORECASE,
 )
 _FRESH_RE = re.compile(
@@ -38,8 +46,15 @@ _FRESH_RE = re.compile(
     r"last[\s-]?updated|updated on|published on|reviewed on",
     re.IGNORECASE,
 )
+# "review/vs/compared" only (not bare "best"); confirmed by a rating/pros-cons
+# signal or Review/Product schema in is_review().
 _REVIEW_CTX_RE = re.compile(
-    r"\b(review|vs\.?|versus|best|compared?|hands[- ]on)\b", re.IGNORECASE
+    r"\b(review|versus|compared?\s+to|head[- ]to[- ]head)\b|\bvs\.?\b", re.IGNORECASE
+)
+_REVIEW_EVIDENCE_RE = re.compile(
+    r'"@type"\s*:\s*"(review|product)"|pros?\s*(?:&|and|/)\s*cons?|'
+    r"star[- ]rating|aggregaterating|out of 5|/5\b|rating",
+    re.IGNORECASE,
 )
 _FIRSTHAND_RE = re.compile(
     r"we tested|i tested|our test|hands[- ]on|in our (?:test|experience)|"
@@ -55,12 +70,18 @@ def _visible_text(html):
 
 
 def _is_article(html, url):
-    low = (html + " " + url).lower()
-    return bool(
-        "<article" in low
-        or re.search(r'"(?:article|blogposting|newsarticle)"', low)
-        or re.search(r"/blog/|/news/|/article/|/post/|/guide", low)
-    )
+    """True only on a per-page signal — NOT a /blog/ link sitting in the nav/footer.
+
+    Requires the page's OWN URL path to be article-like, OR Article-family JSON-LD
+    on this page, OR a small number of top-level <article> elements (not a card grid).
+    """
+    low = html.lower()
+    path = urllib.parse.urlparse(url).path.lower() if url else ""
+    if re.search(r"/blog/|/news/|/article/|/post/|/guides?/", path):
+        return True
+    if re.search(r'"@type"\s*:\s*"(article|blogposting|newsarticle)"', low):
+        return True
+    return "<article" in low and low.count("<article") <= 2
 
 
 def lead_answer_present(html):
@@ -113,7 +134,8 @@ class ContentDepthModule(AuditModule):
             "originality": originality,
             "originality_score": sum(originality.values()),
             "lead_answer": lead_answer_present(html),
-            "is_review": bool(_REVIEW_CTX_RE.search(heading_text)),
+            "is_review": bool(_REVIEW_CTX_RE.search(heading_text))
+            and bool(_REVIEW_EVIDENCE_RE.search(html)),
             "firsthand": bool(_FIRSTHAND_RE.search(text)),
             "discover": {
                 "large_image_preview": bool(

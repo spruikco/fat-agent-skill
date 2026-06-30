@@ -49,6 +49,39 @@ _RELATED_RE = re.compile(
 )
 _OOS_RE = re.compile(r"out of stock|sold out|currently unavailable", re.IGNORECASE)
 
+_JSON_LD_RE = re.compile(
+    r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _is_product_type(t):
+    for v in t if isinstance(t, list) else [t]:
+        if isinstance(v, str) and v.lower() == "product":
+            return True
+    return False
+
+
+def find_product_nodes(html):
+    """All Product JSON-LD nodes — handles top-level objects, arrays, @graph, and
+    a list-valued @type (the shapes Yoast/RankMath/WooCommerce actually emit)."""
+    nodes = []
+    for raw in _JSON_LD_RE.findall(html):
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        for item in data if isinstance(data, list) else [data]:
+            if not isinstance(item, dict):
+                continue
+            candidates = (
+                item["@graph"] if isinstance(item.get("@graph"), list) else [item]
+            )
+            for node in candidates:
+                if isinstance(node, dict) and _is_product_type(node.get("@type")):
+                    nodes.append(node)
+    return nodes
+
 
 @register_module
 class EcommerceModule(AuditModule):
@@ -62,7 +95,7 @@ class EcommerceModule(AuditModule):
     @classmethod
     def detect(cls, html: str) -> bool:
         """Return True when Product schema or cart elements are found."""
-        if re.search(r'"@type"\s*:\s*"Product"', html, re.IGNORECASE):
+        if find_product_nodes(html):
             return True
         for pattern in _CART_PATTERNS:
             if pattern.search(html):
@@ -74,10 +107,10 @@ class EcommerceModule(AuditModule):
     # ------------------------------------------------------------------
 
     def analyse(self, html: str, url: str = "", headers: dict = None, **kwargs) -> dict:
-        product_schema = bool(
-            re.search(r'"@type"\s*:\s*"Product"', html, re.IGNORECASE)
-        )
-        schema_valid = self._validate_product_schema(html) if product_schema else False
+        products = find_product_nodes(html)
+        product_schema = bool(products)
+        # valid when any Product node has name + offers (handles @graph/arrays)
+        schema_valid = any(p.get("name") and p.get("offers") for p in products)
 
         cart = any(p.search(html) for p in _CART_PATTERNS)
         price = bool(

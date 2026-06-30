@@ -107,14 +107,20 @@ def faceted_links(html):
 
 
 def js_only_nav(html):
+    """Count <a> that crawlers can't follow as navigation — excluding UI controls
+    (role=button / aria-*) and named-anchor targets (<a name>/<a id> with no href),
+    which are not navigation links."""
     count = 0
     for tag in re.findall(r"<a\b[^>]*>", html, re.IGNORECASE):
+        low = tag.lower()
         href = re.search(r'href=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        is_control = bool(re.search(r'role=["\']button["\']|\baria-\w', low))
+        is_anchor_target = bool(re.search(r"\b(?:name|id)=", low))
         if not href:
-            count += 1
-        elif (
-            href.group(1).strip().lower().startswith(("javascript:", "#"))
-            and "onclick" in tag.lower()
+            if not (is_control or is_anchor_target):
+                count += 1
+        elif href.group(1).strip().lower().startswith(("javascript:", "#")) and (
+            "onclick" in low and not is_control
         ):
             count += 1
     return count

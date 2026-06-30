@@ -55,10 +55,22 @@ class TestFollow(unittest.TestCase):
         self.assertTrue(any("temporary" in i["issue"].lower() for i in r["issues"]))
 
     def test_soft_404(self):
-        t = {"https://x/missing": (200, None, "<h1>Page not found</h1> sorry")}
+        t = {
+            "https://x/missing": (
+                200,
+                None,
+                "<title>404 Page Not Found</title><h1>Oops</h1>",
+            )
+        }
         r = redirects.follow("https://x/missing", make_fetcher(t))
         self.assertTrue(r["soft_404"])
         self.assertTrue(any("soft 404" in i["issue"].lower() for i in r["issues"]))
+
+    def test_article_about_404s_is_not_soft_404(self):
+        body = "<title>How to Fix a Page Not Found (404) Error on Your Website</title><p>...</p>"
+        t = {"https://x/blog/fix-404": (200, None, body)}
+        r = redirects.follow("https://x/blog/fix-404", make_fetcher(t))
+        self.assertFalse(r["soft_404"])
 
     def test_meta_refresh(self):
         t = {

@@ -1,5 +1,51 @@
 # Changelog
 
+## [2.8.0] - 2026-06-30
+
+### Fixed — adversarial self-review ("run a skeptic"): false positives & wrong deliverables
+Cry-wolf false positives (always-on modules firing on the wrong pages):
+- **YMYL detection** no longer prefix-matches innocent words ("lawn", "taxi",
+  "taxonomy", "investigative", "drugstore", "loaner").
+- **`is_article`** now needs a per-page signal (own URL path / Article schema /
+  on-page `<article>`) — a `/blog/` link in the nav/footer no longer cascades
+  editorial findings (incl. a P1) onto plumber homepages and app shells.
+- **eeat "trust pages"** downgraded P1→P3 and reworded — it's a page-level
+  observation (the footer may not render in this DOM), not a site-wide verdict.
+- **AI-crawler block**: blocking *training/opt-out* bots (GPTBot/CCBot/Google-Extended)
+  is now P3 informational and doesn't tank the score; only blocking *answer* bots
+  (OAI-SearchBot/PerplexityBot) is P1.
+- **Canonical host**: http→https and apex↔www are treated as correct consolidation,
+  not a P1 "split signals" (and fixed the `lstrip("www.")` footgun that mangled
+  hosts like "west.com").
+- **"Review" detection** now requires rating/Review-schema evidence, not just the
+  word "best"/"compare" in the title.
+- **Interstitial / ad-density / JS-only-nav** heuristics tightened to exclude
+  fixed headers, cookie/consent banners, hero/announcement banners, and UI
+  toggles / `<a name>` anchor targets; interstitial score deduction no longer
+  silent.
+
+Wrong client deliverables:
+- **suggest_schema currency** no longer guesses USD from a bare "$" (jQuery!) —
+  explicit signals only.
+- **PDP with a "related products" grid** is classified PDP again (was PLP), so the
+  Product JSON-LD is no longer dropped.
+- **`x.com` substring** no longer tags netflix.com/dropbox.com as your Twitter;
+  hyphenated brands ("Mercedes-Benz") no longer truncated.
+- **ecommerce** now parses JSON-LD properly — Product in `@graph`/arrays/list-`@type`
+  (Yoast/RankMath/Woo) is detected instead of false "missing offers".
+- **schema_validator**: non-string `@type` no longer crashes; `@context` as a
+  list/object is recognised; legit-repeatable `@graph` types (ImageObject, etc.)
+  and common page types no longer trigger false "duplicate/unknown @type".
+- **gsc**: a `"4.2%"` CTR string parses instead of crashing.
+- **SEO module** max corrected 61→56 (a perfect page can now reach 100%).
+
+### Known / tracked (not in this release)
+- The **headline FAT grade still composes only SEO/Security/A11y/Performance** —
+  the 18 newer modules emit findings but don't move the number, and the
+  Performance/Security headline scores aren't yet labelled "heuristic/unmeasured"
+  in the client report. This is a deliberate scoring-composition redesign for a
+  dedicated pass.
+
 ## [2.7.0] - 2026-06-30
 
 ### Changed — performance scoring honesty & calibration

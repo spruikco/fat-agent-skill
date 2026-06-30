@@ -230,4 +230,7 @@ class SEOModule(AuditModule):
                 effort="low",
             )
 
-        return {"total": min(total, 61), "max": 61, "details": details}
+        # sub-scores sum to 56 (title_meta 18 + headings 8 + canonical 5 +
+        # structured 10 + social 10 + robots 5); max was wrongly 61 → a perfect
+        # page could never reach 100%.
+        return {"total": min(total, 56), "max": 56, "details": details}

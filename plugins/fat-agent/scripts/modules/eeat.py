@@ -16,6 +16,7 @@ entity signals) reward — all detectable from the live HTML, no codebase needed
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 from modules import register_module
 from modules.base import AuditModule
@@ -41,14 +42,18 @@ _TRUST_PAGES = {
 }
 
 
-def _has_article_context(html):
-    """Looks like editorial content (so author/citation findings are relevant)."""
+def _has_article_context(html, url=""):
+    """Editorial content — per-page signal only, NOT a /blog/ link in the nav/footer.
+
+    (Author/citation findings only make sense on actual articles.)
+    """
     low = html.lower()
-    return bool(
-        "<article" in low
-        or re.search(r'"@type"\s*:\s*"(article|blogposting|newsarticle)"', low)
-        or re.search(r"/blog/|/news/|/article/|/post/", low)
-    )
+    path = urllib.parse.urlparse(url).path.lower() if url else ""
+    if re.search(r"/blog/|/news/|/article/|/post/|/guides?/", path):
+        return True
+    if re.search(r'"@type"\s*:\s*"(article|blogposting|newsarticle)"', low):
+        return True
+    return "<article" in low and low.count("<article") <= 2
 
 
 def _author_signals(html):
@@ -169,7 +174,7 @@ class EEATModule(AuditModule):
 
     def analyse(self, html: str, url: str = "", headers: dict = None, **kwargs) -> dict:
         return {
-            "is_article": _has_article_context(html),
+            "is_article": _has_article_context(html, url),
             "author": _author_signals(html),
             "trust_pages": _trust_pages(html),
             "org": _org_entity(html),
@@ -261,13 +266,16 @@ class EEATModule(AuditModule):
 
         trust = a["trust_pages"]
         missing_trust = [k for k in ("about", "contact", "privacy") if not trust.get(k)]
+        # Page-level observation (this page's DOM may not render the global footer,
+        # and the pages may well exist) — informational, not a hard finding.
         if missing_trust:
             self.add_finding(
-                priority="P1" if "contact" in missing_trust else "P2",
-                title=f"Missing trust page link(s): {', '.join(missing_trust)}",
-                description="Core trust pages weren't linked from this page. About/Contact/Privacy "
-                "are baseline trust signals (and required for YMYL).",
-                fix="Link About, Contact, and Privacy from the global header or footer.",
+                priority="P3",
+                title=f"Trust page(s) not linked from this page: {', '.join(missing_trust)}",
+                description="About/Contact/Privacy weren't linked in this page's markup. They're "
+                "baseline trust signals (and matter most for YMYL) — verify they exist and are "
+                "linked site-wide (a crawl or the homepage is the right place to confirm).",
+                fix="Ensure About, Contact, and Privacy are linked from the global header or footer.",
                 effort="low",
             )
 

@@ -117,12 +117,20 @@ def present_types(html):
     return types
 
 
+def _title_brand(title):
+    """First segment of a <title>, split only on a *separator* (` | `, ` - `,
+    ` – `) — NOT an intra-word hyphen, so "Mercedes-Benz of Sydney" stays intact."""
+    if not title:
+        return None
+    return re.split(r"\s+[|–—\-]\s+", title)[0].strip() or None
+
+
 def _site_name(html):
     return (
         _meta(html, prop="og:site_name")
         or _meta(html, name="application-name")
         or _next(d.get("name") for d in parse_jsonld(html) if d.get("name"))
-        or (_title(html) or "").split("|")[0].split("-")[0].strip()
+        or _title_brand(_title(html))
         or None
     )
 
@@ -166,9 +174,13 @@ def _logo(html, base):
 def _social_profiles(html):
     found = {}
     for href in _all_links(html):
+        netloc = urllib.parse.urlparse(href).netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
         for host, label in _SOCIAL_HOSTS.items():
-            if host in href.lower() and label not in found:
-                # skip share/intent links
+            # match the actual host, not a substring — so "x.com" doesn't tag
+            # netflix.com/dropbox.com, and "facebook.com" doesn't tag a subpath
+            if (netloc == host or netloc.endswith("." + host)) and label not in found:
                 if "share" in href.lower() or "intent" in href.lower():
                     continue
                 found[label] = href.split("?")[0]
@@ -222,15 +234,31 @@ def _price(html):
 
 
 def _currency(html):
-    return (
+    """Currency from EXPLICIT signals only.
+
+    Never infer USD from a bare "$" — `$` is near-ubiquitous (jQuery, template
+    literals) and would write the wrong currency into paste-ready Offer JSON-LD.
+    Falls back to a currency code sitting next to a price, else None (placeholder).
+    """
+    explicit = (
         _meta(html, prop="product:price:currency")
         or _meta(html, prop="og:price:currency")
-        or (
-            "USD"
-            if "$" in html
-            else "GBP" if "£" in html else "EUR" if "€" in html else None
+        or _next(
+            d.get("offers", {}).get("priceCurrency")
+            for d in parse_jsonld(html)
+            if isinstance(d.get("offers"), dict)
         )
     )
+    if explicit:
+        return explicit
+    # an ISO code adjacent to a number, e.g. "AUD 29.99" / "29.99 GBP"
+    m = re.search(
+        r"\b(USD|AUD|GBP|EUR|CAD|NZD|JPY)\b\s*[\d.]|[\d.]\s*\b(USD|AUD|GBP|EUR|CAD|NZD|JPY)\b",
+        html,
+    )
+    if m:
+        return m.group(1) or m.group(2)
+    return None
 
 
 def _availability(html):
@@ -346,19 +374,22 @@ def classify(html, url=""):
     ):
         labels.add("article")
 
-    product = (
+    # A STRONG single-product signal (og:type=product, Product schema, /product/
+    # path) means PDP even when the page also shows a "related products" grid —
+    # otherwise the most important deliverable (Product JSON-LD) is dropped.
+    strong_product = bool(
         og_type == "product"
         or "product" in types
-        or re.search(r"/product/|/products/|/p/|/item/", path)
-        or (
-            _count_products(html) <= 1
-            and bool(re.search(r"add[- ]to[- ]cart", html, re.IGNORECASE))
-        )
+        or re.search(r"/product/|/products/[^/]+|/p/|/item/", path)
     )
-    listing = (
+    listing = not strong_product and bool(
         _count_products(html) >= 2
         or "itemlist" in types
         or re.search(r"/shop/?$|/category/|/collections?/|/products/?$", path)
+    )
+    product = strong_product or (
+        _count_products(html) <= 1
+        and bool(re.search(r"add[- ]to[- ]cart", html, re.IGNORECASE))
     )
     if listing:
         labels.add("plp")

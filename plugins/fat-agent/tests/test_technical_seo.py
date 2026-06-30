@@ -12,14 +12,22 @@ from modules.technical_seo import TechnicalSEOModule
 
 
 class TestCanonicalHost(unittest.TestCase):
-    def test_www_vs_non_www(self):
+    def test_www_vs_non_www_is_expected_consolidation(self):
+        # auditing the apex while the page canonicalises to www is CORRECT, not a finding
         html = '<link rel="canonical" href="https://www.x.example/p">'
-        issue = ts.canonical_host_issue(html, "https://x.example/p")
-        self.assertIn("www", issue)
+        self.assertIsNone(ts.canonical_host_issue(html, "https://x.example/p"))
 
-    def test_scheme_mismatch(self):
-        html = '<link rel="canonical" href="http://x.example/p">'
-        self.assertIn("scheme", ts.canonical_host_issue(html, "https://x.example/p"))
+    def test_http_to_https_is_expected(self):
+        # auditing http:// while the page canonicalises to https is CORRECT
+        html = '<link rel="canonical" href="https://x.example/p">'
+        self.assertIsNone(ts.canonical_host_issue(html, "http://x.example/p"))
+
+    def test_www_prefix_strip_does_not_mangle_hosts(self):
+        # regression for the lstrip("www.") footgun — w-leading hosts aren't www variants
+        html = '<link rel="canonical" href="https://west.example/p">'
+        self.assertIn(
+            "different host", ts.canonical_host_issue(html, "https://east.example/p")
+        )
 
     def test_foreign_host(self):
         html = '<link rel="canonical" href="https://other.example/p">'

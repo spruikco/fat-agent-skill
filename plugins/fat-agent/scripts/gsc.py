@@ -56,6 +56,19 @@ def ctr_benchmark(position):
     return 0.008
 
 
+def _parse_ctr(value, clicks, impressions):
+    """Parse CTR from a GSC export — handles a "4.2%" string (GSC UI) or a float;
+    falls back to clicks/impressions. The GSC UI shows CTR as a percentage, and the
+    docstring invites manual CSV→JSON, so a "%" string must not crash the run."""
+    if value is not None:
+        s = str(value).strip()
+        try:
+            return float(s.rstrip("%")) / (100.0 if s.endswith("%") else 1.0)
+        except (TypeError, ValueError):
+            pass
+    return clicks / impressions if impressions else 0.0
+
+
 def load_rows(data):
     """Normalise GSC export shapes into a list of row dicts.
 
@@ -76,12 +89,7 @@ def load_rows(data):
                 page = r["keys"][1]
         clicks = float(r.get("clicks", 0) or 0)
         impressions = float(r.get("impressions", 0) or 0)
-        ctr = r.get("ctr")
-        ctr = (
-            float(ctr)
-            if ctr is not None
-            else (clicks / impressions if impressions else 0.0)
-        )
+        ctr = _parse_ctr(r.get("ctr"), clicks, impressions)
         position = r.get("position")
         position = float(position) if position is not None else None
         rows.append(

@@ -122,7 +122,18 @@ def _classify(start, chain, loop, meta_refresh, final_body):
                 "issue": "Meta-refresh redirect — use an HTTP 301 instead",
             }
         )
-    soft_404 = final["status"] == 200 and bool(_NOT_FOUND_RE.search(final_body))
+    # Soft-404 only when the *title* is a short error title (e.g. "404 Page Not
+    # Found") — not when "page not found" appears in the body of a legitimate
+    # article about 404 errors. A real 404 page has a short error-y title.
+    title_m = re.search(
+        r"<title[^>]*>(.*?)</title>", final_body, re.IGNORECASE | re.DOTALL
+    )
+    title = re.sub(r"<[^>]+>", " ", title_m.group(1)) if title_m else ""
+    soft_404 = (
+        final["status"] == 200
+        and bool(_NOT_FOUND_RE.search(title))
+        and len(title.split()) <= 8
+    )
     if soft_404:
         issues.append(
             {
