@@ -163,7 +163,12 @@ class TestCmdAudit:
         analyse_output = json.dumps({"seo": {}, "security": {}})
         score_output = json.dumps(
             {
-                "overall_score": 75,
+                "overall": {
+                    "score": 75,
+                    "grade": "C",
+                    "capped": False,
+                    "blocking": {"p0": 0, "p1": 0},
+                },
                 "seo": {"score": 80},
                 "security": {"score": 70},
                 "accessibility": {"score": 60},
@@ -220,7 +225,12 @@ class TestCmdAudit:
         analyse_output = json.dumps({"seo": {}})
         score_output = json.dumps(
             {
-                "overall_score": 30,
+                "overall": {
+                    "score": 30,
+                    "grade": "C",
+                    "capped": False,
+                    "blocking": {"p0": 0, "p1": 0},
+                },
                 "seo": {"score": 30},
                 "security": {"score": 30},
                 "accessibility": {"score": 30},
@@ -248,7 +258,12 @@ class TestCmdAudit:
         analyse_output = json.dumps({"seo": {}})
         score_output = json.dumps(
             {
-                "overall_score": 80,
+                "overall": {
+                    "score": 80,
+                    "grade": "C",
+                    "capped": False,
+                    "blocking": {"p0": 0, "p1": 0},
+                },
                 "seo": {"score": 80},
                 "security": {"score": 80},
                 "accessibility": {"score": 80},
@@ -430,7 +445,12 @@ class TestMain:
         mock_fetch.return_value = ("<html></html>", {})
         score_data = json.dumps(
             {
-                "overall_score": 80,
+                "overall": {
+                    "score": 80,
+                    "grade": "C",
+                    "capped": False,
+                    "blocking": {"p0": 0, "p1": 0},
+                },
                 "seo": {"score": 80},
                 "security": {"score": 80},
                 "accessibility": {"score": 80},

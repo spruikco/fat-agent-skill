@@ -158,10 +158,11 @@ def test_score_missing_everything():
     mod = AccessibilityModule()
     result = mod.score(analysis)
     assert result["total"] < 20
+    # missing alt is P1 (matches the core analyser), not a grade-capping P0
     priorities = [f["priority"] for f in mod.findings]
-    assert "P0" in priorities
     assert "P1" in priorities
     assert "P2" in priorities
+    assert "P0" not in priorities
 
 
 def test_score_empty_headings_penalty():

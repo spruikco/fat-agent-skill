@@ -53,7 +53,7 @@ _REVIEW_CTX_RE = re.compile(
 )
 _REVIEW_EVIDENCE_RE = re.compile(
     r'"@type"\s*:\s*"(review|product)"|pros?\s*(?:&|and|/)\s*cons?|'
-    r"star[- ]rating|aggregaterating|out of 5|/5\b|rating",
+    r"star[- ]rating|aggregaterating|\d\s*(?:out of|/)\s*5\b|\brating[:\s]+\d",
     re.IGNORECASE,
 )
 _FIRSTHAND_RE = re.compile(

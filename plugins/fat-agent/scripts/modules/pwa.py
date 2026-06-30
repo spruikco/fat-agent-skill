@@ -90,11 +90,11 @@ class PWAModule(AuditModule):
 
         if not analysis.get("has_manifest"):
             self.add_finding(
-                priority="P0",
+                priority="P3",
                 title="No web app manifest found",
                 description="No <link rel='manifest'> was detected. A web app manifest "
-                "is required for PWA installability and defines app name, "
-                "icons, theme, and start URL.",
+                "enables PWA installability — relevant only if you want an installable "
+                "app experience; most marketing/content sites don't need one.",
                 fix="Create a manifest.json (or manifest.webmanifest) and add "
                 "<link rel='manifest' href='/manifest.json'> to the <head>.",
                 effort="low",

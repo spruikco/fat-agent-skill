@@ -104,7 +104,8 @@ class LinksModule(AuditModule):
                 external_count += 1
                 rel_m = _REL_RE.search(tag)
                 rel_val = rel_m.group(1).lower() if rel_m else ""
-                if "noopener" not in rel_val or "noreferrer" not in rel_val:
+                # noopener alone is sufficient (modern browsers); noreferrer optional
+                if "noopener" not in rel_val:
                     external_missing_noopener += 1
             else:
                 internal_count += 1

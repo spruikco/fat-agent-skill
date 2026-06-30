@@ -33,14 +33,15 @@ TEMPLATES_DIR = os.path.join(
 
 
 def grade_from_score(score: int) -> str:
-    """Return letter grade from numeric score."""
+    """Return letter grade — bands match calculate-score.py / generate-report.py
+    (A>=90, B>=75, C>=60, D>=40) so the same score grades identically everywhere."""
     if score >= 90:
         return "A"
-    elif score >= 80:
+    elif score >= 75:
         return "B"
-    elif score >= 70:
-        return "C"
     elif score >= 60:
+        return "C"
+    elif score >= 40:
         return "D"
     else:
         return "F"
@@ -106,12 +107,18 @@ def _build_module_scores_section(module_scores: dict) -> str:
     if not module_scores:
         return ""
 
+    def _pct(info):
+        # module score() returns {"total","max"}; older callers used {"score"}.
+        total = info.get("total", info.get("score", 0))
+        mx = info.get("max", 100) or 100
+        return round(total / mx * 100)
+
     rows = []
     for key, info in sorted(
-        module_scores.items(), key=lambda x: x[1].get("score", 0), reverse=True
+        module_scores.items(), key=lambda x: _pct(x[1]), reverse=True
     ):
-        score = info.get("score", 0)
-        label = info.get("label", key)
+        score = _pct(info)
+        label = info.get("label") or key.replace("_", " ").title()
         grade = grade_from_score(score)
         rows.append(
             f'<div class="module-row">'
@@ -163,11 +170,19 @@ def generate_dashboard(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    overall_score = scores.get("overall_score", 0)
-    seo_score = scores.get("seo_score", 0)
-    security_score = scores.get("security_score", 0)
-    accessibility_score = scores.get("accessibility_score", 0)
-    performance_score = scores.get("performance_score", 0)
+    # scores JSON is nested ({"overall":{"score":..}, "seo":{"score":..}}); fall
+    # back to the legacy flat keys if present.
+    def _cat(name):
+        v = scores.get(name)
+        if isinstance(v, dict):
+            return v.get("score", 0)
+        return scores.get(f"{name}_score", 0)
+
+    overall_score = _cat("overall")
+    seo_score = _cat("seo")
+    security_score = _cat("security")
+    accessibility_score = _cat("accessibility")
+    performance_score = _cat("performance")
     findings = scores.get("findings", [])
     module_scores = scores.get("module_scores", {})
 

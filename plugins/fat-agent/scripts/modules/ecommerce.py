@@ -62,24 +62,28 @@ def _is_product_type(t):
     return False
 
 
+def _walk_products(obj, out):
+    """Recursively collect any dict whose @type is Product — catches top-level
+    objects, arrays, @graph (list OR dict), and Product nested under mainEntity/item
+    (the shapes Yoast/RankMath/WooCommerce actually emit)."""
+    if isinstance(obj, dict):
+        if _is_product_type(obj.get("@type")):
+            out.append(obj)
+        for v in obj.values():
+            _walk_products(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _walk_products(v, out)
+
+
 def find_product_nodes(html):
-    """All Product JSON-LD nodes — handles top-level objects, arrays, @graph, and
-    a list-valued @type (the shapes Yoast/RankMath/WooCommerce actually emit)."""
-    nodes = []
+    nodes: list = []
     for raw in _JSON_LD_RE.findall(html):
         try:
             data = json.loads(raw)
         except (json.JSONDecodeError, ValueError):
             continue
-        for item in data if isinstance(data, list) else [data]:
-            if not isinstance(item, dict):
-                continue
-            candidates = (
-                item["@graph"] if isinstance(item.get("@graph"), list) else [item]
-            )
-            for node in candidates:
-                if isinstance(node, dict) and _is_product_type(node.get("@type")):
-                    nodes.append(node)
+        _walk_products(data, nodes)
     return nodes
 
 

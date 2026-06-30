@@ -269,7 +269,10 @@ def calculate_security_score(headers: dict, html_security: dict = None) -> dict:
             "score": score,
             "max": 100,
             "details": details,
-            "note": "No response headers available — header-based scoring incomplete",
+            "assessed": False,
+            "measured": False,
+            "note": "Not assessed — no response headers (run with --fetch against the live URL). "
+            "Excluded from the overall grade rather than scored as a failure.",
         }
 
     h = {k.lower(): v for k, v in headers.items()}
@@ -586,56 +589,98 @@ def calculate_performance_score(performance: dict) -> dict:
     details["lazy_loading"] = {"score": lazy_pts, "max": 10}
     score += lazy_pts
 
-    return {"score": min(score, 100), "max": 100, "details": details}
+    return {
+        "score": min(score, 100),
+        "max": 100,
+        "details": details,
+        # markup proxy, NOT measured CWV — present as "heuristic" in reports and
+        # lead with real Lighthouse/PageSpeed against the live URL.
+        "measured": False,
+        "method": "html-heuristic",
+        "note": "Heuristic (markup proxy) — not measured Core Web Vitals. Run "
+        "Lighthouse/PageSpeed on the live URL and calibrate against ranking competitors.",
+    }
+
+
+def _grade(score):
+    if score >= 90:
+        return "A"
+    if score >= 75:
+        return "B"
+    if score >= 60:
+        return "C"
+    if score >= 40:
+        return "D"
+    return "F"
 
 
 def calculate_fat_score(
-    seo_score: int, security_score: int, a11y_score: int, perf_score: int = None
+    seo_score: int,
+    security_score: int,
+    a11y_score: int,
+    perf_score: int = None,
+    findings: list = None,
+    assessed: dict = None,
 ) -> dict:
-    """
-    Overall FAT Score — weighted composite:
-      SEO:            30%
-      Security:       25%
-      Accessibility:  30%
-      Performance:    15%
+    """Overall FAT Score — a weighted composite of the measured categories, then
+    capped by the severity of *all* findings (categories + modules).
 
-    If performance score not available, uses original 3-category weighting.
+    Weights are tuned for an SEO tool: SEO dominates and accessibility is a
+    minority (it isn't a ranking factor) — it is no longer weighted equal to SEO.
+      SEO 40% · Security 25% · Performance 20% · Accessibility 15%
+
+    `assessed` (optional) maps category→bool; a category that wasn't actually
+    assessed (e.g. Security with no response headers) is dropped and the remaining
+    weights re-normalised, instead of scoring it 0/F from absent data.
+
+    `findings` (optional) is the combined finding list. A **P0 caps the grade at D**
+    (a critical issue — header noindex, breach — can't grade well no matter how
+    tidy the tags are); an open **P1 caps it at B** (an A means no high-priority
+    issues open).
     """
+    base = {"seo": seo_score, "security": security_score, "accessibility": a11y_score}
+    weights = {"seo": 0.40, "security": 0.25, "accessibility": 0.15}
     if perf_score is not None:
-        weighted = (
-            (seo_score * 0.30)
-            + (security_score * 0.25)
-            + (a11y_score * 0.30)
-            + (perf_score * 0.15)
-        )
-        weights = {
-            "seo": 0.30,
-            "security": 0.25,
-            "accessibility": 0.30,
-            "performance": 0.15,
-        }
+        base["performance"] = perf_score
+        weights["performance"] = 0.20
     else:
-        weighted = (seo_score * 0.35) + (security_score * 0.30) + (a11y_score * 0.35)
-        weights = {"seo": 0.35, "security": 0.30, "accessibility": 0.35}
+        # 3-category fallback (no performance): redistribute its weight
+        weights = {"seo": 0.45, "security": 0.30, "accessibility": 0.25}
 
-    overall = round(weighted)
+    # Unassessed categories (e.g. Security with no headers) are IMPUTED at the mean
+    # of the assessed ones — neutral, so omitting --fetch neither inflates nor
+    # deflates the grade (excluding-and-renormalising used to *reward* not fetching).
+    assessed = assessed or {}
+    active = [k for k in base if assessed.get(k, True)]
+    if not active:
+        active = list(base)
+    mean_assessed = sum(base[k] for k in active) / len(active)
+    effective = {
+        k: (base[k] if assessed.get(k, True) else round(mean_assessed)) for k in base
+    }
+    weighted = sum(effective[k] * weights[k] for k in weights)
+    uncapped = round(weighted)
 
-    if overall >= 90:
-        grade = "A"
-    elif overall >= 75:
-        grade = "B"
-    elif overall >= 60:
-        grade = "C"
-    elif overall >= 40:
-        grade = "D"
-    else:
-        grade = "F"
+    # Only findings the caller pre-filtered to site-critical modules reach here
+    # (calculate_scores passes blocking-eligible findings only), and only a P0 caps
+    # the grade — a genuinely critical, indexation/security-level issue.
+    findings = findings or []
+    p0 = sum(1 for f in findings if (f or {}).get("priority") == "P0")
+    p1 = sum(1 for f in findings if (f or {}).get("priority") == "P1")
+    cap = 59 if p0 else 100
+    overall = min(uncapped, cap)
 
     return {
         "score": overall,
+        "uncapped_score": uncapped,
         "max": 100,
-        "grade": grade,
-        "weights": weights,
+        "grade": _grade(overall),
+        "weights": dict(weights),
+        "assessed_categories": sorted(active),
+        "imputed_categories": sorted(k for k in base if not assessed.get(k, True)),
+        "blocking": {"p0": p0, "p1": p1},
+        "cap_applied": overall < uncapped,
+        "has_blocking_issue": bool(p0),
     }
 
 
@@ -663,11 +708,48 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     security_result = calculate_security_score(headers or {}, html_security)
     a11y_result = calculate_accessibility_score(a11y)
     perf_result = calculate_performance_score(performance)
+
+    # Score the modular audit (eeat, technical_seo, crawlability, …) HERE so every
+    # consumer (bulk_audit, ci_gate, the CLI) sees them — and so their findings can
+    # gate the overall grade. Previously this only happened in the CLI main().
+    module_scores: dict = {}
+    all_findings: list = list(report.get("findings", []) or [])
+    if isinstance(report, dict) and isinstance(report.get("modules"), dict):
+        from modules import get_module
+
+        for mid, analysis in report["modules"].items():
+            mod_cls = get_module(mid)
+            if mod_cls is None or not isinstance(analysis, dict):
+                continue
+            instance = mod_cls()
+            try:  # one malformed module analysis must not crash the whole score
+                module_scores[mid] = instance.score(analysis)
+                all_findings.extend(instance.findings)
+            except Exception as exc:  # noqa: BLE001
+                module_scores[mid] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    assessed = {
+        "seo": True,
+        "accessibility": True,
+        "performance": True,  # heuristic, but a real signal — kept (labelled)
+        "security": security_result.get("assessed", True),
+    }
+    # Only genuinely site-critical modules may CAP the grade. A P0 from one of these
+    # means the page can't be found/indexed or is insecure — that should gate the
+    # headline number. Advisory modules (pwa, cookie_gdpr, eeat, content_depth,
+    # ai_search, accessibility, performance, …) inform via findings but must NOT
+    # cap the grade (their priorities aren't globally calibrated to "site broken").
+    cap_modules = {"seo", "technical_seo", "security", "crawlability", "sitemap"}
+    blocking_findings = [
+        f for f in all_findings if (f or {}).get("module") in cap_modules
+    ]
     fat_result = calculate_fat_score(
         seo_result["score"],
         security_result["score"],
         a11y_result["score"],
         perf_result["score"],
+        findings=blocking_findings,
+        assessed=assessed,
     )
 
     result = {
@@ -678,6 +760,11 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
         "overall": fat_result,
         "summary": report.get("summary", {}),
     }
+    if module_scores:
+        result["module_scores"] = module_scores
+    # transparency: did the grade-cap actually see module findings? (False when the
+    # analysis was run without --modules, e.g. the bare offline pipe)
+    fat_result["modules_scored"] = bool(module_scores)
     if render_gap is not None:
         result["render_gap"] = render_gap
     return result
@@ -717,21 +804,9 @@ def main():
     # if data has a top-level "report" key, unwrap it
     report = data.get("report", data) if isinstance(data, dict) else data
 
+    # calculate_scores now scores the modules internally (and folds their findings
+    # into the overall grade), so every consumer — not just this CLI — gets them.
     result = calculate_scores(report, headers)
-
-    # score module analyses if present
-    if isinstance(report, dict) and "modules" in report:
-        from modules import get_module
-
-        module_scores = {}
-        for mid, analysis in report["modules"].items():
-            mod_cls = get_module(mid)
-            if mod_cls is None:
-                continue
-            instance = mod_cls()
-            module_scores[mid] = instance.score(analysis)
-
-        result["module_scores"] = module_scores
 
     if profile:
         result["profile"] = profile

@@ -23,7 +23,15 @@ def check_score(scores, threshold):
 
     returns (passed: bool, reason: str).
     """
-    overall = scores.get("overall_score", 0)
+    # overall is nested ({"overall": {"score": N}}); fall back to legacy flat key.
+    overall_obj = scores.get("overall")
+    if isinstance(overall_obj, dict) and isinstance(
+        overall_obj.get("score"), (int, float)
+    ):
+        overall = overall_obj["score"]
+    else:
+        overall = scores.get("overall_score", 0)
+    overall = overall if isinstance(overall, (int, float)) else 0
     if overall >= threshold:
         return True, ""
     return False, f"score {overall} is below threshold {threshold}"
@@ -37,9 +45,20 @@ def check_priority_findings(scores, fail_on):
     if fail_on is None:
         return True, []
 
+    # The grade-cap exposes blocking P0/P1 counts on overall.blocking; use those
+    # (top-level "findings" isn't emitted by calculate-score). Fall back to legacy.
+    overall_obj = scores.get("overall", {})
+    blocking = overall_obj.get("blocking", {}) if isinstance(overall_obj, dict) else {}
+    count = 0
+    if fail_on == "P0":
+        count = blocking.get("p0", 0)
+    elif fail_on == "P1":
+        count = blocking.get("p0", 0) + blocking.get("p1", 0)
+    if count:
+        return False, [{"priority": fail_on, "count": count}]
+
     findings = scores.get("findings", [])
     matched = [f for f in findings if f.get("priority") == fail_on]
-
     if matched:
         return False, matched
     return True, []

@@ -81,14 +81,23 @@ def run_single_audit(
             json.dump(response_headers, tmp_headers)
             tmp_headers_path = tmp_headers.name
 
-        # run analyse-html.py
+        # run analyse-html.py — pass the profile's modules so bulk grades match the
+        # single-site CLI (and so the grade-cap actually sees module findings).
         analyse_script = os.path.join(SCRIPTS_DIR, "analyse-html.py")
+        try:
+            from profiles import resolve_profile
+
+            modules_str = ",".join(resolve_profile(profile)) if profile else "auto"
+        except Exception:
+            modules_str = "auto"
         analyse_cmd = [
             sys.executable,
             analyse_script,
             "--url",
             url,
             "--fetch",
+            "--modules",
+            modules_str,
             tmp_html_path,
         ]
         analyse_result = subprocess.run(

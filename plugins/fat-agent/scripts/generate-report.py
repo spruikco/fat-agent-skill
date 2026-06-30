@@ -542,18 +542,33 @@ def generate_docx(
     perf_score = _category_score(scores, "performance")
     fat_score = overall.get("score", scores.get("overall_score", 0)) or 0
 
+    # Honesty labels: Performance is a markup heuristic (not measured CWV); Security
+    # is "not assessed" when no response headers were fetched.
+    perf_note = (
+        ""
+        if scores.get("performance", {}).get("measured", True) is not False
+        else " (heuristic)"
+    )
+    sec_assessed = scores.get("security", {}).get("assessed", True) is not False
     score_table = _make_table(doc, ["Category", "FAT Score", "Grade"])
     for cat, sc in [
         ("SEO", seo_score),
-        ("Security", sec_score),
+        ("Security" + ("" if sec_assessed else " (not assessed)"), sec_score),
         ("Accessibility", a11y_score),
-        ("Performance", perf_score),
+        ("Performance" + perf_note, perf_score),
         ("Overall", fat_score),
     ]:
         row = score_table.add_row()
         # Single shared grade function — identical bands to the PPTX cards.
-        g = score_to_grade(sc)
-        for i, v in enumerate([cat, f"{sc}/100", g]):
+        g = (
+            "—"
+            if (cat.startswith("Security") and not sec_assessed)
+            else score_to_grade(sc)
+        )
+        sc_disp = (
+            "n/a" if (cat.startswith("Security") and not sec_assessed) else f"{sc}/100"
+        )
+        for i, v in enumerate([cat, sc_disp, g]):
             _set_cell(
                 row.cells[i],
                 v,
@@ -960,18 +975,24 @@ def generate_pptx(
         1.5,
         2.4,
         1.3,
-        "PERFORMANCE",
+        "PERFORMANCE"
+        + (
+            ""
+            if scores.get("performance", {}).get("measured", True) is not False
+            else " (HEURISTIC)"
+        ),
         f"{perf_score}/100",
         _grade_color(perf_score),
     )
+    _sec_assessed = scores.get("security", {}).get("assessed", True) is not False
     _pcard(
         slide,
         5.5,
         1.5,
         2.4,
         1.3,
-        "SECURITY",
-        f"{sec_score}/100",
+        "SECURITY" + ("" if _sec_assessed else " (N/A)"),
+        f"{sec_score}/100" if _sec_assessed else "not assessed",
         _grade_color(sec_score),
     )
     _pcard(

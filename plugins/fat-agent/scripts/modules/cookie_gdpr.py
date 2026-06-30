@@ -33,9 +33,11 @@ _CONSENT_BANNERS = {
     ),
 }
 
-_PRIVACY_LINK_RE = re.compile(r'href="[^"]*privacy[^"]*"', re.IGNORECASE)
+_PRIVACY_LINK_RE = re.compile(r'href=["\'][^"\']*privacy[^"\']*["\']', re.IGNORECASE)
 
-_COOKIE_POLICY_RE = re.compile(r'href="[^"]*cookie[- _]?policy[^"]*"', re.IGNORECASE)
+_COOKIE_POLICY_RE = re.compile(
+    r'href=["\'][^"\']*cookie[- _]?policy[^"\']*["\']', re.IGNORECASE
+)
 
 _GDPR_META_RE = re.compile(r"gdpr|data-protection|datenschutz|rgpd", re.IGNORECASE)
 
@@ -87,6 +89,7 @@ class CookieGDPRModule(AuditModule):
         has_gdpr_meta = bool(_GDPR_META_RE.search(html))
         has_data_controller_info = bool(_DATA_CONTROLLER_RE.search(html))
         consent_before_tracking = bool(_CONSENT_BEFORE_TRACKING_RE.search(html))
+        has_tracking = bool(_ANALYTICS_RE.search(html))
 
         return {
             "has_consent_banner": has_consent_banner,
@@ -96,6 +99,7 @@ class CookieGDPRModule(AuditModule):
             "has_gdpr_meta": has_gdpr_meta,
             "has_data_controller_info": has_data_controller_info,
             "consent_before_tracking": consent_before_tracking,
+            "has_tracking": has_tracking,
         }
 
     # ------------------------------------------------------------------
@@ -119,9 +123,9 @@ class CookieGDPRModule(AuditModule):
             total += pts
         result["total"] = total
 
-        if not analysis.get("has_consent_banner"):
+        if analysis.get("has_tracking") and not analysis.get("has_consent_banner"):
             self.add_finding(
-                priority="P0",
+                priority="P2",
                 title="No cookie consent banner detected",
                 description="No consent management platform (Cookiebot, OneTrust, "
                 "CookieYes, etc.) was found. GDPR and ePrivacy regulations "
@@ -133,7 +137,7 @@ class CookieGDPRModule(AuditModule):
 
         if not analysis.get("has_privacy_policy_link"):
             self.add_finding(
-                priority="P0",
+                priority="P2",
                 title="No privacy policy link found",
                 description="No link to a privacy policy was detected. GDPR Article 13 "
                 "requires a clear link to the privacy policy on every page.",
@@ -153,7 +157,7 @@ class CookieGDPRModule(AuditModule):
                 effort="medium",
             )
 
-        if not analysis.get("consent_before_tracking"):
+        if analysis.get("has_tracking") and not analysis.get("consent_before_tracking"):
             self.add_finding(
                 priority="P1",
                 title="Tracking may load before consent",

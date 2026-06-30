@@ -170,9 +170,10 @@ def test_score_poor_performance():
     mod = PerformanceModule()
     result = mod.score(analysis)
     assert result["total"] < 30
+    # performance is a heuristic proxy — its findings are P2/P3, never grade-capping P1
     priorities = [f["priority"] for f in mod.findings]
-    assert "P1" in priorities
     assert "P2" in priorities
+    assert "P1" not in priorities
 
 
 def test_score_render_blocking_finding():
@@ -193,7 +194,7 @@ def test_score_render_blocking_finding():
     mod.score(analysis)
     blocking_findings = [f for f in mod.findings if "blocking" in f["title"].lower()]
     assert len(blocking_findings) == 1
-    assert blocking_findings[0]["priority"] == "P1"
+    assert blocking_findings[0]["priority"] == "P2"
 
 
 def test_score_lazy_loading_partial():

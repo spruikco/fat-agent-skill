@@ -41,14 +41,19 @@ class AccessibilityModule(AuditModule):
         )
         form_inputs_total = 0
         form_inputs_without_label = 0
+        # an input is labelled by aria-label/labelledby/title, OR by a real
+        # <label for="<id>"> that references its id — NOT by merely having an id.
+        label_fors = set(
+            re.findall(r'<label[^>]+for=["\']([^"\']+)', html, re.IGNORECASE)
+        )
         for inp in inputs:
             if re.search(r'type=["\']hidden["\']', inp, re.IGNORECASE):
                 continue
             form_inputs_total += 1
+            id_m = re.search(r'\bid=["\']([^"\']+)', inp, re.IGNORECASE)
             has_label = bool(
-                re.search(r"aria-label", inp, re.IGNORECASE)
-                or re.search(r"aria-labelledby", inp, re.IGNORECASE)
-                or re.search(r"id=", inp, re.IGNORECASE)
+                re.search(r"aria-label\b|aria-labelledby|\btitle=", inp, re.IGNORECASE)
+                or (id_m and id_m.group(1) in label_fors)
             )
             if not has_label:
                 form_inputs_without_label += 1
@@ -161,7 +166,7 @@ class AccessibilityModule(AuditModule):
 
         if img_missing > 0:
             self.add_finding(
-                priority="P0",
+                priority="P1",
                 title="Images missing alt text",
                 description=f"{img_missing} of {img_total} images lack alt attributes.",
                 fix="Add descriptive alt text to all images, or alt='' for decorative ones.",

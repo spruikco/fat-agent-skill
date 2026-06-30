@@ -120,10 +120,27 @@ def test_score_zero():
         "has_cookie_policy": False,
         "consent_before_tracking": False,
         "has_data_controller_info": False,
+        "has_tracking": True,  # tracking present -> consent/tracking findings apply
     }
     result = mod.score(analysis)
     assert result["total"] == 0
     assert len(mod.findings) == 5
+
+
+def test_no_consent_finding_without_tracking():
+    # a site with NO tracking shouldn't be told it's missing a consent banner
+    mod = CookieGDPRModule()
+    mod.score(
+        {
+            "has_consent_banner": False,
+            "has_privacy_policy_link": True,
+            "has_cookie_policy": True,
+            "consent_before_tracking": False,
+            "has_data_controller_info": True,
+            "has_tracking": False,
+        }
+    )
+    assert not any("consent banner" in f["title"].lower() for f in mod.findings)
 
 
 def test_score_partial():

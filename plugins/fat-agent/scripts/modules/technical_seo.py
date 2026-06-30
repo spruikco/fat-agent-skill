@@ -61,7 +61,10 @@ def canonical_host_issue(html, url):
     ph = pu.netloc.lower()
     ch = ch[4:] if ch.startswith("www.") else ch
     ph = ph[4:] if ph.startswith("www.") else ph
-    if ph and ch and ch != ph:
+    # same site if equal OR one is a subdomain of the other (blog./m./amp. → apex
+    # is correct consolidation, not a foreign-host problem).
+    same_site = ch == ph or ch.endswith("." + ph) or ph.endswith("." + ch)
+    if ph and ch and not same_site:
         return f"Canonical points to a different host: '{cu.netloc}' vs page '{pu.netloc}'."
     return None
 

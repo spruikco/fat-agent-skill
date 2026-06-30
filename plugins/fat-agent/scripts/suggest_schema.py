@@ -122,7 +122,8 @@ def _title_brand(title):
     ` – `) — NOT an intra-word hyphen, so "Mercedes-Benz of Sydney" stays intact."""
     if not title:
         return None
-    return re.split(r"\s+[|–—\-]\s+", title)[0].strip() or None
+    first = re.split(r"\s+[|–—\-]\s+", title)[0].strip()
+    return first if re.search(r"\w", first) else None  # reject bare "-" / "|"
 
 
 def _site_name(html):
@@ -251,9 +252,10 @@ def _currency(html):
     )
     if explicit:
         return explicit
-    # an ISO code adjacent to a number, e.g. "AUD 29.99" / "29.99 GBP"
+    # an ISO code adjacent to a number — incl. the common glued form "EUR12.99"
+    # (NO \b after the code: there's no boundary between a letter and a digit).
     m = re.search(
-        r"\b(USD|AUD|GBP|EUR|CAD|NZD|JPY)\b\s*[\d.]|[\d.]\s*\b(USD|AUD|GBP|EUR|CAD|NZD|JPY)\b",
+        r"\b(USD|AUD|GBP|EUR|CAD|NZD|JPY)\s*\d|\d\s*(USD|AUD|GBP|EUR|CAD|NZD|JPY)\b",
         html,
     )
     if m:

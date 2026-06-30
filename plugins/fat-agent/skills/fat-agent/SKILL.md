@@ -765,7 +765,17 @@ Present a summary showing:
 - Total issues found -> Total resolved
 - Breakdown by priority
 - Remaining items (if any) with a note about when to address them
-- Overall FAT score: percentage of issues resolved weighted by priority
+- **Overall FAT score** — a weighted composite of the measured categories
+  (**SEO 40% · Security 25% · Performance 20% · Accessibility 15%**), then **capped
+  by finding severity**: any open **P0 caps the grade at D**, any open **P1 caps it
+  at B** (an A means no high-priority issues open). Module findings (technical SEO,
+  crawlability, E-E-A-T, AI, content) feed this cap, so the headline number reflects
+  the whole audit — not just on-page tags.
+- **Honesty in the scorecard:** label **Performance** as *heuristic (markup proxy,
+  not measured CWV)* unless real Lighthouse/PageSpeed was wired in, and **Security**
+  as *not assessed* when no response headers were fetched (it's excluded from the
+  grade, not scored as a failure). Don't present either as a measured letter grade
+  when it isn't one.
 
 ### FAT Badge
 After presenting the final scorecard, generate a FAT badge and offer to add it

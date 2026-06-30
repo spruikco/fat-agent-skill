@@ -204,7 +204,7 @@ class PerformanceModule(AuditModule):
 
         if blocking > 0:
             self.add_finding(
-                priority="P1",
+                priority="P2",  # heuristic markup signal, not a measured CWV failure
                 title="Render-blocking scripts detected",
                 description=f"{blocking} script(s) without async/defer block rendering.",
                 fix="Add async or defer attributes to non-critical scripts.",
@@ -222,7 +222,7 @@ class PerformanceModule(AuditModule):
 
         if html_kb > 200:
             self.add_finding(
-                priority="P1",
+                priority="P2",
                 title="Large HTML document",
                 description=f"HTML is {html_kb}KB. Large documents slow initial parsing.",
                 fix="Reduce inline content, move large data to async-loaded resources.",

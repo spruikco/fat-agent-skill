@@ -159,19 +159,28 @@ def cmd_audit(args):
                 ],
             )
 
-    # print summary
-    overall = scores.get("overall_score", "N/A")
+    # print summary (overall is a dict: {"score","grade",...})
+    overall_obj = scores.get("overall", {})
+    overall = overall_obj.get("score", "N/A")
+    grade = overall_obj.get("grade", "")
     seo = scores.get("seo", {}).get("score", "N/A")
     security = scores.get("security", {}).get("score", "N/A")
     accessibility = scores.get("accessibility", {}).get("score", "N/A")
     performance = scores.get("performance", {}).get("score", "N/A")
 
     print(f"\nFAT Agent Audit: {url}")
-    print(f"  Overall:       {overall}")
+    print(f"  Overall:       {overall} {('(' + grade + ')') if grade else ''}")
+    if overall_obj.get("capped"):
+        b = overall_obj.get("blocking", {})
+        print(
+            f"  ⚠ grade capped by {b.get('p0', 0)} critical (P0) / {b.get('p1', 0)} high (P1) issue(s)"
+        )
     print(f"  SEO:           {seo}")
-    print(f"  Security:      {security}")
+    print(
+        f"  Security:      {security}{'' if scores.get('security', {}).get('assessed', True) else ' (not assessed — no headers)'}"
+    )
     print(f"  Accessibility: {accessibility}")
-    print(f"  Performance:   {performance}")
+    print(f"  Performance:   {performance} (heuristic)")
     print(f"\nScored JSON saved to {scores_path}")
 
     # exit code: non-zero if overall < 50

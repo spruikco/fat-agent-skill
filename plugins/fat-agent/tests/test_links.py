@@ -113,14 +113,14 @@ def test_analyse_checks_noopener_noreferrer():
     assert result["external_count"] == 2
 
 
-def test_analyse_noopener_only_counts():
+def test_analyse_noopener_only_is_safe():
     html = """<html><body>
     <a href="https://external.com" rel="noopener">has noopener only</a>
     </body></html>"""
     mod = LinksModule()
     result = mod.analyse(html, url="https://mysite.com")
-    # missing noreferrer still counts as missing
-    assert result["external_missing_noopener"] == 1
+    # noopener alone is sufficient (modern browsers) — not flagged as missing
+    assert result["external_missing_noopener"] == 0
 
 
 def test_analyse_no_links():

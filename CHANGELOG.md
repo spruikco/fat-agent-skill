@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.9.0] - 2026-06-30
+
+### Changed — score-composition redesign (then re-skepticked and fixed)
+The headline FAT grade now reflects the whole audit, honestly:
+- **Modules feed the grade via a curated P0 cap.** A P0 from a genuinely
+  site-critical module (seo, technical_seo, security, crawlability, sitemap) caps
+  the grade at D — so a header-level `noindex` can no longer grade A. Advisory
+  modules (pwa, cookie_gdpr, eeat, ai_search, content_depth, performance, …) inform
+  via findings but do **not** cap the grade (their severities aren't globally
+  calibrated to "site broken").
+- **Weights rebalanced for an SEO tool:** SEO 40% · Security 25% · Performance 20% ·
+  Accessibility 15% (accessibility is no longer weighted equal to SEO).
+- **Unassessed categories are imputed at the mean, not excluded** — so skipping
+  `--fetch` (no Security headers) no longer *inflates* the grade.
+- **Honesty labels in the deliverables:** Word/PPTX scorecards now mark Performance
+  "(heuristic)" and Security "(not assessed)" when applicable; dashboard grade bands
+  reconciled with the report; `overall` carries `blocking`/`cap_applied`/`modules_scored`.
+
+### Fixed — round-2 skeptic findings
+- **Miscalibrated severities** that wrongly capped clean sites: pwa "no manifest"
+  P0→P3; cookie_gdpr "no consent banner"/"no privacy policy" P0→P2 and gated on
+  tracking actually being present; accessibility missing-alt P0→P1; performance
+  render-blocking/large-HTML P1→P2.
+- **cookie_gdpr** single-quoted `href` privacy/cookie links now detected;
+  **accessibility** form-label check now requires a real `<label for>`/aria, not a
+  bare `id=`; **links** stops flagging `rel="noopener"`-only as unsafe; **sitemap**
+  no longer flags www↔apex URLs as a foreign domain.
+- **ci_gate** reads the nested `overall.score` + `overall.blocking` (it was reading
+  dead keys and never blocking on P0).
+- **suggest_schema** `_currency` detects glued codes (`EUR12.99`); **gsc** `_parse_ctr`
+  treats a bare-number percent (`"5"`) as 5%, not 500%; **content_depth** review
+  evidence no longer fires on "Year in Review"/"Code Review"; **ecommerce** finds
+  Product nested under `mainEntity`/dict `@graph`; **technical_seo** canonical no
+  longer flags `blog.`/`m.`/`amp.` subdomain consolidation; `_title_brand` rejects a
+  bare separator. **bulk_audit** now passes the profile's modules (matches the CLI).
+
 ## [2.8.0] - 2026-06-30
 
 ### Fixed — adversarial self-review ("run a skeptic"): false positives & wrong deliverables

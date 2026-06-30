@@ -111,12 +111,17 @@ class SitemapModule(AuditModule):
         has_duplicates = len(unique_urls) < len(urls)
         duplicate_count = len(urls) - len(unique_urls)
 
+        def _reg(h):  # strip leading www. so apex↔www isn't "another domain"
+            h = (h or "").lower()
+            return h[4:] if h.startswith("www.") else h
+
         urls_match_domain = True
         mismatched_urls: list[str] = []
         if domain and urls:
+            dreg = _reg(domain)
             for u in urls:
                 parsed = urlparse(u)
-                if parsed.hostname and parsed.hostname != domain:
+                if parsed.hostname and _reg(parsed.hostname) != dreg:
                     urls_match_domain = False
                     mismatched_urls.append(u)
 

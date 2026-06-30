@@ -63,7 +63,12 @@ def _parse_ctr(value, clicks, impressions):
     if value is not None:
         s = str(value).strip()
         try:
-            return float(s.rstrip("%")) / (100.0 if s.endswith("%") else 1.0)
+            v = float(s.rstrip("%"))
+            # "%"-suffixed, or a bare number > 1 from a CSV percent column
+            # (a real ratio is 0–1), means percent → divide by 100.
+            if s.endswith("%") or v > 1.0:
+                v /= 100.0
+            return v
         except (TypeError, ValueError):
             pass
     return clicks / impressions if impressions else 0.0

@@ -22,29 +22,31 @@ class TestGradeFromScore:
         assert grade_from_score(89) == "B"
 
     def test_grade_c(self):
+        # bands unified with calculate-score/report: C is 60-74
+        assert grade_from_score(60) == "C"
         assert grade_from_score(70) == "C"
-        assert grade_from_score(75) == "C"
-        assert grade_from_score(79) == "C"
+        assert grade_from_score(74) == "C"
 
     def test_grade_d(self):
-        assert grade_from_score(60) == "D"
-        assert grade_from_score(65) == "D"
-        assert grade_from_score(69) == "D"
+        # D is 40-59
+        assert grade_from_score(40) == "D"
+        assert grade_from_score(50) == "D"
+        assert grade_from_score(59) == "D"
 
     def test_grade_f(self):
         assert grade_from_score(0) == "F"
-        assert grade_from_score(30) == "F"
-        assert grade_from_score(59) == "F"
+        assert grade_from_score(20) == "F"
+        assert grade_from_score(39) == "F"
 
     def test_boundary_values(self):
         assert grade_from_score(90) == "A"
         assert grade_from_score(89) == "B"
-        assert grade_from_score(80) == "B"
-        assert grade_from_score(79) == "C"
-        assert grade_from_score(70) == "C"
-        assert grade_from_score(69) == "D"
-        assert grade_from_score(60) == "D"
-        assert grade_from_score(59) == "F"
+        assert grade_from_score(75) == "B"
+        assert grade_from_score(74) == "C"
+        assert grade_from_score(60) == "C"
+        assert grade_from_score(59) == "D"
+        assert grade_from_score(40) == "D"
+        assert grade_from_score(39) == "F"
 
 
 MOCK_SCORES = {
