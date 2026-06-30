@@ -272,9 +272,32 @@ From the HTML response, check:
 - Image optimisation: `srcset` attributes, `<picture>` elements, modern formats (WebP/AVIF)
 - Image dimensions: `width` and `height` attributes present (prevents CLS)
 - Whether CSS is inlined or external (and count external stylesheets)
-- Inline script/style size (flag if combined > 50KB — bypasses caching)
+- Inline **JavaScript** size (flag large blocking inline JS). **Inline critical CSS is a
+  first-paint optimisation — don't flag moderate amounts**; only flag genuinely excessive inline CSS.
 - Check for `<link rel="preconnect">` or `<link rel="preload">` hints
 - Font loading: `font-display: swap` in inline styles, Google Fonts preconnect, font preloads
+
+> **⚠️ This is a markup *proxy*, not measured performance.** The `performance`
+> module reads HTML; it does **not** measure Core Web Vitals. Three rules so the
+> score doesn't mislead:
+>
+> 1. **Measure for real, lead with that.** Always run PageSpeed/Lighthouse against
+>    the **live, public URL** (`scripts/pagespeed.py` / `scripts/lighthouse.py`) and
+>    present measured LCP/CLS/INP as the authority; treat the HTML score as a
+>    fallback **labelled "heuristic (unmeasured)"**. You **cannot** PageSpeed a
+>    `noindex`/preview/staging URL that isn't publicly reachable — audit the live
+>    URL or a public preview, or say the score is unmeasured.
+> 2. **Calibrate against the SERP, not an absolute ideal.** Before calling
+>    performance a problem, run the same check (ideally PageSpeed) on the **top 1–3
+>    ranking competitors** for the target query. If they score similar or worse, the
+>    performance level provably isn't the ranking blocker — **deprioritise it and
+>    say so.** A low absolute number that beats the #1 result is not a finding.
+> 3. **Separate architecture-locked from quick wins.** WebP/AVIF + `srcset` on a
+>    **static export**, or critical-CSS inlining done by the framework, are
+>    build/framework-level — mark them effort=high / post-cutover, not P1 quick
+>    wins. **Inlined critical CSS is a first-paint *win* — never flag it.** The real
+>    levers on a locked stack are usually fonts (self-host + subset + preload),
+>    image *sizing/dimensions* (CLS), and lazy-loading — not format.
 
 **Performance Budgets:**
 If a `.fat-budget.json` file exists in the project root, use it to check custom

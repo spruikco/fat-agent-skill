@@ -127,26 +127,28 @@ class PerformanceModule(AuditModule):
         total += block_pts
 
         # image optimisation (20 points)
+        # Floor of 5 when images are present (format/srcset are often build- or
+        # framework-locked — e.g. a static export can't emit WebP without a
+        # pipeline step — so a no-WebP page shouldn't crater to near-zero).
         img_total = analysis.get("images_total", 0)
-        img_pts = 0
+        modern = analysis.get("images_modern_format", 0)
+        all_modern = modern >= img_total if img_total else False
+        srcset = analysis.get("images_with_srcset", 0)
+        picture = analysis.get("picture_elements", 0)
+        responsive = srcset + picture
         if img_total == 0:
             img_pts = 20
         else:
-            modern = analysis.get("images_modern_format", 0)
-            all_modern = modern >= img_total
-            srcset = analysis.get("images_with_srcset", 0)
-            picture = analysis.get("picture_elements", 0)
-            responsive = srcset + picture
+            img_pts = 5  # base: images present, not egregious
             if all_modern or responsive >= img_total:
-                img_pts += 10
+                img_pts += 8
             elif responsive > 0:
-                img_pts += round((responsive / img_total) * 10)
+                img_pts += round((responsive / img_total) * 8)
             if all_modern:
-                img_pts += 10
+                img_pts += 7
             elif modern > 0:
-                img_pts += round((modern / img_total) * 10)
-            else:
-                img_pts += 3
+                img_pts += round((modern / img_total) * 7)
+            img_pts = min(img_pts, 20)
         details["image_optimisation"] = {"score": img_pts, "max": 20}
         total += img_pts
 
@@ -160,17 +162,27 @@ class PerformanceModule(AuditModule):
         total += hints
 
         # inline asset size (10 points)
+        # Inline JS (6) is weighted more than inline CSS (4): blocking inline JS
+        # is a real cost, but inlining *critical CSS* is a deliberate CWV win
+        # (it removes a render-blocking round-trip), so don't penalise moderate
+        # inline CSS the way the old single-bucket rule did.
         inline_script_kb = analysis.get("inline_script_kb", 0)
         inline_style_kb = analysis.get("inline_style_kb", 0)
-        total_inline = inline_script_kb + inline_style_kb
-        if total_inline <= 10:
-            inline_pts = 10
-        elif total_inline <= 30:
-            inline_pts = 7
-        elif total_inline <= 50:
-            inline_pts = 4
+        if inline_script_kb <= 10:
+            js_pts = 6
+        elif inline_script_kb <= 30:
+            js_pts = 4
+        elif inline_script_kb <= 60:
+            js_pts = 2
         else:
-            inline_pts = 1
+            js_pts = 0
+        if inline_style_kb <= 60:  # moderate / critical CSS is fine
+            css_pts = 4
+        elif inline_style_kb <= 120:
+            css_pts = 2
+        else:
+            css_pts = 0
+        inline_pts = js_pts + css_pts
         details["inline_assets"] = {"score": inline_pts, "max": 10}
         total += inline_pts
 
@@ -226,14 +238,38 @@ class PerformanceModule(AuditModule):
                 effort="low",
             )
 
-        inline_total = inline_script_kb + inline_style_kb
-        if inline_total > 30:
+        if inline_script_kb > 30:
             self.add_finding(
                 priority="P2",
-                title="Large inline scripts/styles",
-                description=f"{inline_total:.1f}KB of inline assets detected.",
-                fix="Move large inline scripts and styles to external files for caching.",
+                title="Large inline JavaScript",
+                description=f"{inline_script_kb:.1f}KB of inline JavaScript detected. Inline JS is "
+                "parsed/executed on the main thread and can delay interactivity.",
+                fix="Move large inline scripts to external, cacheable files (or defer them). "
+                "Note: inlining *critical CSS* is fine — that's a first-paint optimisation, not a problem.",
                 effort="medium",
             )
 
-        return {"total": min(total, 100), "max": 100, "details": details}
+        if img_total > 0 and not all_modern and responsive < img_total:
+            self.add_finding(
+                priority="P3",
+                title="Images not served as next-gen / responsive (often build-locked)",
+                description=f"{img_total} image(s); not all use WebP/AVIF or srcset/<picture>. "
+                "This is usually a build-pipeline/framework decision (a static export can't emit "
+                "WebP without a step) and matters less when images are already correctly sized, "
+                "dimensioned, and lazy-loaded.",
+                fix="Add a build-time image step (or your framework's <Image>) to emit WebP/AVIF + "
+                "srcset. On a static export this is a post-cutover architecture task, not a quick win.",
+                effort="high",
+            )
+
+        return {
+            "total": min(total, 100),
+            "max": 100,
+            "details": details,
+            # This score is a static-markup proxy, NOT measured Core Web Vitals.
+            # Prefer Lighthouse/PageSpeed against the live URL; see SKILL.md.
+            "method": "html-heuristic",
+            "measured": False,
+            "note": "Markup proxy — not measured CWV. Run Lighthouse/PageSpeed on the live "
+            "public URL for real LCP/CLS/INP, and calibrate against ranking competitors.",
+        }

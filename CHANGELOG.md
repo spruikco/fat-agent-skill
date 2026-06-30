@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.7.0] - 2026-06-30
+
+### Changed — performance scoring honesty & calibration
+- **Stopped penalising critical-CSS inlining.** The inline-assets score split into
+  inline JS (weighted) vs inline CSS (moderate amounts are fine) — inlining critical
+  CSS is a deliberate first-paint/CWV *win*, and the old single-bucket rule wrongly
+  docked points and fired a finding for it. The finding is now JS-specific.
+- **Softened build-locked image penalty.** Images present but not WebP/srcset now
+  floor at 5/20 (was ~3/20), with a clear **architecture-framed P3 finding**
+  (effort=high) noting that format is usually a build-pipeline/framework decision
+  (a static export can't emit WebP without a step) and matters less when images are
+  already sized/dimensioned/lazy-loaded — not a P1 "quick win".
+- **Labelled the score as a heuristic.** The `performance` module result now carries
+  `measured: false` / `method: "html-heuristic"` and a note: it's a *markup proxy*,
+  not measured Core Web Vitals.
+- **SKILL.md §1.3 calibration rules:** (1) measure for real with PageSpeed/Lighthouse
+  on the live URL and lead with that — you can't PageSpeed a `noindex`/preview;
+  (2) **calibrate against the SERP** (if the top-ranking competitors score similar or
+  worse, performance isn't the blocker — deprioritise); (3) separate architecture-
+  locked items from quick wins. 7 new tests (765 total).
+
 ## [2.6.0] - 2026-06-30
 
 ### Added
