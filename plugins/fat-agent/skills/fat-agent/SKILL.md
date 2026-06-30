@@ -1030,6 +1030,7 @@ For extended check details, see:
 - `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
 - `scripts/gsc.py` — Google Search Console behavioural analysis (NavBoost proxy) → striking-distance, low-CTR, branded share, `opportunity_keywords`
 - `scripts/redirects.py` — Redirect-chain / loop / 302-vs-301 / soft-404 analyser (multi-hop)
+- `scripts/gsc_health.py` — GSC *health* analysis (Index Coverage, Manual Actions, Security Issues, Enhancements)
 - `scripts/profiles.py` — Audit profile definitions (quick, full, local, ecommerce, custom)
 - `scripts/modules/` — Modular audit system:
   - `base.py` — `AuditModule` abstract base class
@@ -1184,6 +1185,32 @@ python scripts/gsc.py --data gsc.json --brand "acme" --output /tmp/gsc.json
 `gsc.py` also emits `opportunity_keywords` in the report schema, so GSC wins feed
 straight into the deck's *SEO Priority Opportunities* slide. If no GSC access is
 available, skip — the rest of the audit is unaffected.
+
+#### GSC health reports (the damaging stuff a URL audit can't see)
+
+Beyond Performance, pull the **health** reports and run `scripts/gsc_health.py` —
+these surface penalties and indexation problems invisible from the page:
+
+1. Via the GSC MCP / Search Console API, gather: **Manual Actions**, **Security
+   Issues**, **URL Inspection / Index Coverage** (per-URL `coverageState`), and
+   **Enhancements** (rich-result errors per type). Assemble into one JSON:
+
+```json
+{ "manual_actions": [...], "security_issues": [...],
+  "url_inspections": [{"url": "...", "coverageState": "Crawled - currently not indexed"}],
+  "enhancements": {"Products": {"errors": 3}} }
+```
+
+2. Analyse:
+
+```bash
+python scripts/gsc_health.py --data gsc_health.json
+```
+
+It returns prioritised findings — **Manual Actions and Security Issues are P0** —
+plus index-coverage reasons (Discovered/Crawled-not-indexed, blocked, soft-404,
+duplicate-canonical) grouped with fix hints, and rich-result error counts. Fold
+these into the FAT report at the top of the punch list.
 
 ### SEMrush Data Collection
 

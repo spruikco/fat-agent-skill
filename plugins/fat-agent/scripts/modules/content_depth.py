@@ -115,6 +115,21 @@ class ContentDepthModule(AuditModule):
             "lead_answer": lead_answer_present(html),
             "is_review": bool(_REVIEW_CTX_RE.search(heading_text)),
             "firsthand": bool(_FIRSTHAND_RE.search(text)),
+            "discover": {
+                "large_image_preview": bool(
+                    re.search(r"max-image-preview\s*:\s*large", html, re.IGNORECASE)
+                ),
+                "og_image": bool(
+                    re.search(r'property=["\']og:image', html, re.IGNORECASE)
+                ),
+                "feed": bool(
+                    re.search(
+                        r'rel=["\']alternate["\'][^>]*type=["\']application/(?:rss\+xml|atom\+xml)',
+                        html,
+                        re.IGNORECASE,
+                    )
+                ),
+            },
         }
 
     def score(self, analysis: dict) -> dict:
@@ -211,4 +226,21 @@ class ContentDepthModule(AuditModule):
                 fix="Add original photos/measurements, pros and cons, how you tested, and "
                 "comparisons to alternatives.",
                 effort="high",
+            )
+        d = a["discover"]
+        if a["is_article"] and not (d["large_image_preview"] and d["og_image"]):
+            self.add_finding(
+                priority="P3",
+                title="Not optimised for Google Discover",
+                description="Discover favours articles with a large, high-quality lead image. This "
+                "page is missing `max-image-preview:large` and/or a large `og:image`"
+                + (
+                    ""
+                    if d["feed"]
+                    else ", and has no RSS/Atom feed for the Follow button"
+                )
+                + ".",
+                fix='Add `<meta name="robots" content="max-image-preview:large">`, a ≥1200px '
+                "`og:image`, and an RSS/Atom feed.",
+                effort="low",
             )

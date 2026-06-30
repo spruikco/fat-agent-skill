@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.6.0] - 2026-06-30
+
+### Added
+- **GSC health analysis** (`scripts/gsc_health.py`) — beyond the Performance report,
+  analyses the **health** reports a URL-only audit can't see: **Manual Actions** (P0),
+  **Security Issues** (P0), **Index Coverage / URL Inspection** (indexed vs excluded
+  and why — Discovered/Crawled-currently-not-indexed, blocked, soft-404, duplicate-
+  canonical, with fix hints), and **Enhancements / rich-result errors** per type.
+  Gather the reports via the GSC MCP/API; the script prioritises them for the punch list.
+- **Google Discover readiness** (in `content_depth`) — flags articles missing
+  `max-image-preview:large`, a large `og:image`, or an RSS/Atom feed.
+- **Self-serving review policy** check (in `schema_validator`) — flags
+  `aggregateRating`/`review` markup placed on an Organization/LocalBusiness entity
+  (ineligible for star results; can trigger a manual action).
+- SKILL.md GSC-health collection workflow; 14 new tests (758 total).
+
 ## [2.5.0] - 2026-06-29
 
 ### Added — "Hobo-parity" depth (cross-referenced against the Hobo Premium SEO Checklist)

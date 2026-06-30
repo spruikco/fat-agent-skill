@@ -141,6 +141,26 @@ class SchemaValidatorModule(AuditModule):
             type_counts[key] = type_counts.get(key, 0) + 1
         no_duplicate_types = all(c == 1 for c in type_counts.values())
 
+        # self-serving review policy: Google disallows aggregateRating/review
+        # markup that an organisation places about *itself* (Organization /
+        # LocalBusiness and subtypes). Only third-party-reviewable types qualify.
+        _ORG_LIKE = (
+            "organization",
+            "localbusiness",
+            "store",
+            "restaurant",
+            "professionalservice",
+            "medicalbusiness",
+            "legalservice",
+        )
+        self_serving_review = False
+        for d in expanded:
+            t = d.get("@type", "")
+            tset = {x.lower() for x in (t if isinstance(t, list) else [t]) if x}
+            if tset & set(_ORG_LIKE) and (d.get("aggregateRating") or d.get("review")):
+                self_serving_review = True
+                break
+
         return {
             "has_structured_data": has_structured_data,
             "valid_json": valid_json,
@@ -149,6 +169,7 @@ class SchemaValidatorModule(AuditModule):
             "types_found": types_found,
             "has_required_props": has_required_props,
             "no_duplicate_types": no_duplicate_types,
+            "self_serving_review": self_serving_review,
             "blocks_count": len(raw_blocks),
             "parsed_count": len(expanded),
         }
@@ -239,6 +260,19 @@ class SchemaValidatorModule(AuditModule):
                 "types can confuse search engines about which is canonical.",
                 fix="Consolidate duplicate @type blocks into a single JSON-LD object "
                 "or ensure each serves a distinct purpose.",
+                effort="low",
+            )
+
+        if analysis.get("self_serving_review"):
+            self.add_finding(
+                priority="P2",
+                title="Self-serving review markup (policy violation)",
+                description="`aggregateRating`/`review` is applied to your own Organization/"
+                "LocalBusiness entity. Google disallows self-serving review markup for these "
+                "types — it's ineligible for star rich results and can trigger a manual action.",
+                fix="Remove review/rating markup from the Organization/LocalBusiness entity. Use "
+                "review markup only on independently reviewable items (Product, Recipe, etc.) "
+                "sourced from genuine users.",
                 effort="low",
             )
 

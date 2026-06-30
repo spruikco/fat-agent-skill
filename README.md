@@ -180,6 +180,7 @@ Beyond the classic technical audit, FAT Agent checks what 2026 Google ranking ac
 - **Technical depth** — `X-Robots-Tag` header noindex, canonical host/scheme consistency, intrusive interstitials, next-gen images + CLS dimensions.
 - **GSC behavioural (NavBoost proxy)** — feed a Search Console export to `scripts/gsc.py` for striking-distance keywords, low-CTR-at-good-position, and branded share — the click signals a URL-only audit can't see.
 - **Crawl & content depth** — robots-blocks-CSS/JS, JS-only nav, faceted-URL sprawl, redirect chains/loops + soft-404 (`scripts/redirects.py`), YMYL/ad-density/originality/freshness, plus Video SEO and deeper e-commerce merchant checks (GTIN, shipping/returns, out-of-stock schema).
+- **GSC health (`scripts/gsc_health.py`)** — Manual Actions and Security Issues (P0), Index Coverage (indexed vs excluded + why), and rich-result errors — the penalties and indexation problems no on-page audit can see.
 
 ### Schema Suggestions — from afar, no codebase needed
 
