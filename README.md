@@ -3,7 +3,7 @@
 ![FAT Score](./fat-badge.svg)
 [![CI](https://github.com/spruikco/fat-agent-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/spruikco/fat-agent-skill/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-840%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-876%20passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **A modular Claude plugin that acts as your post-launch QA engineer.**
@@ -19,9 +19,10 @@ After you deploy a site, say **"run FAT agent"** and it will:
 1. **Gather context** — Asks about your site, stack, and critical user flows
 2. **Auto-detect modules** — Analyses your HTML for e-commerce, local business, i18n, and email signals
 3. **Audit** — Runs core + detected modules against your live URL
-4. **Report** — Generates a prioritised punch list, HTML dashboard, and shareable reports
-5. **Fix** — Offers to generate code fixes for every issue found
-6. **Re-test** — After you redeploy, verifies the fixes are live
+4. **Crawl site-wide** — Concurrent crawl into SQLite (pages + full link graph) for the issues single pages can't show: broken internal links, duplicate titles/content, orphan pages
+5. **Report** — Generates a prioritised punch list, HTML dashboard, and shareable reports
+6. **Fix** — Offers to generate code fixes for every issue found
+7. **Re-test** — After you redeploy, verifies the fixes are live (the punch list persists to disk and auto-resolves)
 
 ### Core Modules (always enabled)
 
@@ -267,7 +268,7 @@ The repo root is the marketplace; the plugin lives under `plugins/fat-agent/`:
 - **references/** — Security headers, SEO checklist, accessibility guide, performance budgets, CI/CD integration, local SEO & e-commerce checklists
   - **platform-fixes/** — Netlify, Vercel, Cloudflare Pages, Apache, Nginx, WordPress, AWS, Docker
   - **framework-fixes/** — Next.js, Astro, SvelteKit, Nuxt, Gatsby, Remix, WordPress, Static HTML
-- **tests/** — 840 tests across 50 test files with fixtures
+- **tests/** — 876 tests across 52 test files with fixtures
 - **evals/** — Skill evaluation test cases
 - **assets/** — Brand images
 
@@ -280,7 +281,7 @@ cd plugins/fat-agent
 python3 -m pytest tests/ -v
 ```
 
-840 tests covering all modules, the registry, crawler, bulk audit, Lighthouse, visual regression, dashboard, CI gate, client-facing transforms, profiles, and the persistent punch list.
+876 tests covering all modules, the registry, crawlers (incl. a live local-server site crawl), bulk audit, Lighthouse, visual regression, dashboard, CI gate, client-facing transforms, profiles, and the persistent punch list.
 
 ---
 

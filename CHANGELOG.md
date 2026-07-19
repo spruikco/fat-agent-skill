@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.11.0] - 2026-07-20
+
+### Added — site-wide crawl audit (the layer single pages can't show)
+Ported from Froggy (Spruik's internal Screaming-Frog-class crawler), trimmed
+to the audit-relevant core. FAT previously audited *pages*; it now audits
+*sites*.
+
+- **`scripts/sitecrawl.py`** — concurrent stdlib crawler → SQLite
+  (`pages` table + full `links` graph + compact JSON summary to stdout; the
+  heavy data never enters conversation context). Seeds from the sitemap as
+  well as links (which is what makes orphan detection possible), respects
+  robots.txt, strips tracking params during URL normalisation, sniffs
+  charsets, records every link with anchor text, retries transient failures,
+  backs off adaptively on 403/429 waves, and ships an SSRF guard
+  (private/loopback hosts blocked by default; `--allow-private` for
+  staging/intranet audits).
+- **`scripts/sitewide.py`** — site-level checks over the crawl DB:
+  **internal links to broken pages (P0)**, **5xx (P0)**, broken 4xx pages,
+  fetch errors, **duplicate titles / meta descriptions / page content across
+  URLs**, **orphan pages**, thin content at scale, slow responses (>2s), and
+  internal links resolving through redirects. Emits standard FAT findings
+  (module `sitewide`) in the scores shape, so they merge straight into the
+  punch list and **auto-resolve on a clean re-crawl**. Finding titles are
+  stable (counts live in descriptions) so punch-list identity holds across
+  crawls. Plus `--query` — SELECT-only, 50-row-capped SQL drill-down for
+  token-cheap follow-ups.
+- **SKILL.md "Site-Wide Crawl Audit"** — crawl → audit → punch list → SQL
+  drill-down workflow; explicit rule: never read page HTML into context
+  during a site crawl.
+
+### Tests
+- +36 (crawler units, parser, an end-to-end crawl against a local stdlib HTTP
+  server incl. orphan/duplicate/broken-link detection, synthetic-DB checks,
+  punchlist auto-resolve round-trip) = **876 passing**.
+
 ## [2.10.1] - 2026-07-19
 
 ### Added — ctx offer-once flow

@@ -916,6 +916,71 @@ Flag pages that score significantly below the site average.
 
 ---
 
+## Site-Wide Crawl Audit
+
+Page-level audits can't see cross-page problems. `sitecrawl.py` +
+`sitewide.py` add the site-level layer: a concurrent stdlib crawl into a
+SQLite database (a `pages` table plus a full `links` graph), then site-level
+checks over it. Use this whenever the user says "audit the whole site",
+"crawl the site", or the site has more than a handful of pages.
+
+### Step 1 — Crawl
+
+```bash
+python scripts/sitecrawl.py https://example.com --max-urls 300 --out ./.fat-work/crawl
+```
+
+Prints only a compact JSON summary; the full data lands in
+`./.fat-work/crawl/site.db`. **Never read page HTML into context during a
+site crawl — everything needed is in the database.** Flags: `--max-urls`
+(default 300), `--concurrency` (8), `--subdomains`, `--delay`,
+`--ignore-robots`, `--no-sitemap`, `--allow-private` (staging/intranet hosts —
+the SSRF guard blocks private addresses by default), `--insecure`.
+
+The crawler seeds from the sitemap as well as links — that's what makes
+orphan-page detection possible (an orphan, by definition, can't be reached by
+following links). It respects robots.txt, strips tracking parameters, records
+every internal/external link with anchor text, and backs off automatically if
+the site starts returning 403/429.
+
+### Step 2 — Site-level audit
+
+```bash
+python scripts/sitewide.py --db ./.fat-work/crawl/site.db            # human summary
+python scripts/sitewide.py --db ./.fat-work/crawl/site.db --json > ./.fat-work/sitewide.json
+python scripts/punchlist.py update --scores ./.fat-work/sitewide.json
+```
+
+Checks that only exist at site level: **internal links to broken pages (P0)**,
+**5xx errors (P0)**, broken 4xx pages, fetch errors, **duplicate titles /
+meta descriptions / page content across URLs**, **orphan pages**, thin
+content at scale, slow responses, and internal links resolving through
+redirects. Findings are standard FAT findings (module `sitewide`) — they merge
+into the punch list, auto-resolve on a clean re-crawl, and belong at the top
+of the report alongside the page-level results.
+
+### Step 3 — Drill down (token-cheap)
+
+Answer follow-up questions with capped SQL against the DB, not by re-fetching
+pages:
+
+```bash
+python scripts/sitewide.py --db ./.fat-work/crawl/site.db \
+    --query "SELECT url,title_len FROM pages WHERE title_len>60 ORDER BY title_len DESC"
+```
+
+SELECT-only, 50-row cap. Useful columns on `pages`: status, redirect_to,
+depth, response_ms, size_bytes, title/title_len, meta_desc/meta_desc_len,
+h1/h1_count, canonical/canonical_self, word_count, content_hash,
+images/images_no_alt, internal_links/external_links, indexable/index_reason,
+in_sitemap, error. `links` has source/target/anchor/rel/type.
+
+For JavaScript-rendered sites, the crawl sees server HTML only (which is what
+non-rendering crawlers see — that's a feature for SEO truth). Use
+`render_js.py` / the render-gap check on key pages to cover the rendered view.
+
+---
+
 ## Bulk Site Auditing (Portfolio Mode)
 
 For agencies or developers managing multiple sites, FAT Agent with Superpowers
@@ -1146,6 +1211,8 @@ For extended check details, see:
 - `scripts/track-history.py` — Historical audit tracker (read/write `.fat-history.json`)
 - `scripts/punchlist.py` — Persistent punch list (read/write `./.fat-work/punchlist.json`; update/status/resolve/note — survives context compaction)
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
+- `scripts/sitecrawl.py` — Site-wide concurrent crawler → SQLite (`pages` + `links` graph, sitemap seeding, SSRF guard, adaptive throttling)
+- `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans) + capped SQL drill-down
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
