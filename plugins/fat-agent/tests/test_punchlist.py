@@ -91,10 +91,24 @@ class TestExtractFindings:
 
 
 class TestScannedModules:
-    def test_core_always_scanned(self):
-        scanned = scanned_modules(_scores())
+    def test_core_scanned_when_core_scores_present(self):
+        scores = _scores()
+        scores["seo"] = {"score": 80}
+        scanned = scanned_modules(scores)
         for mid in ("seo", "security", "accessibility", "performance", "core"):
             assert mid in scanned
+
+    def test_module_only_file_does_not_scan_core(self):
+        """A sitewide/content-engine/ga4 JSON must not auto-resolve core
+        findings it never re-checked (real bug: 14 false resolutions)."""
+        scores = {
+            "findings": [],
+            "module_scores": {"content_engine": {"summary": {}}},
+            "summary": {},
+        }
+        scanned = scanned_modules(scores)
+        assert "seo" not in scanned and "core" not in scanned
+        assert "content_engine" in scanned
 
     def test_security_excluded_when_not_assessed(self):
         scanned = scanned_modules(_scores(security_assessed=False))

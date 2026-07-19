@@ -344,7 +344,7 @@ def main():
 
     s = roadmap["summary"]
     print(
-        f"{roadmap['total_queries']} queries → {len(roadmap['clusters'])} topic clusters: "
+        f"{roadmap['total_queries']} queries -> {len(roadmap['clusters'])} topic clusters: "
         + ", ".join(f"{v} {k}" for k, v in sorted(s.items()))
     )
     for c in roadmap["clusters"][:15]:

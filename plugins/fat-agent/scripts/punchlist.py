@@ -107,12 +107,16 @@ def scanned_modules(scores: dict) -> set:
     Only findings from these modules may auto-resolve when absent. Security is
     excluded when it was not assessed (no response headers fetched).
     """
-    scanned = set(CORE_MODULES)
-    scanned.add("core")  # the summary buckets
-
-    security = scores.get("security")
-    if isinstance(security, dict) and security.get("assessed") is False:
-        scanned.discard("security")
+    scanned = set()
+    # Core categories count as scanned only when this scores file actually
+    # contains them — module-only files (sitewide/content-engine/ga4 JSON)
+    # must not auto-resolve core findings they never re-checked.
+    if isinstance(scores.get("seo"), dict) and "score" in scores["seo"]:
+        scanned |= set(CORE_MODULES)
+        scanned.add("core")  # the summary buckets
+        security = scores.get("security")
+        if isinstance(security, dict) and security.get("assessed") is False:
+            scanned.discard("security")
 
     module_scores = scores.get("module_scores")
     if isinstance(module_scores, dict):
