@@ -679,6 +679,26 @@ Checks for **VideoObject** structured data with its required properties (`name`,
 After completing all audit checks, compile a **FAT Report** — a prioritised list
 of findings.
 
+**FIX means execute, not just recommend.** When the user has the site's repo
+(ask for the path if a fix session starts without it), implement the punch
+list directly — with the user's go-ahead, work through it item by item:
+
+- **Technical**: headers config, meta/title tags, aria-labels and skip links,
+  heading hierarchy, redirects, sitemap generators — edit, build-check,
+  commit, push (respect the repo's own conventions and deploy flow).
+- **Content**: execute the Content Engine roadmap — rewrite titles/metas for
+  striking-distance keywords, add the internal links from
+  `link_opportunities`, restructure pages flagged consolidate (move the head
+  term to its rightful page, re-anchor links), and draft full new pages from
+  the briefs for the user to review before committing.
+- **Out of reach**: DNS records (SPF/DKIM/DMARC), registrar and third-party
+  console changes — give the user the exact records/values to paste, and
+  leave the punch-list item open until a re-audit verifies it live.
+
+After each batch ships: re-fetch, re-score, `punchlist.py update` — fixed
+items auto-resolve, and the deck regenerates with the new scorecard. The
+loop is fix → deploy → verify, never fix-and-hope.
+
 ### Priority Levels
 | Priority | Label | Meaning |
 |----------|-------|---------|
