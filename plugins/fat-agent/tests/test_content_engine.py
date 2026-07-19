@@ -5,7 +5,16 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from content_engine import as_findings, build_roadmap, cluster_queries
+import zipfile
+
+from content_engine import (
+    _rows_from_csv,
+    as_findings,
+    build_roadmap,
+    cluster_queries,
+    infer_pages,
+    load_rows,
+)
 from editorial_report import render, roadmap_slide
 
 
@@ -105,6 +114,54 @@ class TestFindings:
     def test_defend_clusters_emit_no_findings(self):
         roadmap = build_roadmap([_row("ok", page="https://e.com/", position=2.0)])
         assert as_findings(roadmap) == []
+
+
+GSC_UI_CSV = (
+    "Top queries,Clicks,Impressions,CTR,Position\n"
+    'termite inspection,"1,234","5,678",21.7%,4.2\n'
+    "pest control adelaide,90,800,11.3%,12.5\n"
+)
+
+
+class TestEasyIngestion:
+    def test_gsc_ui_csv_headers_and_number_formats(self):
+        rows = _rows_from_csv(GSC_UI_CSV)
+        assert rows[0]["query"] == "termite inspection"
+        assert rows[0]["clicks"] == 1234
+        assert rows[0]["impressions"] == 5678
+        assert rows[1]["position"] == 12.5
+
+    def test_zip_export_read_as_is(self, tmp_path):
+        zpath = os.path.join(str(tmp_path), "export.zip")
+        with zipfile.ZipFile(zpath, "w") as z:
+            z.writestr("Queries.csv", GSC_UI_CSV)
+            z.writestr("Pages.csv", "Top pages,Clicks\nhttps://e.com/,1\n")
+        rows = load_rows(zpath)
+        assert len(rows) == 2
+        assert rows[0]["query"] == "termite inspection"
+
+    def test_csv_file_with_bom(self, tmp_path):
+        p = os.path.join(str(tmp_path), "Queries.csv")
+        with open(p, "w", encoding="utf-8-sig") as f:
+            f.write(GSC_UI_CSV)
+        assert len(load_rows(p)) == 2
+
+    def test_infer_pages_from_crawl_inventory(self):
+        rows = [_row("termite inspection cost", page="")]
+        inventory = {
+            "https://e.com/services/termite-inspection/": {
+                "title": "Termite Inspections"
+            },
+            "https://e.com/about/": {"title": "About Us"},
+        }
+        out = infer_pages(rows, inventory)
+        assert out[0]["page"] == "https://e.com/services/termite-inspection/"
+        assert out[0]["inferred"] is True
+
+    def test_infer_requires_real_overlap(self):
+        rows = [_row("wasp nest removal", page="")]
+        out = infer_pages(rows, {"https://e.com/about/": {"title": "About Us"}})
+        assert out[0]["page"] == ""
 
 
 class TestDeckIntegration:

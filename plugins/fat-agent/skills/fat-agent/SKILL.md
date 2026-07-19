@@ -1465,8 +1465,23 @@ python scripts/gsc.py --data gsc.json --brand "acme" --output /tmp/gsc.json
 ### The Content Engine (lead the content discussion)
 
 The audit layers find what's broken; the Content Engine finds **what's
-missing** — content is what moves the SEO dial. Run it whenever GSC data is
-available:
+missing** — content is what moves the SEO dial.
+
+**Getting the data — easiest path first, never make the user reshape
+anything:**
+
+1. **A Search Console MCP is connected** (check the available tools for
+   search-analytics/GSC tools): pull query+page performance data YOURSELF
+   (last 3–6 months, query+page dimensions) and write it as `gsc.json` rows
+   of `{query, page, clicks, impressions, position}`. The user does nothing.
+2. **No MCP**: ask the user to download the export from Search Console
+   (Performance → Export → Download CSV) and **drop the ZIP in as-is** —
+   `content_engine.py --gsc export.zip` reads the zip directly, or a bare
+   `Queries.csv`. UI exports lack query→page pairs; the engine infers them
+   from the crawl DB automatically (matches are marked `inferred`).
+3. **API** setup only if the user asks for automation.
+
+Then run:
 
 ```bash
 python scripts/content_engine.py --gsc ./.fat-work/gsc.json \

@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.1.0] - 2026-07-20
+
+### Changed — Content Engine: zero-reshaping data ingestion
+Make it as easy as possible for the end user — never require hand-built JSON.
+
+- **`content_engine.py --gsc` now accepts the Search Console UI export
+  as-is**: the downloaded ZIP itself, or a bare `Queries.csv` ("Top queries"
+  headers, "1,234" thousands, "3.4%" CTRs, BOM — all handled). JSON from
+  MCP/API still works unchanged.
+- **Query→page inference**: UI exports lack query→page pairs; when a crawl DB
+  is present the engine recovers the mapping by term-matching queries against
+  page slugs + titles (matches marked `inferred`).
+- **SKILL.md data ladder, easiest first**: (1) a connected Search Console MCP
+  → Claude pulls the data itself, the user does nothing; (2) no MCP → the
+  user drops the export ZIP in unmodified; (3) API setup only on request.
+
+### Tests
+- +5 = **910 passing**.
+
 ## [3.0.0] - 2026-07-20
 
 ### The Content Engine

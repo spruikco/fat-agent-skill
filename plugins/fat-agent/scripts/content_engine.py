@@ -25,10 +25,13 @@ Usage:
 """
 
 import argparse
+import csv
+import io
 import json
 import re
 import sqlite3
 import sys
+import zipfile
 from urllib.parse import urlparse
 
 from link_opportunities import MONEY_DEFAULT, _terms, best_money_target
@@ -40,9 +43,56 @@ MAX_BRIEF_FINDINGS = 12
 DECAY_DROP = 0.4
 
 
+def _num(v):
+    """GSC UI exports write '1,234' and '3.4%' — parse both."""
+    s = str(v or "0").replace(",", "").replace("%", "").strip()
+    try:
+        return float(s)
+    except ValueError:
+        return 0
+
+
+def _rows_from_csv(text):
+    """Parse a GSC UI 'Queries.csv' (or any csv with query/clicks/impressions/
+    position columns). 'Top queries' is what the UI export calls the column."""
+    reader = csv.DictReader(io.StringIO(text))
+    out = []
+    for row in reader:
+        r = {(k or "").strip().lower(): v for k, v in row.items()}
+        q = r.get("top queries") or r.get("query") or r.get("queries")
+        if not q:
+            continue
+        out.append(
+            {
+                "query": q,
+                "page": r.get("page") or r.get("top pages") or "",
+                "clicks": int(_num(r.get("clicks"))),
+                "impressions": int(_num(r.get("impressions"))),
+                "position": _num(r.get("position")),
+            }
+        )
+    return out
+
+
 def load_rows(path):
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    """Accept whatever the user has: the GSC UI export ZIP as downloaded,
+    a Queries.csv from inside it, or API/MCP JSON. Zero reshaping required."""
+    lower = path.lower()
+    if lower.endswith(".zip"):
+        with zipfile.ZipFile(path) as z:
+            name = next(
+                (n for n in z.namelist() if "quer" in n.lower() and n.endswith(".csv")),
+                None,
+            )
+            if not name:
+                raise SystemExit("No queries CSV found inside the GSC export zip")
+            data = _rows_from_csv(z.read(name).decode("utf-8-sig", errors="replace"))
+    elif lower.endswith(".csv"):
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+            data = _rows_from_csv(f.read())
+    else:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
     rows = data.get("rows", data) if isinstance(data, dict) else data
     out = []
     for r in rows or []:
@@ -153,7 +203,39 @@ def classify(cluster, prev_clicks=None):
     }
 
 
+def infer_pages(rows, inventory):
+    """UI exports lack query→page pairs; recover them from the crawl.
+
+    Best term-overlap match of each query against page URL slugs + titles.
+    Marks inferred rows so downstream copy can stay honest about certainty.
+    """
+    if not inventory:
+        return rows
+    page_terms = {
+        url: _terms(urlparse(url).path.replace("-", " ") + " " + meta["title"])
+        for url, meta in inventory.items()
+    }
+    for r in rows:
+        if r["page"]:
+            continue
+        qt = {_stem(t) for t in _terms(r["query"])}
+        best, best_n = "", 0
+        for url, terms in page_terms.items():
+            n = len(qt & {_stem(t) for t in terms})
+            if n > best_n:
+                best, best_n = url, n
+        if best_n >= 2 or (qt and best_n == len(qt)):
+            r["page"] = best
+            r["inferred"] = True
+    return rows
+
+
 def build_roadmap(rows, brand="", db_path="", prev_rows=None):
+    if db_path:
+        inv, _ = crawl_inventory(db_path)
+        rows = infer_pages(rows, inv)
+        if prev_rows:
+            prev_rows = infer_pages(prev_rows, inv)
     clusters = cluster_queries(rows, brand)
     prev_by_label = {}
     if prev_rows:
