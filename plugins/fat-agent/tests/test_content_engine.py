@@ -15,7 +15,7 @@ from content_engine import (
     infer_pages,
     load_rows,
 )
-from editorial_report import render, roadmap_slide
+from editorial_report import brief_slides, render, roadmap_slides
 
 
 def _row(query, page="", clicks=0, impressions=100, position=15.0):
@@ -180,6 +180,43 @@ class TestDeckIntegration:
         assert "Wasp Nest Removal" in html
 
     def test_empty_roadmap_no_slide(self):
-        assert roadmap_slide({"clusters": []}, lambda **k: "", 3) == ""
+        assert roadmap_slides({"clusters": []}, lambda **k: "", 3) == []
         html = render(self.SCORES, {}, self.KIT, "FAT", None)
         assert "Content roadmap" not in html
+
+    def test_all_clusters_paginate_never_truncate(self):
+        roadmap = {
+            "clusters": [
+                {
+                    "label": f"unique topic {i}",
+                    "action": "rework",
+                    "impressions": 100 - i,
+                    "avg_position": 30.0,
+                    "queries": [f"unique topic {i}"],
+                    "pages": [],
+                }
+                for i in range(40)
+            ]
+        }
+        slides = roadmap_slides(roadmap, lambda **k: "", 3)
+        # 1 headline slide (top 7) + 2 dense inventory slides (33 @ 26/page)
+        assert len(slides) == 3
+        assert "unique topic 39" in "".join(slides)  # the last one shipped
+
+    def test_brief_slides_render_all(self):
+        briefs = [
+            {
+                "title": f"Brief {i}",
+                "priority": "P1",
+                "demand": "100 imp",
+                "why": "because",
+                "outline": ["A", "B"],
+                "links": ["https://e.com/services/x/"],
+            }
+            for i in range(5)
+        ]
+        slides = brief_slides(briefs, lambda **k: "", 4)
+        assert len(slides) == 5
+        assert "Brief 4" in slides[-1]
+        html = render(self.SCORES, {}, self.KIT, "FAT", None, briefs)
+        assert "Content brief" in html

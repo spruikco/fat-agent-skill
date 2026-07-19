@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.3.0] - 2026-07-20
+
+### Changed — deck structure: tight main deck, complete appendix
+Driven by live user feedback on a real client deliverable:
+
+- **Deliverables are rendered HTML, never markdown** — new `--briefs` option
+  renders every content brief as its own editorial slide (title, demand,
+  rationale, numbered outline, link targets). SKILL.md now mandates briefs
+  ship as `briefs.json` → deck slides, not .md files.
+- **Everything ships, nothing overwhelms**: the main deck stays ~8 slides
+  (cover, scorecard, roadmap headline, three hero briefs, P0/P1 findings,
+  next steps). An **Appendix** divider then carries the complete detail —
+  remaining briefs, every P2/P3 finding, and the full topic inventory as
+  dense two-column table slides. No caps, no truncation, no JSON-only data.
+- **On-screen section nav** (Score / Roadmap / Findings / Appendix), hidden
+  in print.
+
+### Tests
+- +2 = **918 passing**.
+
 ## [3.2.0] - 2026-07-20
 
 ### Added — GA4 behaviour layer

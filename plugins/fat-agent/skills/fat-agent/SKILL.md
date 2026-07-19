@@ -1508,6 +1508,21 @@ the best answer on the internet for its head query. The script supplies
 evidence; you supply the editorial thinking. Lead the client conversation
 with the roadmap, not the defect list.
 
+**Deliverables are rendered HTML, never raw markdown.** Users and clients
+consume decks, not .md files. Write your briefs as `briefs.json` — a list of
+`{title, priority, demand, why, outline: [h2s], links: [urls]}` — and render
+them into the branded deck:
+
+```bash
+python scripts/editorial_report.py --scores ... --brandkit ... \
+    --roadmap ./.fat-work/roadmap.json --briefs ./.fat-work/briefs.json \
+    --out ./.fat-work/audit-report.html
+```
+
+Each brief becomes its own editorial slide (title, demand line, rationale,
+numbered outline, link targets) in the client's brand. Markdown files are
+for repos; the deck is for humans.
+
 Pass `--roadmap` output to `editorial_report.py --roadmap` and the deck gains
 a **"Content roadmap — where the growth is"** slide placed BEFORE the
 findings: growth first, defects second.

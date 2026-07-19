@@ -75,14 +75,20 @@ def category_scores(scores: dict) -> list:
     return out
 
 
-def roadmap_slide(roadmap, furniture, page):
+ROADMAP_PER_SLIDE = 7
+
+
+def roadmap_slides(roadmap, furniture, start_page):
+    """EVERY actionable cluster makes the deck — paginated, never truncated.
+    Hiding findings in a JSON file is not a deliverable."""
     actionable = [
         c
         for c in (roadmap or {}).get("clusters", [])
         if c.get("action") in ("create", "rework", "consolidate", "refresh", "optimise")
-    ][:6]
-    if not actionable:
-        return ""
+    ]
+    slides = []
+    # Slide 1: the headline opportunities, editorial treatment
+    top = actionable[:ROADMAP_PER_SLIDE]
     rows = "".join(f"""<div class="road-row">
       <div class="badge road-{esc(c["action"])}">{esc(c["action"])}</div>
       <div class="finding-body">
@@ -90,17 +96,56 @@ def roadmap_slide(roadmap, furniture, page):
         <p>{esc(c["impressions"])} impressions · avg position {esc(c["avg_position"] or "n/a")}
         · {esc(", ".join(c.get("queries", [])[:3]))}</p>
       </div>
-    </div>""" for c in actionable)
-    return f"""<div class="slide">
-  {furniture(page=page)}
+    </div>""" for c in top)
+    if rows:
+        slides.append(f"""<div class="slide" id="s-roadmap">
+  {furniture(page=start_page)}
   <div class="kicker accent">Content roadmap — where the growth is</div>
   <div class="findings">{rows}</div>
   <p class="score-note">Built from real search demand: your queries, your pages,
   your link graph — not a keyword tool's estimates.</p>
-</div>"""
+</div>""")
+
+    # Remaining clusters: dense two-column inventory — everything shown,
+    # readable, a fraction of the pages
+    tail = actionable[ROADMAP_PER_SLIDE:]
+    per_table = 26
+    for i in range(0, len(tail), per_table):
+        cells = "".join(
+            f"""<div class="inv-row"><span class="inv-action road-{esc(c["action"])}">{esc(c["action"][:4])}</span>
+            <span class="inv-label">{esc(c["label"])}</span>
+            <span class="inv-num">{esc(c["impressions"])} · p{esc(c["avg_position"] or "-")}</span></div>"""
+            for c in tail[i : i + per_table]
+        )
+        slides.append(f"""<div class="slide">
+  {furniture(page=start_page + len(slides))}
+  <div class="kicker accent">Content roadmap — full topic inventory ({i + 1}–{min(i + per_table, len(tail))} of {len(tail)})</div>
+  <div class="inv-grid">{cells}</div>
+</div>""")
+    return slides
 
 
-def render(scores, sitewide, kit, brand_name, roadmap=None):
+def brief_slides(briefs, furniture, start_page):
+    """One editorial slide per content brief — briefs are client deliverables,
+    rendered in the deck, never handed over as raw markdown."""
+    slides = []
+    for i, b in enumerate(briefs or []):
+        page = start_page + i
+        outline = "".join(f"<li>{esc(h)}</li>" for h in (b.get("outline") or [])[:8])
+        links = esc(", ".join(b.get("links") or []))
+        slides.append(f"""<div class="slide">
+  {furniture(page=page)}
+  <div class="kicker accent">Content brief · {esc(b.get("priority", ""))}</div>
+  <h2 class="brief-title">{esc(b.get("title"))}</h2>
+  <p class="brief-demand">{esc(b.get("demand", ""))}</p>
+  <p class="brief-why">{esc(b.get("why", ""))}</p>
+  <ol class="brief-outline">{outline}</ol>
+  {f'<p class="brief-links">Link to: {links}</p>' if links else ""}
+</div>""")
+    return slides
+
+
+def render(scores, sitewide, kit, brand_name, roadmap=None, briefs=None):
     site = kit.get("site_name", "Website")
     accent = kit.get("colors", {}).get("accent", "#1c211e")
     fonts = kit.get("fonts", {})
@@ -118,7 +163,7 @@ def render(scores, sitewide, kit, brand_name, roadmap=None):
     grade = overall.get("grade", "–")
     score = overall.get("score", "–")
     findings = collect_findings(scores, sitewide)
-    shown = findings[:MAX_FINDINGS]
+    shown = findings  # every finding ships — paginated, never truncated
     p0 = sum(1 for f in findings if f.get("priority") == "P0")
     p1 = sum(1 for f in findings if f.get("priority") == "P1")
     today = datetime.date.today().strftime("%d %B %Y")
@@ -157,7 +202,7 @@ def render(scores, sitewide, kit, brand_name, roadmap=None):
       <div class="cat-score">{val if val is not None else "–"}</div>
       <div class="cat-label">{label}{f'<span class="cat-note"> · {note}</span>' if note else ""}</div>
     </div>""" for label, val, note in category_scores(scores))
-    slides.append(f"""<div class="slide">
+    slides.append(f"""<div class="slide" id="s-score">
   {furniture(page=2)}
   <div class="kicker accent">Where the site stands</div>
   <div class="score-row">
@@ -171,17 +216,12 @@ def render(scores, sitewide, kit, brand_name, roadmap=None):
   Scores follow the FAT method: SEO-weighted, capped by open critical issues.</p>
 </div>""")
 
-    # ---- content roadmap (the growth slide leads the findings) ----
-    page = 3
-    slide = roadmap_slide(roadmap, furniture, page)
-    if slide:
-        slides.append(slide)
-        page += 1
-
-    # ---- findings slides ----
-    for i in range(0, len(shown), FINDINGS_PER_SLIDE):
-        batch = shown[i : i + FINDINGS_PER_SLIDE]
-        items = "".join(f"""<div class="finding">
+    def findings_slides(batch_findings, label, anchor=""):
+        nonlocal page
+        out = []
+        for i in range(0, len(batch_findings), FINDINGS_PER_SLIDE):
+            batch = batch_findings[i : i + FINDINGS_PER_SLIDE]
+            items = "".join(f"""<div class="finding">
       <div class="badge {esc(f.get("priority", "P3"))}">{PRIORITY_LABEL.get(f.get("priority"), "Low")}</div>
       <div class="finding-body">
         <h3>{esc(f.get("title"))}</h3>
@@ -189,17 +229,33 @@ def render(scores, sitewide, kit, brand_name, roadmap=None):
         <p class="fix">{esc((f.get("fix") or "")[:200])}</p>
       </div>
     </div>""" for f in batch)
-        hero_side = ""
-        hero_idx = 1 + (i // FINDINGS_PER_SLIDE)
-        if hero_idx < len(heroes):
-            hero_side = f'<div class="side-photo" style="background-image:url({heroes[hero_idx]})"></div>'
-        slides.append(f"""<div class="slide{' with-photo' if hero_side else ''}">
+            hero_side = ""
+            hero_idx = 1 + (i // FINDINGS_PER_SLIDE)
+            if hero_idx < len(heroes):
+                hero_side = f'<div class="side-photo" style="background-image:url({heroes[hero_idx]})"></div>'
+            aid = f' id="{anchor}"' if anchor and not i else ""
+            out.append(f"""<div class="slide{' with-photo' if hero_side else ''}"{aid}>
   {hero_side}
   {furniture(page=page)}
-  <div class="kicker accent">What we found{" · continued" if i else ""}</div>
+  <div class="kicker accent">{label}{" · continued" if i else ""}</div>
   <div class="findings">{items}</div>
 </div>""")
+            page += 1
+        return out
+
+    # MAIN DECK — tight. One roadmap headline, three hero briefs, the
+    # critical findings. Everything else lives in the appendix.
+    page = 3
+    rslides = roadmap_slides(roadmap, furniture, page)
+    if rslides:
+        slides.append(rslides[0])
         page += 1
+    hero_briefs = brief_slides((briefs or [])[:3], furniture, page)
+    slides.extend(hero_briefs)
+    page += len(hero_briefs)
+    critical = [f for f in shown if f.get("priority") in ("P0", "P1")]
+    the_rest = [f for f in shown if f.get("priority") not in ("P0", "P1")]
+    slides.extend(findings_slides(critical, "What we found — priorities", "s-findings"))
 
     # ---- close ----
     close_bg = (
@@ -214,9 +270,29 @@ def render(scores, sitewide, kit, brand_name, roadmap=None):
   <div class="cover-inner{' on-photo' if on_photo else ''}">
     <div class="kicker">Next steps</div>
     <h2>Fix the {p0 + p1 or len(findings)} priority items first.</h2>
-    <div class="cover-meta">Prepared with FAT Agent — every finding re-verified after fixes ship.</div>
+    <div class="cover-meta">Prepared with FAT Agent — every finding re-verified after fixes ship.
+    Full detail in the appendix.</div>
   </div>
 </div>""")
+    page += 1
+
+    # APPENDIX — complete detail, nothing hidden, nothing in the way
+    appendix = []
+    appendix.extend(brief_slides((briefs or [])[3:], furniture, page + 1))
+    page += len(appendix)
+    appendix.extend(findings_slides(the_rest, "Appendix — remaining findings"))
+    appendix.extend(rslides[1:])
+    if appendix:
+        slides.append(f"""<div class="slide" id="s-appendix">
+  {furniture(page=page)}
+  <div class="cover-inner">
+    <div class="kicker">Appendix</div>
+    <h2>The complete detail.</h2>
+    <div class="cover-meta">Every brief, every finding, the full topic inventory —
+    for the team doing the work.</div>
+  </div>
+</div>""")
+        slides.extend(appendix)
 
     css = f"""
 :root {{ --ink:#1c211e; --body:#3a3f3c; --muted:#6f746e; --faint:#a9ada6;
@@ -267,6 +343,27 @@ body {{ font-family:'{primary_font}', 'Plus Jakarta Sans', -apple-system, Arial,
   padding:1.5mm 3mm; border-radius:2mm; color:#fff; background:var(--muted); margin-top:1mm; }}
 .badge.P0 {{ background:#8c2f22; }} .badge.P1 {{ background:#a96a1f; }}
 .badge.P2 {{ background:var(--accent); }} .badge.P3 {{ background:var(--faint); }}
+.deck-nav {{ position:fixed; top:0; left:0; right:0; z-index:50; display:flex; gap:18px;
+  justify-content:center; padding:10px; background:rgba(255,255,255,.95);
+  border-bottom:1px solid var(--hair); font-size:10pt; font-weight:600; }}
+.deck-nav a {{ color:var(--muted); text-decoration:none; letter-spacing:.08em; text-transform:uppercase; }}
+.deck-nav a:hover {{ color:var(--accent); }}
+@media print {{ .deck-nav {{ display:none; }} }}
+.inv-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:1.5mm 10mm; }}
+.inv-row {{ display:flex; gap:3mm; align-items:baseline; border-bottom:1px solid var(--hair);
+  padding:1.2mm 0; font-size:8.5pt; }}
+.inv-action {{ flex:0 0 12mm; font-size:6.5pt; font-weight:700; text-transform:uppercase;
+  letter-spacing:.08em; color:#fff; text-align:center; border-radius:1.5mm; padding:.6mm 0;
+  background:var(--muted); }}
+.inv-action.road-create {{ background:var(--accent); }} .inv-action.road-optimise {{ background:#a96a1f; }}
+.inv-label {{ flex:1; color:var(--ink); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }}
+.inv-num {{ color:var(--muted); font-size:7.5pt; white-space:nowrap; }}
+.brief-title {{ font-size:24pt; font-weight:800; color:var(--ink); margin-bottom:4mm; }}
+.brief-demand {{ font-size:11pt; font-weight:600; color:var(--accent); margin-bottom:3mm; }}
+.brief-why {{ font-size:10.5pt; color:var(--body); max-width:190mm; margin-bottom:6mm; }}
+.brief-outline {{ margin-left:6mm; max-width:180mm; }}
+.brief-outline li {{ font-size:11pt; color:var(--ink); padding:1.5mm 0; border-bottom:1px solid var(--hair); }}
+.brief-links {{ margin-top:6mm; font-size:9.5pt; color:var(--muted); }}
 .road-row {{ display:flex; gap:6mm; align-items:flex-start; border-bottom:1px solid var(--hair); padding-bottom:4mm; }}
 .badge.road-create {{ background:var(--accent); }} .badge.road-optimise {{ background:#a96a1f; }}
 .badge.road-rework, .badge.road-consolidate, .badge.road-refresh {{ background:var(--muted); }}
@@ -283,7 +380,10 @@ body {{ font-family:'{primary_font}', 'Plus Jakarta Sans', -apple-system, Arial,
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="{esc(gfonts)}" rel="stylesheet">
 <style>{css}</style></head>
-<body>{"".join(slides)}</body></html>"""
+<body>
+<nav class="deck-nav"><a href="#s-score">Score</a><a href="#s-roadmap">Roadmap</a>
+<a href="#s-findings">Findings</a><a href="#s-appendix">Appendix</a></nav>
+{"".join(slides)}</body></html>"""
 
 
 def main():
@@ -292,6 +392,7 @@ def main():
     ap.add_argument("--sitewide", default="")
     ap.add_argument("--brandkit", required=True)
     ap.add_argument("--roadmap", default="", help="content_engine.py roadmap JSON")
+    ap.add_argument("--briefs", default="", help="briefs JSON (list of brief objects)")
     ap.add_argument("--brand-name", default="FAT Agent")
     ap.add_argument("--out", default=os.path.join(".fat-work", "audit-report.html"))
     args = ap.parse_args()
@@ -308,8 +409,12 @@ def main():
     if args.roadmap and os.path.exists(args.roadmap):
         with open(args.roadmap, "r", encoding="utf-8") as f:
             roadmap = json.load(f)
+    briefs = None
+    if args.briefs and os.path.exists(args.briefs):
+        with open(args.briefs, "r", encoding="utf-8") as f:
+            briefs = json.load(f)
 
-    doc = render(scores, sitewide, kit, args.brand_name, roadmap)
+    doc = render(scores, sitewide, kit, args.brand_name, roadmap, briefs)
     parent = os.path.dirname(args.out)
     if parent:
         os.makedirs(parent, exist_ok=True)
