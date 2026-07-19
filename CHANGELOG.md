@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.10.1] - 2026-07-19
+
+### Added — ctx offer-once flow
+- **SKILL.md**: when ctx is absent and session continuity would genuinely help
+  (resuming a prior-session audit, long engagements), the skill may offer the
+  official ctx installer **once, with explicit consent** — a decline is recorded
+  in `./.fat-work/.ctx-declined` and the offer is never repeated. Explicitly
+  forbidden: silent installation, and bundling/vendoring the ctx binary
+  (distribution belongs to the ctx project's installer).
+- **README**: "Optional companion — ctx" install note (official one-liners,
+  Apache-2.0, local-only).
+
 ## [2.10.0] - 2026-07-19
 
 ### Added — compaction-safe session continuity

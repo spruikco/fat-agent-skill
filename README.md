@@ -71,6 +71,23 @@ Plus Content Quality, GDPR/Cookie consent, Schema validation, and Sitemap module
 This installs the FAT Agent plugin with the `/fat-audit` slash command. Already installed an
 earlier version? Run `/plugin update` to pull the latest superpowers.
 
+**Optional companion — [ctx](https://ctx.rs):** FAT persists audit state to disk, so it
+survives context compaction and session restarts on its own. If you also want FAT to
+recover *prior-session reasoning* (why a fix was chosen, what was already attempted)
+when resuming an audit, install the open-source ctx CLI — FAT detects it automatically
+and works fine without it:
+
+```bash
+# macOS / Linux
+curl -fsSL https://ctx.rs/install | sh
+```
+```powershell
+# Windows
+irm https://ctx.rs/install.ps1 | iex
+```
+
+ctx is Apache-2.0, local-only (SQLite on your machine), and sends nothing to any cloud.
+
 ### Claude Code (Manual)
 
 ```bash

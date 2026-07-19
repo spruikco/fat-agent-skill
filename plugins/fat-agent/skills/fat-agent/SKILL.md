@@ -1088,6 +1088,31 @@ Cite the ctx session/event id when retrieved history changes your answer. If
 ctx is not installed, skip this silently — the punch list and history files
 carry the essential state on their own.
 
+**Offering to install ctx (once, with consent — never automatically):** when
+ctx is absent AND session continuity would genuinely help (resuming an audit
+from a previous session, or a long multi-session engagement), you may offer it
+one time:
+
+1. First check for the decline marker — if `./.fat-work/.ctx-declined` exists,
+   the user has already said no. **Do not offer again; never mention it.**
+2. Otherwise offer once, plainly: it is optional, open-source (Apache-2.0),
+   fully local (SQLite on their machine, no cloud, no telemetry), and FAT works
+   fine without it. Official installers:
+   ```bash
+   curl -fsSL https://ctx.rs/install | sh        # macOS / Linux
+   ```
+   ```powershell
+   irm https://ctx.rs/install.ps1 | iex          # Windows
+   ```
+3. If they decline (or don't clearly accept), record it and move on:
+   ```bash
+   mkdir -p ./.fat-work && touch ./.fat-work/.ctx-declined
+   ```
+
+**Never** install ctx (or anything else) without the user's explicit yes in the
+current conversation, and never bundle or vendor its binary — distribution
+belongs to the ctx project's own installer.
+
 ---
 
 ## Important Notes
