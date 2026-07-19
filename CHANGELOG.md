@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.0.0] - 2026-07-20
+
+### The Content Engine
+Major version: FAT grows from finding what's broken to finding **what's
+missing**. Content moves the SEO dial; v3 leads with it.
+
+- **`scripts/content_engine.py`** — clusters real GSC queries into topics
+  (greedy Jaccard over stemmed terms, brand terms excluded), maps clusters
+  against the site's actual pages + crawl inventory, and classifies every
+  cluster: **defend / optimise / rework / consolidate (cannibalisation) /
+  create / refresh** (decay via `--previous` period comparison). Every
+  create/rework/refresh gets a brief skeleton — working title, target
+  queries, suggested H2s from the cluster's own long-tails, money-page link
+  target. Findings flow into the punch list (module `content_engine`);
+  `--roadmap` writes the full roadmap JSON.
+- **Editorial deck**: `editorial_report.py --roadmap` adds a
+  **"Content roadmap — where the growth is"** slide rendered BEFORE the
+  findings — growth first, defects second.
+- **SKILL.md**: the Content Engine workflow + Claude's role spelled out —
+  the script supplies evidence (clusters, demand, gaps), Claude writes the
+  full briefs and leads the client conversation with the roadmap.
+
+### Tests
+- +12 = **905 passing**.
+
 ## [2.13.0] - 2026-07-20
 
 ### Added — link opportunities + brand-pulled editorial reports

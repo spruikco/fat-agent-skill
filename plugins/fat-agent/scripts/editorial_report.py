@@ -75,7 +75,32 @@ def category_scores(scores: dict) -> list:
     return out
 
 
-def render(scores, sitewide, kit, brand_name):
+def roadmap_slide(roadmap, furniture, page):
+    actionable = [
+        c
+        for c in (roadmap or {}).get("clusters", [])
+        if c.get("action") in ("create", "rework", "consolidate", "refresh", "optimise")
+    ][:6]
+    if not actionable:
+        return ""
+    rows = "".join(f"""<div class="road-row">
+      <div class="badge road-{esc(c["action"])}">{esc(c["action"])}</div>
+      <div class="finding-body">
+        <h3>{esc((c.get("brief") or {}).get("working_title") or c["label"].title())}</h3>
+        <p>{esc(c["impressions"])} impressions · avg position {esc(c["avg_position"] or "n/a")}
+        · {esc(", ".join(c.get("queries", [])[:3]))}</p>
+      </div>
+    </div>""" for c in actionable)
+    return f"""<div class="slide">
+  {furniture(page=page)}
+  <div class="kicker accent">Content roadmap — where the growth is</div>
+  <div class="findings">{rows}</div>
+  <p class="score-note">Built from real search demand: your queries, your pages,
+  your link graph — not a keyword tool's estimates.</p>
+</div>"""
+
+
+def render(scores, sitewide, kit, brand_name, roadmap=None):
     site = kit.get("site_name", "Website")
     accent = kit.get("colors", {}).get("accent", "#1c211e")
     fonts = kit.get("fonts", {})
@@ -146,8 +171,14 @@ def render(scores, sitewide, kit, brand_name):
   Scores follow the FAT method: SEO-weighted, capped by open critical issues.</p>
 </div>""")
 
-    # ---- findings slides ----
+    # ---- content roadmap (the growth slide leads the findings) ----
     page = 3
+    slide = roadmap_slide(roadmap, furniture, page)
+    if slide:
+        slides.append(slide)
+        page += 1
+
+    # ---- findings slides ----
     for i in range(0, len(shown), FINDINGS_PER_SLIDE):
         batch = shown[i : i + FINDINGS_PER_SLIDE]
         items = "".join(f"""<div class="finding">
@@ -236,6 +267,9 @@ body {{ font-family:'{primary_font}', 'Plus Jakarta Sans', -apple-system, Arial,
   padding:1.5mm 3mm; border-radius:2mm; color:#fff; background:var(--muted); margin-top:1mm; }}
 .badge.P0 {{ background:#8c2f22; }} .badge.P1 {{ background:#a96a1f; }}
 .badge.P2 {{ background:var(--accent); }} .badge.P3 {{ background:var(--faint); }}
+.road-row {{ display:flex; gap:6mm; align-items:flex-start; border-bottom:1px solid var(--hair); padding-bottom:4mm; }}
+.badge.road-create {{ background:var(--accent); }} .badge.road-optimise {{ background:#a96a1f; }}
+.badge.road-rework, .badge.road-consolidate, .badge.road-refresh {{ background:var(--muted); }}
 .finding h3 {{ font-size:12.5pt; font-weight:700; color:var(--ink); margin-bottom:1mm; }}
 .finding p {{ font-size:9.5pt; color:var(--body); }}
 .finding .fix {{ color:var(--muted); margin-top:1mm; }}
@@ -257,6 +291,7 @@ def main():
     ap.add_argument("--scores", required=True)
     ap.add_argument("--sitewide", default="")
     ap.add_argument("--brandkit", required=True)
+    ap.add_argument("--roadmap", default="", help="content_engine.py roadmap JSON")
     ap.add_argument("--brand-name", default="FAT Agent")
     ap.add_argument("--out", default=os.path.join(".fat-work", "audit-report.html"))
     args = ap.parse_args()
@@ -269,8 +304,12 @@ def main():
             sitewide = json.load(f)
     with open(args.brandkit, "r", encoding="utf-8") as f:
         kit = json.load(f)
+    roadmap = None
+    if args.roadmap and os.path.exists(args.roadmap):
+        with open(args.roadmap, "r", encoding="utf-8") as f:
+            roadmap = json.load(f)
 
-    doc = render(scores, sitewide, kit, args.brand_name)
+    doc = render(scores, sitewide, kit, args.brand_name, roadmap)
     parent = os.path.dirname(args.out)
     if parent:
         os.makedirs(parent, exist_ok=True)

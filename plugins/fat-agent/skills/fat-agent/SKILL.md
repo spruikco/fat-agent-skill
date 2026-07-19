@@ -1291,7 +1291,8 @@ For extended check details, see:
 - `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans, sitemap hygiene) + capped SQL drill-down
 - `scripts/link_opportunities.py` — Content→money-page internal-link gaps from the real link graph (+ GSC ranking & target suggestions)
 - `scripts/brandkit.py` — Harvest the client site's logo, imagery, palette & fonts → `brandkit.json`
-- `scripts/editorial_report.py` — Brand-pulled A4 editorial audit deck (single-file HTML, print-to-PDF)
+- `scripts/editorial_report.py` — Brand-pulled A4 editorial audit deck (single-file HTML, print-to-PDF; `--roadmap` adds the content-roadmap slide)
+- `scripts/content_engine.py` — The Content Engine: GSC queries → topic clusters → defend/optimise/rework/consolidate/create/refresh roadmap with brief skeletons
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
@@ -1460,6 +1461,40 @@ python scripts/gsc.py --data gsc.json --brand "acme" --output /tmp/gsc.json
    - Where relevant, an H1/H2 suggestion or a short content-gap paragraph brief
    Fetch the target page first so the drafts fit the page's actual voice and
    subject. Present as a copy-paste block per keyword, current vs proposed.
+
+### The Content Engine (lead the content discussion)
+
+The audit layers find what's broken; the Content Engine finds **what's
+missing** — content is what moves the SEO dial. Run it whenever GSC data is
+available:
+
+```bash
+python scripts/content_engine.py --gsc ./.fat-work/gsc.json \
+    --db ./.fat-work/crawl/site.db --brand "<brand>" \
+    --roadmap ./.fat-work/roadmap.json --json > ./.fat-work/content.json
+python scripts/punchlist.py update --scores ./.fat-work/content.json
+```
+
+It clusters real queries into topics (hub-and-spoke, brand terms excluded),
+maps each cluster against the site's actual pages, and classifies every
+cluster: **defend** (top-10 — protect), **optimise** (striking distance),
+**rework** (covered but ranking nowhere), **consolidate** (cannibalised —
+multiple pages splitting one topic), **create** (real demand, no page — new
+content brief), **refresh** (pass `--previous` with an earlier GSC export to
+catch decayed clusters). Every create/rework/refresh gets a brief skeleton:
+working title, target queries, suggested H2s from the cluster's own
+long-tails, and a money-page link target.
+
+**Your job after the script runs:** turn the top brief skeletons into full
+content briefs — audience, angle, outline with the suggested H2s, internal
+links in AND out (use the crawl link graph), and what would make this page
+the best answer on the internet for its head query. The script supplies
+evidence; you supply the editorial thinking. Lead the client conversation
+with the roadmap, not the defect list.
+
+Pass `--roadmap` output to `editorial_report.py --roadmap` and the deck gains
+a **"Content roadmap — where the growth is"** slide placed BEFORE the
+findings: growth first, defects second.
 
 `gsc.py` also emits `opportunity_keywords` in the report schema, so GSC wins feed
 straight into the deck's *SEO Priority Opportunities* slide. If no GSC access is
