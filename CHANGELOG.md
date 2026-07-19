@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.13.0] - 2026-07-20
+
+### Added — link opportunities + brand-pulled editorial reports
+- **`scripts/link_opportunities.py`** — content→money-page internal-link gaps
+  from the REAL crawl link graph: content pages (blog/guides/resources) with
+  zero internal links to any money page (services/products/pricing/booking).
+  With a GSC export, gaps rank by real impressions, show top queries, and get
+  a suggested money-page target matched from those queries. Findings flow
+  into the punch list (module `link_opportunities`).
+- **`scripts/brandkit.py`** — harvests the audited site's own logo, OG/hero
+  imagery, colour palette (dominant saturated colour → accent) and typeface
+  (Google Fonts link + families) into `brandkit.json` + downloaded images.
+- **`scripts/editorial_report.py`** — renders the audit as an A4-landscape,
+  photography-led editorial deck in the client's own visual language
+  (single-file HTML, print-to-PDF): full-bleed cover, big scorecard, findings
+  batched per slide, next-steps close. The default client deliverable;
+  Word/PPTX remain for editable documents.
+- **SKILL.md**: site-wide Step 4 (link opportunities), editorial-report
+  pipeline, and "ship the fix, not just the finding" — paste-ready
+  title/meta/heading drafts for every striking-distance and low-CTR keyword.
+
+### Tests
+- +11 = **893 passing**.
+
 ## [2.12.0] - 2026-07-20
 
 ### Added — sitemap hygiene checks (learned in the field)

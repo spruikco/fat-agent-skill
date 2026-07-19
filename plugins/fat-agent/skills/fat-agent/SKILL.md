@@ -750,6 +750,29 @@ Report & Chart Generation pipeline (see below). Generate all of:
        --format html
    ```
 
+**Editorial report (brand-pulled, print-ready):** For client deliverables that
+should look like an agency proposal rather than a tool export, generate the
+editorial deck — it renders the audit in the CLIENT'S own visual language,
+using imagery, logo, accent colour and typeface harvested from their live
+site:
+
+```bash
+python scripts/brandkit.py --url https://client.com --out ./.fat-work/brand
+python scripts/editorial_report.py \
+    --scores ./.fat-work/scores.json \
+    --sitewide ./.fat-work/sitewide.json \
+    --brandkit ./.fat-work/brand/brandkit.json \
+    --out ./.fat-work/audit-report.html
+```
+
+Output is a single-file, A4-landscape HTML deck (photography-led cover, big
+editorial scorecard, one batch of findings per slide, next-steps close) that
+prints to PDF from any browser. Sanity-check the harvested brand kit before
+presenting: if the accent colour or hero images look wrong (some sites
+lazy-load imagery), override by editing `brandkit.json` and re-running.
+Offer this as the default client deliverable; the Word/PPTX pipeline below
+remains for users who need editable documents.
+
 **Client-facing mode (`--client-facing`):** When the user specifies
 `--client-facing` or says "this is for a client", generate reports with:
 - Professional language (no developer jargon)
@@ -1012,6 +1035,26 @@ For JavaScript-rendered sites, the crawl sees server HTML only (which is what
 non-rendering crawlers see — that's a feature for SEO truth). Use
 `render_js.py` / the render-gap check on key pages to cover the rendered view.
 
+### Step 4 — Internal-link opportunities (content → money pages)
+
+The crawl's link graph enables a finding most tools fake: content pages that
+earn attention but never pass it on. Run it on every site with a blog or
+guide section:
+
+```bash
+python scripts/link_opportunities.py --db ./.fat-work/crawl/site.db \
+    [--gsc ./.fat-work/gsc.json] --json > ./.fat-work/links.json
+python scripts/punchlist.py update --scores ./.fat-work/links.json
+```
+
+Graph mode alone finds content pages with **zero internal links to any money
+page** (services/products/pricing/booking, override with `--money-pattern` /
+`--content-pattern`). With a GSC export, gaps are ranked by real impressions,
+top queries are shown, and each page gets a **suggested money-page target**
+matched from its actual queries. Frame these to the user as revenue routing:
+"this guide earns N impressions and sends none of that authority to a page
+that sells".
+
 ---
 
 ## Bulk Site Auditing (Portfolio Mode)
@@ -1245,7 +1288,10 @@ For extended check details, see:
 - `scripts/punchlist.py` — Persistent punch list (read/write `./.fat-work/punchlist.json`; update/status/resolve/note — survives context compaction)
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
 - `scripts/sitecrawl.py` — Site-wide concurrent crawler → SQLite (`pages` + `links` graph, sitemap seeding, SSRF guard, adaptive throttling)
-- `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans) + capped SQL drill-down
+- `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans, sitemap hygiene) + capped SQL drill-down
+- `scripts/link_opportunities.py` — Content→money-page internal-link gaps from the real link graph (+ GSC ranking & target suggestions)
+- `scripts/brandkit.py` — Harvest the client site's logo, imagery, palette & fonts → `brandkit.json`
+- `scripts/editorial_report.py` — Brand-pulled A4 editorial audit deck (single-file HTML, print-to-PDF)
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
@@ -1405,6 +1451,15 @@ python scripts/gsc.py --data gsc.json --brand "acme" --output /tmp/gsc.json
      (compare `ctr` vs `benchmark_ctr`).
    - **Impressions, ~no clicks** — snippet/intent mismatch.
    - **Branded share** — brand-strength proxy.
+
+4. **Ship the fix, not just the finding.** For each striking-distance and
+   low-CTR keyword, DRAFT the paste-ready change yourself — don't stop at
+   reporting the keyword:
+   - A rewritten `<title>` (≤60 chars, keyword near the front, on brand)
+   - A rewritten meta description (≤155 chars, matches the query's intent)
+   - Where relevant, an H1/H2 suggestion or a short content-gap paragraph brief
+   Fetch the target page first so the drafts fit the page's actual voice and
+   subject. Present as a copy-paste block per keyword, current vs proposed.
 
 `gsc.py` also emits `opportunity_keywords` in the report schema, so GSC wins feed
 straight into the deck's *SEO Priority Opportunities* slide. If no GSC access is
