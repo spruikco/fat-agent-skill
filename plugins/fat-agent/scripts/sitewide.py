@@ -170,14 +170,69 @@ CHECKS = [
         "P3",
         "Internal links resolve through redirects",
         "Redirect hops slow crawling and users; internal links should point at "
-        "final URLs.",
+        "final URLs. (Only counts redirects that at least one internal link "
+        "actually points at — sitemap-only redirects are a separate finding.)",
         "Update internal links to link the destination URL directly.",
         "low",
-        "SELECT COUNT(*) FROM pages WHERE status>=300 AND status<400",
+        "SELECT COUNT(*) FROM pages p WHERE p.status>=300 AND p.status<400 "
+        "AND EXISTS (SELECT 1 FROM links l WHERE l.type='internal' "
+        "AND l.target=p.url)",
+        "SELECT p.url || '  ->  ' || COALESCE(p.redirect_to,'?') FROM pages p "
+        "WHERE p.status>=300 AND p.status<400 "
+        "AND EXISTS (SELECT 1 FROM links l WHERE l.type='internal' "
+        "AND l.target=p.url)",
+    ),
+    (
+        "sitemap_redirects",
+        "P1",
+        "Sitemap lists redirecting URLs",
+        "Sitemaps must list final canonical URLs. Every redirecting entry "
+        "makes crawlers pay an extra fetch per URL per crawl and delays "
+        "discovery — and Google treats sitemap URLs as canonical hints.",
+        "Regenerate the sitemap to emit final URLs. Check EVERY sitemap "
+        "generator: sites often have several (e.g. a Next.js app/sitemap.ts "
+        "route silently shadows public/sitemap.xml).",
+        "low",
+        "SELECT COUNT(*) FROM pages WHERE in_sitemap=1 "
+        "AND status>=300 AND status<400",
         "SELECT url || '  ->  ' || COALESCE(redirect_to,'?') FROM pages "
-        "WHERE status>=300 AND status<400",
+        "WHERE in_sitemap=1 AND status>=300 AND status<400",
+    ),
+    (
+        "sitemap_broken",
+        "P1",
+        "Sitemap lists broken URLs",
+        "The sitemap is telling search engines to index URLs that do not "
+        "exist. Usually a generator emitting page combinations that were "
+        "never built.",
+        "Fix the sitemap generator so it only emits URLs that resolve — "
+        "audit any hardcoded city/service/category combination lists.",
+        "medium",
+        "SELECT COUNT(*) FROM pages WHERE in_sitemap=1 "
+        "AND ((status>=400 AND status NOT IN (403,429)) "
+        "OR (error IS NOT NULL AND error NOT LIKE 'blocked%'))",
+        "SELECT url || '  (' || COALESCE(CAST(status AS TEXT), error) || ')' "
+        "FROM pages WHERE in_sitemap=1 "
+        "AND ((status>=400 AND status NOT IN (403,429)) "
+        "OR (error IS NOT NULL AND error NOT LIKE 'blocked%'))",
     ),
 ]
+
+# Systemic-pattern annotations: when most of a redirect finding is the SAME
+# transformation (target = URL + '/'), the real bug is one link/sitemap
+# generator, not N individual URLs — say so instead of listing them.
+SLASH_HOP_SQL = {
+    "internal_redirects": (
+        "SELECT COUNT(*) FROM pages p WHERE p.status>=300 AND p.status<400 "
+        "AND p.redirect_to = p.url || '/' "
+        "AND EXISTS (SELECT 1 FROM links l WHERE l.type='internal' "
+        "AND l.target=p.url)"
+    ),
+    "sitemap_redirects": (
+        "SELECT COUNT(*) FROM pages WHERE in_sitemap=1 "
+        "AND status>=300 AND status<400 AND redirect_to = url || '/'"
+    ),
+}
 
 
 def run_checks(con) -> list:
@@ -190,6 +245,14 @@ def run_checks(con) -> list:
         shown = "; ".join(samples)
         more = count - len(samples)
         description = f"{count} affected. {why}"
+        if key in SLASH_HOP_SQL:
+            hops = con.execute(SLASH_HOP_SQL[key]).fetchone()[0] or 0
+            if hops:
+                description += (
+                    f" SYSTEMIC: {hops} of {count} are pure trailing-slash hops "
+                    "(target = URL + '/') — one generator emits non-slash URLs; "
+                    "fix it once rather than treating these as individual issues."
+                )
         if shown:
             description += f" Examples: {shown}"
             if more > 0:

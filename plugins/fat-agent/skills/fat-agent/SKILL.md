@@ -954,10 +954,43 @@ python scripts/punchlist.py update --scores ./.fat-work/sitewide.json
 Checks that only exist at site level: **internal links to broken pages (P0)**,
 **5xx errors (P0)**, broken 4xx pages, fetch errors, **duplicate titles /
 meta descriptions / page content across URLs**, **orphan pages**, thin
-content at scale, slow responses, and internal links resolving through
-redirects. Findings are standard FAT findings (module `sitewide`) — they merge
-into the punch list, auto-resolve on a clean re-crawl, and belong at the top
-of the report alongside the page-level results.
+content at scale, slow responses, internal links resolving through redirects,
+and **sitemap hygiene** — sitemap entries that redirect or 404. Findings are
+standard FAT findings (module `sitewide`) — they merge into the punch list,
+auto-resolve on a clean re-crawl, and belong at the top of the report
+alongside the page-level results.
+
+**Diagnose by origin — sitemap seeds vs page links.** A URL can enter the
+crawl two ways (a link on a page, or the sitemap), and the fix is completely
+different depending on which. The `in_sitemap` column separates them:
+
+```sql
+-- are the 301s/404s the PAGES' fault or the SITEMAP's fault?
+SELECT in_sitemap, status, COUNT(*) FROM pages
+WHERE status >= 300 GROUP BY in_sitemap, status;
+-- redirects that no internal link points at = sitemap-only problem
+SELECT COUNT(*) FROM pages p WHERE p.status BETWEEN 300 AND 399
+AND NOT EXISTS (SELECT 1 FROM links l WHERE l.type='internal' AND l.target=p.url);
+```
+
+Real-world case: after fixing every page link on a site, a re-crawl still
+showed ~1,200 × 301 — **all** of them sitemap seeds. The sitemap generator
+emitted every URL without the trailing slash the host 301s to. Two rules
+from that incident:
+
+1. **Sitemaps must list final canonical URLs** — a redirecting or 404 sitemap
+   entry wastes a fetch per URL per crawl and mis-hints canonicals. On
+   `trailingSlash` sites, verify the sitemap's `<loc>` values end with `/`.
+2. **Find every sitemap generator before concluding.** Sites accumulate
+   several (a static `public/sitemap.xml`, a build script, and a framework
+   route). In Next.js, an `app/sitemap.ts` metadata route **silently
+   shadows** `public/sitemap.xml` — fixing the script that writes the public
+   file changes nothing. Fetch the LIVE `/sitemap.xml` (and every `Sitemap:`
+   URL in robots.txt) and compare against what each generator emits.
+
+The `sitewide.py` redirect findings flag the systemic case automatically:
+when most redirects are `URL → URL + '/'`, the finding says to fix the
+generator once rather than treating N URLs as N issues.
 
 ### Step 3 — Drill down (token-cheap)
 

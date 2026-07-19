@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.12.0] - 2026-07-20
+
+### Added — sitemap hygiene checks (learned in the field)
+Shipped straight from a real diagnosis: after fixing every page link on a
+production site, a re-crawl still showed ~1,200 × 301 — every one a sitemap
+seed (the sitemap generator emitted non-slash URLs on a `trailingSlash` host),
+and every remaining 404 was a phantom sitemap entry for pages that never
+existed.
+
+- **`sitewide.py` new checks**: `sitemap_redirects` (P1 — sitemap entries
+  must be final canonical URLs) and `sitemap_broken` (P1 — sitemap lists
+  URLs that 404 or fail to fetch; usually a generator emitting combinations
+  that were never built).
+- **`internal_redirects` accuracy fix**: now only counts redirects that at
+  least one internal link actually points at — sitemap-only redirects were
+  previously mislabelled as "internal links resolve through redirects".
+- **Systemic-pattern detection**: when most redirects are `URL → URL + '/'`,
+  the finding is annotated "SYSTEMIC: fix the generator once", instead of
+  presenting N URLs as N individual issues.
+- **SKILL.md "Diagnose by origin"**: split sitemap-seed problems from
+  page-link problems via the `in_sitemap` column (with ready-to-run SQL), and
+  the multiple-generators trap — in Next.js, `app/sitemap.ts` silently
+  shadows `public/sitemap.xml`; always verify the LIVE `/sitemap.xml` plus
+  every `Sitemap:` line in robots.txt against what each generator emits.
+
+### Tests
+- +6 (sitemap redirect/broken checks, internal-vs-sitemap attribution,
+  systemic slash-hop annotation) = **882 passing**.
+
 ## [2.11.0] - 2026-07-20
 
 ### Added — site-wide crawl audit (the layer single pages can't show)

@@ -129,6 +129,84 @@ class TestChecks:
         keys = _keys(run_checks(con))
         assert {"thin_content", "slow_pages", "internal_redirects"} <= keys
 
+
+class TestSitemapChecks:
+    def test_sitemap_redirect_is_not_an_internal_link_finding(self):
+        """A 301 that only the sitemap points at must NOT be blamed on
+        internal links — that mislabel cost a real diagnosis (spruik.co)."""
+        con = _db()
+        _page(
+            con,
+            "https://e.com/old",
+            status=301,
+            indexable=0,
+            redirect_to="https://e.com/new",
+            in_sitemap=1,
+        )
+        findings = {f["key"]: f for f in run_checks(con)}
+        assert "sitemap_redirects" in findings
+        assert "internal_redirects" not in findings
+
+    def test_linked_redirect_still_counts_as_internal(self):
+        con = _db()
+        _page(
+            con,
+            "https://e.com/old",
+            status=301,
+            indexable=0,
+            redirect_to="https://e.com/new",
+        )
+        _link(con, "https://e.com/", "https://e.com/old")
+        assert "internal_redirects" in _keys(run_checks(con))
+
+    def test_sitemap_broken_urls(self):
+        con = _db()
+        _page(con, "https://e.com/ghost", status=404, indexable=0, in_sitemap=1)
+        _page(con, "https://e.com/waf", status=403, indexable=0, in_sitemap=1)
+        findings = {f["key"]: f for f in run_checks(con)}
+        assert findings["sitemap_broken"]["count"] == 1  # 403 excluded
+        assert findings["sitemap_broken"]["priority"] == "P1"
+
+    def test_sitemap_fetch_error_counts_as_broken(self):
+        con = _db()
+        _page(
+            con,
+            "https://e.com/dead",
+            status=None,
+            indexable=0,
+            in_sitemap=1,
+            error="timed out",
+        )
+        assert "sitemap_broken" in _keys(run_checks(con))
+
+    def test_slash_hop_pattern_flagged_as_systemic(self):
+        con = _db()
+        for i in range(5):
+            _page(
+                con,
+                f"https://e.com/page{i}",
+                status=301,
+                indexable=0,
+                redirect_to=f"https://e.com/page{i}/",
+                in_sitemap=1,
+            )
+        findings = {f["key"]: f for f in run_checks(con)}
+        desc = findings["sitemap_redirects"]["description"]
+        assert "SYSTEMIC: 5 of 5 are pure trailing-slash hops" in desc
+
+    def test_non_slash_redirects_not_flagged_systemic(self):
+        con = _db()
+        _page(
+            con,
+            "https://e.com/old",
+            status=301,
+            indexable=0,
+            redirect_to="https://e.com/completely-different",
+            in_sitemap=1,
+        )
+        findings = {f["key"]: f for f in run_checks(con)}
+        assert "SYSTEMIC" not in findings["sitemap_redirects"]["description"]
+
     def test_fetch_errors_but_not_ssrf_blocks(self):
         con = _db()
         _page(con, "https://e.com/t", status=None, indexable=0, error="timed out")
