@@ -1293,6 +1293,7 @@ For extended check details, see:
 - `scripts/brandkit.py` — Harvest the client site's logo, imagery, palette & fonts → `brandkit.json`
 - `scripts/editorial_report.py` — Brand-pulled A4 editorial audit deck (single-file HTML, print-to-PDF; `--roadmap` adds the content-roadmap slide)
 - `scripts/content_engine.py` — The Content Engine: GSC queries → topic clusters → defend/optimise/rework/consolidate/create/refresh roadmap with brief skeletons
+- `scripts/ga4.py` — GA4 behaviour layer: engagement gaps + money pages converting nothing (reads UI CSV export as-is)
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
@@ -1510,6 +1511,27 @@ with the roadmap, not the defect list.
 Pass `--roadmap` output to `editorial_report.py --roadmap` and the deck gains
 a **"Content roadmap — where the growth is"** slide placed BEFORE the
 findings: growth first, defects second.
+
+### GA4 — the behaviour layer
+
+GSC says what ranks; GA4 says whether it works. Same zero-reshaping data
+ladder: (1) a connected analytics MCP → pull a landing-page report yourself
+(page, sessions, engagement rate, key events) and save as JSON rows; (2) no
+MCP → the user exports the GA4 Landing page report as CSV and drops it in
+unmodified (`#` preamble, percentage rates and Grand total rows are handled);
+(3) API only on request.
+
+```bash
+python scripts/ga4.py --data ./.fat-work/ga4.csv --json > ./.fat-work/ga4.json
+python scripts/punchlist.py update --scores ./.fat-work/ga4.json
+```
+
+Two findings rankings can't show: **engagement gaps** (real traffic, <35%
+engagement — a content/UX problem, not a ranking problem) and **money pages
+converting nothing** (sessions but zero key events — broken tracking or
+broken persuasion). Pair with the Content Engine when presenting: a cluster
+that ranks AND gets traffic but doesn't engage needs better content, not
+better SEO.
 
 `gsc.py` also emits `opportunity_keywords` in the report schema, so GSC wins feed
 straight into the deck's *SEO Priority Opportunities* slide. If no GSC access is

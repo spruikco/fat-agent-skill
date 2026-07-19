@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.2.0] - 2026-07-20
+
+### Added — GA4 behaviour layer
+GSC says what ranks; GA4 says whether it works.
+
+- **`scripts/ga4.py`** — ingests a GA4 landing-page report as exported (UI
+  CSV with `#` preamble, percentage rates, Grand-total rows — or JSON rows
+  from an analytics MCP/API). Two findings rankings can't show:
+  **engagement gaps** (≥N sessions, <35% engagement — content/UX problem,
+  not a ranking problem) and **money pages converting nothing** (sessions
+  but zero key events — broken tracking or broken persuasion). Findings flow
+  into the punch list (module `ga4`).
+- **SKILL.md**: GA4 section with the same easiest-first data ladder
+  (analytics MCP → drop the CSV in unmodified → API on request), and the
+  pairing rule with the Content Engine: ranks + traffic − engagement =
+  better content, not better SEO.
+
+### Tests
+- +5 = **915 passing**.
+
 ## [3.1.0] - 2026-07-20
 
 ### Changed — Content Engine: zero-reshaping data ingestion
