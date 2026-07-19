@@ -75,7 +75,7 @@ def category_scores(scores: dict) -> list:
     return out
 
 
-ROADMAP_PER_SLIDE = 7
+ROADMAP_PER_SLIDE = 5  # 7 overflowed the fixed slide height and clipped
 
 
 def roadmap_slides(roadmap, furniture, start_page):
@@ -303,6 +303,9 @@ body {{ font-family:'{primary_font}', 'Plus Jakarta Sans', -apple-system, Arial,
 .slide {{ background:#fff; width:297mm; height:210mm; position:relative; overflow:hidden;
   margin:24px auto; padding:16mm 20mm 18mm; page-break-after:always; page-break-inside:avoid;
   box-shadow:0 4px 10px rgba(0,0,0,.12); display:flex; flex-direction:column; justify-content:center; }}
+/* content-heavy slides anchor to the top — centring + overflow clips BOTH ends */
+.slide:has(.findings), .slide:has(.inv-grid), .slide:has(.brief-outline)
+  {{ justify-content:flex-start; padding-top:20mm; }}
 .slide::after {{ content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--accent); }}
 .bleed {{ position:absolute; inset:0; background-size:cover; background-position:center; }}
 .scrim {{ position:absolute; inset:0; background:linear-gradient(160deg, rgba(10,14,12,.72), rgba(10,14,12,.35)); }}

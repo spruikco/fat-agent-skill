@@ -192,13 +192,19 @@ def classify(cluster, prev_clicks=None):
     else:
         action = "rework"
 
+    seen_q = []
+    for r in rows:
+        if r["query"] not in seen_q:
+            seen_q.append(r["query"])
+        if len(seen_q) >= 8:
+            break
     return {
         "label": cluster["label"],
         "action": action,
         "impressions": impressions,
         "clicks": clicks,
         "avg_position": round(weighted_pos, 1),
-        "queries": [r["query"] for r in rows[:8]],
+        "queries": seen_q,
         "pages": [p for p, _ in pages[:3]],
     }
 
