@@ -3,7 +3,7 @@
 ![FAT Score](./fat-badge.svg)
 [![CI](https://github.com/spruikco/fat-agent-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/spruikco/fat-agent-skill/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-630%2B%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-840%20passing-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **A modular Claude plugin that acts as your post-launch QA engineer.**
@@ -250,7 +250,7 @@ The repo root is the marketplace; the plugin lives under `plugins/fat-agent/`:
 - **references/** — Security headers, SEO checklist, accessibility guide, performance budgets, CI/CD integration, local SEO & e-commerce checklists
   - **platform-fixes/** — Netlify, Vercel, Cloudflare Pages, Apache, Nginx, WordPress, AWS, Docker
   - **framework-fixes/** — Next.js, Astro, SvelteKit, Nuxt, Gatsby, Remix, WordPress, Static HTML
-- **tests/** — 630 tests across 17 test files with fixtures
+- **tests/** — 840 tests across 50 test files with fixtures
 - **evals/** — Skill evaluation test cases
 - **assets/** — Brand images
 
@@ -263,7 +263,7 @@ cd plugins/fat-agent
 python3 -m pytest tests/ -v
 ```
 
-630 tests covering all modules, the registry, crawler, bulk audit, Lighthouse, visual regression, dashboard, CI gate, client-facing transforms, and profiles.
+840 tests covering all modules, the registry, crawler, bulk audit, Lighthouse, visual regression, dashboard, CI gate, client-facing transforms, profiles, and the persistent punch list.
 
 ---
 

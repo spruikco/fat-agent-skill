@@ -765,6 +765,9 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     # transparency: did the grade-cap actually see module findings? (False when the
     # analysis was run without --modules, e.g. the bare offline pipe)
     fat_result["modules_scored"] = bool(module_scores)
+    # Emit the merged findings so downstream consumers (punchlist.py, reports,
+    # charts, dashboard) read one flat list instead of re-scoring the modules.
+    result["findings"] = all_findings
     if render_gap is not None:
         result["render_gap"] = render_gap
     return result

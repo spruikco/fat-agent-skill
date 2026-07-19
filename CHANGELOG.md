@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.10.0] - 2026-07-19
+
+### Added — compaction-safe session continuity
+- **`scripts/punchlist.py`** — the punch list now persists to
+  `./.fat-work/punchlist.json` instead of living only in conversation memory,
+  so audit state survives context compaction, session restarts, and handoffs.
+  - `update` merges a scores.json into the list: new findings open, findings
+    absent from a **rescanned** module auto-resolve, resolved findings that
+    reappear re-open flagged as regressions. Modules not scanned this run are
+    left untouched — a quick-profile rescan can't falsely "resolve" a
+    full-profile finding (and Security is excluded when not assessed).
+  - `status` shows open items grouped by priority (`--json` for machines);
+    `resolve` (with `--wontfix`) and `note` record decisions against items —
+    the "why we chose this fix" layer that otherwise evaporates with the
+    conversation.
+- **SKILL.md "Session Continuity & Context Compaction"** — documents the
+  design (conversation is disposable, files are not; every check is a
+  deterministic script), the resume procedure, and an **optional
+  [ctx](https://ctx.rs) integration**: when the ctx CLI is installed, search
+  prior agent-session history for the reasoning the punch list can't capture.
+  Never required; skipped silently when absent.
+
+### Changed
+- **`calculate-score.py` now emits the merged flat `findings` list** in its
+  output. `generate-report.py`, `generate-charts.py`, and the HTML dashboard
+  already read this key (it previously never existed at the top level), and
+  punchlist.py consumes it directly.
+- **`ci_gate.py`** treats `overall.blocking` as authoritative when present:
+  advisory-module findings in the newly emitted flat list cannot fail the
+  build (preserves the 2.9.0 curated-cap semantics). The flat-findings check
+  remains as legacy-shape fallback.
+
+### Tests
+- +30 (punch list merge/regression/wontfix/CLI round-trip, findings emission,
+  ci_gate advisory-vs-blocking) = **840 passing**.
+
 ## [2.9.0] - 2026-06-30
 
 ### Changed — score-composition redesign (then re-skepticked and fixed)

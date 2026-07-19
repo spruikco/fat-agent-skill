@@ -45,17 +45,21 @@ def check_priority_findings(scores, fail_on):
     if fail_on is None:
         return True, []
 
-    # The grade-cap exposes blocking P0/P1 counts on overall.blocking; use those
-    # (top-level "findings" isn't emitted by calculate-score). Fall back to legacy.
+    # The grade-cap exposes blocking P0/P1 counts on overall.blocking — those are
+    # authoritative when present (only site-critical modules gate; advisory-module
+    # findings in the flat list must not fail the build). The flat findings check
+    # is legacy-shape fallback only.
     overall_obj = scores.get("overall", {})
-    blocking = overall_obj.get("blocking", {}) if isinstance(overall_obj, dict) else {}
-    count = 0
-    if fail_on == "P0":
-        count = blocking.get("p0", 0)
-    elif fail_on == "P1":
-        count = blocking.get("p0", 0) + blocking.get("p1", 0)
-    if count:
-        return False, [{"priority": fail_on, "count": count}]
+    blocking = overall_obj.get("blocking") if isinstance(overall_obj, dict) else None
+    if isinstance(blocking, dict):
+        count = 0
+        if fail_on == "P0":
+            count = blocking.get("p0", 0)
+        elif fail_on == "P1":
+            count = blocking.get("p0", 0) + blocking.get("p1", 0)
+        if count:
+            return False, [{"priority": fail_on, "count": count}]
+        return True, []
 
     findings = scores.get("findings", [])
     matched = [f for f in findings if f.get("priority") == fail_on]

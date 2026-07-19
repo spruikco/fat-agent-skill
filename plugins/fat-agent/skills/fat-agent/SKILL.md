@@ -705,6 +705,31 @@ Present findings grouped by priority, with each item containing:
 > ```
 > **Effort:** 5 min
 
+### Persist the Punch List
+
+After presenting the report, ALWAYS persist it to disk — the punch list must
+survive context compaction, session restarts, and handoffs:
+
+```bash
+python scripts/punchlist.py update --scores ./.fat-work/scores.json --url https://example.com
+python scripts/punchlist.py status
+```
+
+This merges the scored findings into `./.fat-work/punchlist.json`: new findings
+open, findings absent from a rescanned module auto-resolve, and resolved
+findings that reappear are re-opened as regressions. Findings from modules that
+were *not* scanned this run are left untouched, so a quick-profile rescan never
+falsely "resolves" a full-profile finding.
+
+When the user makes a decision about a finding (defer it, choose fix A over
+fix B, accept the risk), record it against the item so the reasoning survives
+the conversation:
+
+```bash
+python scripts/punchlist.py note <id> --text "Client chose SSR over prerender — Vercel move planned Q3"
+python scripts/punchlist.py resolve <id> --wontfix --note "Brand team owns this page; out of scope"
+```
+
 ### Report Generation
 
 After presenting the report in the chat, ALWAYS generate reports using the
@@ -747,7 +772,13 @@ After fixes are applied and redeployed:
 
 1. **Re-fetch the URL** and verify the specific issues that were fixed
 2. **Report results** — "Fixed" or "Still present" for each item
-3. **Update the punch list** — Remove resolved items, flag persistent ones
+3. **Update the punch list** — Re-run the scoring pipeline, then:
+   ```bash
+   python scripts/punchlist.py update --scores ./.fat-work/scores.json
+   python scripts/punchlist.py status
+   ```
+   Verified-absent findings auto-resolve; reappearing ones are flagged as
+   regressions. Never track fixed/still-present in conversation memory alone.
 4. **Visual regression comparison** — If a previous audit's HTML/screenshots are
    available, compare key elements (header, hero, footer) for unintended visual
    changes introduced during fixes. Flag any significant layout shifts.
@@ -1019,9 +1050,43 @@ tools for a complete picture.
 ## Ongoing Behaviour
 
 - If the user deploys again in the same conversation, offer to re-run the audit
-- Keep track of previously found issues — don't re-report things already flagged
-- If the user asks "what's left?", show the current punch list status
+- Keep track of previously found issues — don't re-report things already flagged.
+  The source of truth is `./.fat-work/punchlist.json`, not conversation memory
+- If the user asks "what's left?", run `python scripts/punchlist.py status` and
+  show the result — don't answer from memory
 - Be encouraging but honest — don't gloss over real issues
+
+---
+
+## Session Continuity & Context Compaction
+
+FAT is designed so context compaction doesn't matter: **the conversation is
+disposable, the files are not.** All audit state lives on disk (`scores.json`,
+`punchlist.json`, `.fat-history.json`, crawl/report artifacts) and every check
+is a deterministic script — anything compacted away is either persisted or
+re-computable in one command.
+
+**When resuming an audit** (a new session, or after compaction in a long one):
+
+1. Read `./.fat-work/punchlist.json` — open items, decisions, and notes
+2. Read `.fat-history.json` (if present) — score trend across audits
+3. Run `python scripts/punchlist.py status` and confirm with the user where
+   the audit is up to before doing anything else
+
+**Optional — recover prior-session reasoning with ctx:** if the [ctx](https://ctx.rs)
+CLI is installed (check with `ctx --version`; it is a separate open-source tool,
+never required), search the local agent-session history for the earlier audit
+conversations the punch list can't capture — why a fix was chosen, what was
+already attempted, what the client pushed back on:
+
+```bash
+ctx search "<domain> audit"
+ctx show session <id>
+```
+
+Cite the ctx session/event id when retrieved history changes your answer. If
+ctx is not installed, skip this silently — the punch list and history files
+carry the essential state on their own.
 
 ---
 
@@ -1054,6 +1119,7 @@ For extended check details, see:
 - `scripts/generate-charts.py` — Chart image generator (traffic, keywords, scores, PageSpeed)
 - `scripts/generate-report.py` — Word + PowerPoint + HTML report generator (branded, with charts)
 - `scripts/track-history.py` — Historical audit tracker (read/write `.fat-history.json`)
+- `scripts/punchlist.py` — Persistent punch list (read/write `./.fat-work/punchlist.json`; update/status/resolve/note — survives context compaction)
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
