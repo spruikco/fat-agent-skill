@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.4.1] - 2026-07-22
+
+### Fixed — hidden-container inputs no longer flagged as unlabelled
+Caught dogfooding a client re-audit: the accessibility check counted `<input>`
+elements inside hidden containers (bare `hidden` attribute, `aria-hidden`,
+`display:none`) as missing labels. Framework detection forms — e.g. the hidden
+Netlify form-detection block Next.js sites put in the layout — are invisible to
+assistive tech, so their unlabelled inputs are a false positive that inflated
+the count and kept a P1 finding open after the visible forms were fixed.
+
+- `analyse-html.py`: streaming parser now tracks hidden-container depth (keyed
+  on the tag stack, robust to nesting) and skips form inputs inside them.
+- `modules/accessibility.py`: strips hidden form/div blocks before the label
+  scan.
+- +4 tests = **922 passing**.
+
+## [3.4.0] - 2026-07-20
+
+### Changed — FIX means execute, not just recommend
+Phase 2 in SKILL.md now mandates implementation with repo access: work the
+punch list directly (technical edits through the repo's own deploy flow),
+execute the Content Engine roadmap (titles, internal links, consolidations,
+new pages drafted from briefs), and hand DNS/registrar items over as exact
+paste-ready records. Loop is fix → deploy → verify; the punch list
+auto-resolves on the re-audit.
+
 ## [3.3.0] - 2026-07-20
 
 ### Changed — deck structure: tight main deck, complete appendix
