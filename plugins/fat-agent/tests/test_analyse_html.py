@@ -205,6 +205,33 @@ class TestBrokenHTML:
         r = analyse_html(BROKEN_HTML)
         assert r["accessibility"]["form_inputs_without_label"] >= 1
 
+    def test_hidden_form_inputs_excluded(self):
+        """Inputs inside a hidden container (framework detection forms) are
+        not exposed to assistive tech and must not count as unlabelled."""
+        html = (
+            "<!DOCTYPE html><html lang='en'><body>"
+            "<form name='detect' data-netlify='true' hidden>"
+            "<input type='text' name='a'><input type='email' name='b'>"
+            "<textarea name='c'></textarea></form>"
+            "<form><input type='text' aria-label='Name'></form>"
+            "</body></html>"
+        )
+        r = analyse_html(html)
+        assert r["accessibility"]["form_inputs_total"] == 1
+        assert r["accessibility"]["form_inputs_without_label"] == 0
+
+    def test_visible_input_after_hidden_block_still_counts(self):
+        """The hidden marker must clear on close — a later visible unlabelled
+        input is still flagged."""
+        html = (
+            "<!DOCTYPE html><html lang='en'><body>"
+            "<div hidden><input type='text' name='x'></div>"
+            "<form><input type='text' name='y'></form>"
+            "</body></html>"
+        )
+        r = analyse_html(html)
+        assert r["accessibility"]["form_inputs_without_label"] == 1
+
     def test_render_blocking_scripts(self):
         r = analyse_html(BROKEN_HTML)
         assert r["performance"]["render_blocking_scripts"] >= 1

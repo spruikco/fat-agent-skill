@@ -15,6 +15,26 @@ from modules.base import AuditModule
 _LANDMARK_TAGS = {"main", "nav", "header", "footer", "aside"}
 _LANDMARK_ROLES = {"main", "navigation", "banner", "contentinfo", "complementary"}
 
+# form/div blocks that are hidden from assistive tech — their inputs are NOT a
+# real labelling failure. Covers the bare `hidden` attribute (common on
+# framework detection forms, e.g. Netlify), aria-hidden, and display:none.
+_HIDDEN_BLOCK_RE = re.compile(
+    r"<(form|div)\b[^>]*?"
+    r'(?:\shidden(?:\s|=|>)|aria-hidden=["\']true["\']|display\s*:\s*none)'
+    r"[^>]*>.*?</\1>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _strip_hidden(html: str) -> str:
+    """Remove hidden form/div blocks so their inputs don't count as unlabelled."""
+    prev = None
+    # loop to catch simple nesting (each pass removes the outermost matches)
+    while prev != html:
+        prev = html
+        html = _HIDDEN_BLOCK_RE.sub("", html)
+    return html
+
 
 @register_module
 class AccessibilityModule(AuditModule):
@@ -34,9 +54,12 @@ class AccessibilityModule(AuditModule):
             if not re.search(r'alt=["\']', img, re.IGNORECASE):
                 img_missing_alt += 1
 
+        # inputs inside hidden containers aren't exposed to assistive tech, so
+        # they can't be a real labelling failure — scan the visible HTML only.
+        visible_html = _strip_hidden(html)
         inputs = re.findall(
             r"<(?:input|select|textarea)\s[^>]*>",
-            html,
+            visible_html,
             re.IGNORECASE,
         )
         form_inputs_total = 0
@@ -44,7 +67,7 @@ class AccessibilityModule(AuditModule):
         # an input is labelled by aria-label/labelledby/title, OR by a real
         # <label for="<id>"> that references its id — NOT by merely having an id.
         label_fors = set(
-            re.findall(r'<label[^>]+for=["\']([^"\']+)', html, re.IGNORECASE)
+            re.findall(r'<label[^>]+for=["\']([^"\']+)', visible_html, re.IGNORECASE)
         )
         for inp in inputs:
             if re.search(r'type=["\']hidden["\']', inp, re.IGNORECASE):

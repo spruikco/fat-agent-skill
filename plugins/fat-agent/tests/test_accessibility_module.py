@@ -53,6 +53,37 @@ def test_analyse_form_labels():
     assert result["form_inputs_without_label"] == 1
 
 
+def test_hidden_form_inputs_not_counted():
+    """Inputs inside a hidden container (e.g. Netlify detection forms) are not
+    exposed to assistive tech, so they must NOT count as unlabelled."""
+    html = (
+        "<html><body>"
+        '<form name="detect" data-netlify="true" hidden>'
+        '<input type="text" name="firstName">'
+        '<input type="email" name="email">'
+        '<textarea name="message"></textarea>'
+        "</form>"
+        '<form><input type="text" aria-label="Name"></form>'
+        "</body></html>"
+    )
+    result = AccessibilityModule().analyse(html)
+    assert result["form_inputs_total"] == 1  # only the visible labelled input
+    assert result["form_inputs_without_label"] == 0
+
+
+def test_aria_hidden_and_display_none_blocks_excluded():
+    html = (
+        "<html><body>"
+        '<div aria-hidden="true"><input type="text" name="a"></div>'
+        "<div style=\"display:none\"><input type='text' name='b'></div>"
+        '<form><input type="text" aria-label="Real"></form>'
+        "</body></html>"
+    )
+    result = AccessibilityModule().analyse(html)
+    assert result["form_inputs_without_label"] == 0
+    assert result["form_inputs_total"] == 1
+
+
 def test_analyse_lang_attribute():
     html = '<html lang="en"><body></body></html>'
     mod = AccessibilityModule()

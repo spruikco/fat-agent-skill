@@ -254,6 +254,10 @@ class FATHTMLAnalyser(HTMLParser):
         self.body_text_words = 0
         self.in_body = False
         self.excluded_region_depth = 0  # >0 when inside nav/footer/header
+        # tag_stack depths at which a hidden container opened (hidden attr /
+        # aria-hidden / display:none). Inputs inside are not exposed to AT, so
+        # they don't count as unlabelled (e.g. framework detection forms).
+        self.hidden_open_depths = []
 
         # --- NEW: Keyword overlap title/h1 ---
         self.h1_texts = []
@@ -407,6 +411,14 @@ class FATHTMLAnalyser(HTMLParser):
         self.current_attrs = attrs_dict
         if tag not in self.VOID_ELEMENTS:
             self.tag_stack.append(tag)
+            # note hidden containers by their tag_stack depth
+            _style = attrs_dict.get("style", "").replace(" ", "").lower()
+            if (
+                "hidden" in attrs_dict
+                or attrs_dict.get("aria-hidden", "").lower() == "true"
+                or "display:none" in _style
+            ):
+                self.hidden_open_depths.append(len(self.tag_stack))
 
         # Track element IDs for anchor validation
         if "id" in attrs_dict:
@@ -837,8 +849,8 @@ class FATHTMLAnalyser(HTMLParser):
         if tag == "style":
             self.in_style = True
 
-        # Form inputs
-        if tag in ("input", "select", "textarea"):
+        # Form inputs (skip those inside a hidden container — not exposed to AT)
+        if tag in ("input", "select", "textarea") and not self.hidden_open_depths:
             input_type = attrs_dict.get("type", "text")
             if input_type not in ("hidden", "submit", "button"):
                 self.form_inputs += 1
@@ -954,6 +966,12 @@ class FATHTMLAnalyser(HTMLParser):
             self.in_svg = False
 
         if self.tag_stack and self.tag_stack[-1] == tag:
+            # leaving a hidden container? (keyed on depth, robust to nesting)
+            if (
+                self.hidden_open_depths
+                and len(self.tag_stack) == self.hidden_open_depths[-1]
+            ):
+                self.hidden_open_depths.pop()
             self.tag_stack.pop()
 
     def handle_data(self, data):
