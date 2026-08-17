@@ -623,9 +623,9 @@ sources. Uses `scripts/modules/ai_search.py`. Checks:
   Amazonbot, Applebot-Extended, etc. **A blanket `Disallow` is the #1 cause of
   AI-search invisibility** — flag blocked answer bots as P1 and make the posture a
   deliberate choice.
-- **`llms.txt`** manifest presence.
+- **`llms.txt`** manifest presence AND structural quality (H1 title, summary, >=3 curated Markdown links — presence alone isn't enough).
 - **Extraction-readiness** — concise lead answer/summary, Q&A, lists, tables, clear headings.
-- **Entity clarity** — Organization/Person + `sameAs` to Wikipedia/Wikidata.
+- **Entity clarity** — Organization/Person + `sameAs` to Wikipedia/Wikidata, plus a **live Wikidata lookup** on the detected brand name (the strongest off-site grounding signal; absence is flagged, an errored/skipped lookup never produces a false negative).
 
 This section is *readiness*; for the measured outcome (is the site actually
 cited?), run the live check in **1.24 — AI Visibility**.
@@ -732,6 +732,53 @@ access first, re-test after recrawl. If access is fine but competitors dominate,
 the gap is content shape (direct answers, original data, entity clarity) and
 third-party presence — heavily cited directories, Reddit threads, and industry
 bodies are placement targets in their own right.
+
+### 1.25 — Exposed paths (module: `exposed_paths`, opt-in active probe)
+
+A live, **same-origin, opt-in** hygiene probe for files that deploys leak but
+never meant to serve: a committed `.env`, an exposed `.git/`, a leftover SQL
+dump or `wp-config.php.bak`, a `phpinfo()` page, `server-status`. Uses
+`scripts/exposed_paths.py`.
+
+> **Authorisation.** This makes real requests, so run it **only on sites you own
+> or are explicitly authorised to audit.** It is gated behind `--confirm` (or
+> `FAT_ALLOW_ACTIVE_PROBE=1`), checks a fixed curated list (no fuzzing, no brute
+> force, one GET per path with a polite delay), SSRF-guards private/loopback
+> hosts, and never follows cross-origin redirects. It is a hygiene check, not a
+> vulnerability scanner.
+
+```bash
+python scripts/exposed_paths.py --url https://example.com --confirm     --output ./.fat-work/exposed_paths.json
+```
+
+Exposed credential files (`.env`, `.git/config`, SQL dumps, config backups,
+`.aws/credentials`) are **P0 — rotate and remove immediately**; source-control
+and topology leaks are P1; `phpinfo`/`server-status` P1–P2. Soft-404s (an HTML
+error page served at 200) are filtered — a `.git/HEAD` must actually start with
+`ref:`, a `.git/config` must contain `[core]`. A missing
+`/.well-known/security.txt` is noted as P3. Findings (module `exposed_paths`)
+merge into the punch list.
+
+### 1.26 — AI crawler logs (module: `ai_crawler_logs`, log-driven)
+
+Section 1.18 checks whether robots.txt *permits* the AI crawlers; this checks —
+from server logs — whether they *actually visit*. Uses
+`scripts/ai_crawler_logs.py` on an Nginx/Apache combined or common access log:
+
+```bash
+python scripts/ai_crawler_logs.py --log /var/log/nginx/access.log     --output ./.fat-work/ai_crawler_logs.json
+# or piped, across rotated logs:
+zcat access.log.*.gz | python scripts/ai_crawler_logs.py --log -
+```
+
+Reports per-bot hit counts, last-seen, sample paths and status mix for the
+answer bots (OAI-SearchBot, PerplexityBot, Google-Extended, ChatGPT-User) and
+the training bots (GPTBot, ClaudeBot, CCBot, …). Key findings: **no answer bot
+seen at all** (P2 — if nothing's blocking them per 1.18, it's a discovery /
+sitemap / freshness gap, not an access one); some answer engines missing (P3);
+and a bot **spending most of its budget on 4xx/5xx** (P2 — fix or redirect the
+URLs it requests). Pairs with 1.24: logs show whether bots *fetch*; the
+citation check shows whether fetching *turns into citations*.
 
 ---
 
@@ -1379,6 +1426,8 @@ For extended check details, see:
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
 - `scripts/pagespeed.py` — PageSpeed Insights API wrapper (Core Web Vitals)
+- `scripts/exposed_paths.py` — Opt-in (`--confirm`), same-origin, SSRF-guarded probe for exposed sensitive paths (.env, .git, SQL dumps, backups, phpinfo) → P0 findings
+- `scripts/ai_crawler_logs.py` — AI-crawler hit analysis from access logs (which answer/training bots actually visit, last-seen, error-heavy crawlers)
 - `scripts/ai_visibility.py` — Live AEO/GEO citation check via the Perplexity API (key from `PERPLEXITY_API_KEY`) → citation rate, share of voice, top-cited competitor domains, punch-list findings
 - `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
 - `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
@@ -1397,7 +1446,7 @@ For extended check details, see:
   - `js_bundle.py` — JavaScript bundle analysis
   - `links.py` — Link quality and broken link detection
   - `eeat.py` — E-E-A-T & Trust (authorship, trust pages, entity, transparency) — always-on
-  - `ai_search.py` — AI Search / GEO (AI-crawler posture, llms.txt, extraction, entity) — always-on
+  - `ai_search.py` — AI Search / GEO (AI-crawler posture, llms.txt presence + quality, extraction, entity + live Wikidata lookup) — always-on
   - `technical_seo.py` — Technical depth (X-Robots-Tag, canonical host, interstitials, images) — always-on
   - `content_depth.py` — Content quality (YMYL, ad density, originality, freshness, review quality) — always-on
   - `crawlability.py` — Crawl/indexation (robots-blocks-CSS/JS, JS-only nav, faceted URLs, pagination) — always-on

@@ -227,3 +227,44 @@ def test_load_queries_json_list(tmp_path):
 
 def test_redact_hides_key():
     assert "sekrit" not in ai_visibility._redact("boom sekrit boom", "sekrit")
+
+
+# ---------------------------------------------------------------------------
+# community-channel categorisation (v3.6.0)
+# ---------------------------------------------------------------------------
+
+
+def test_classify_channels_splits_community_and_competitors():
+    top = [
+        {"domain": "reddit.com", "citations": 3},
+        {"domain": "rival.com", "citations": 2},
+        {"domain": "www.youtube.com", "citations": 1},
+    ]
+    community, competitors = ai_visibility.classify_channels(top)
+    comm_domains = {c["domain"] for c in community}
+    assert "reddit.com" in comm_domains
+    assert any(c["domain"] == "youtube.com" for c in community) or any(
+        "youtube" in c["domain"] for c in community
+    )
+    assert [c["domain"] for c in competitors] == ["rival.com"]
+    assert community[0]["platform"] == "Reddit"
+
+
+def test_summary_exposes_channel_split():
+    summary = ai_visibility.analyse_results(
+        "target.com",
+        _results(["reddit.com", "rival.com"], ["reddit.com"]),
+    )
+    assert any(c["domain"] == "reddit.com" for c in summary["community_channels"])
+    assert any(c["domain"] == "rival.com" for c in summary["top_competitor_domains"])
+
+
+def test_findings_split_competitor_and_community():
+    summary = ai_visibility.analyse_results(
+        "target.com",
+        _results(["reddit.com", "rival.com"], ["reddit.com", "rival.com"]),
+    )
+    findings = ai_visibility.build_findings(summary)
+    titles = " ".join(f["title"] for f in findings)
+    assert "Competitor sites" in titles
+    assert "Community platforms" in titles

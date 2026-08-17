@@ -1,5 +1,48 @@
 # Changelog
 
+## [3.6.0] - 2026-08-18
+
+### Added — deeper AI-search intelligence + opt-in exposure probe
+
+Follows v3.5.0's live citation checker with the surrounding signals: off-site
+entity grounding, whether the bots actually visit, where the citations come
+from, and a hygiene probe for leaked files.
+
+**AI search (`ai_search`, findings-only — score buckets unchanged):**
+- **Live Wikidata lookup** on the detected brand/entity name (from JSON-LD
+  Organization → og:site_name → title). A Wikidata/Wikipedia entry is the
+  strongest off-site grounding signal for AI recognition; absence is flagged.
+  An errored or skipped lookup returns "unknown" — never a false negative.
+- **llms.txt quality, not just presence** — validates H1 title, a summary, and
+  ≥3 curated Markdown links; a present-but-thin manifest is now flagged.
+
+**AI visibility (`ai_visibility`):**
+- **Channel categorisation** — top-cited domains split into **community
+  platforms** (Reddit, Quora, YouTube, G2, Trustpilot, …) vs **competitor
+  sites**, so the finding names both the pages to out-answer and the community
+  channels to earn a presence on. Surfaced in the summary and as two findings.
+
+**New — `scripts/ai_crawler_logs.py` (module `ai_crawler_logs`):** parses
+Nginx/Apache access logs (file, `-` stdin, or piped `zcat`) and reports which
+AI bots actually crawl — per-bot hits, last-seen, sample paths, status mix.
+Findings: no answer bot seen at all (P2, a discovery gap when nothing's
+blocking them), some answer engines missing (P3), and a bot spending its budget
+on 4xx/5xx (P2). The ground-truth companion to the robots.txt posture check.
+
+**New — `scripts/exposed_paths.py` (module `exposed_paths`):** opt-in,
+same-origin hygiene probe for well-known leaked files (`.env`, `.git/config`,
+SQL dumps, config backups, `.aws/credentials`, `phpinfo`, `server-status`).
+Gated behind `--confirm` / `FAT_ALLOW_ACTIVE_PROBE=1`, SSRF-guarded, fixed
+curated list (no fuzzing), one GET per path with a polite delay, no cross-origin
+redirects — for sites you own or are authorised to audit. Credential files are
+P0 (rotate + remove); soft-404s served at 200 are filtered out. Missing
+`security.txt` noted P3.
+
+### Tests
+- +37 (Wikidata/llms wiring, channel split, log parser, exposure probe incl.
+  SSRF + soft-404 filtering) = **1006 passing**.
+
+
 ## [3.5.0] - 2026-08-18
 
 ### Added — live AI visibility (AEO/GEO citations) + security depth

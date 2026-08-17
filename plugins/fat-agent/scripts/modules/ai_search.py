@@ -143,6 +143,62 @@ def entity_clarity(html):
     }
 
 
+def extract_entity_name(html):
+    """Best-effort brand/entity name for a knowledge-graph lookup.
+
+    Preference: JSON-LD Organization ``name`` → ``og:site_name`` → the part of
+    ``<title>`` before a common separator. Returns "" when nothing usable.
+    """
+    m = re.search(
+        r'"@type"\s*:\s*"(?:organization|localbusiness)"[^{}]*?"name"\s*:\s*"([^"]+)"',
+        html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if m:
+        return m.group(1).strip()
+    m = re.search(
+        r'<meta[^>]+property=["\']og:site_name["\'][^>]+content=["\']([^"\']+)["\']',
+        html,
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1).strip()
+    m = re.search(r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE)
+    if m:
+        # Titles are usually "Page | Brand" or "Brand - Page"; take the shorter,
+        # brand-looking side (fewest words) as a heuristic.
+        parts = re.split(r"\s[|\-–—:]\s", m.group(1).strip())
+        parts = [p.strip() for p in parts if p.strip()]
+        if parts:
+            return min(parts, key=lambda p: len(p.split()))
+    return ""
+
+
+def validate_llms_txt(content):
+    """Structural quality of an llms.txt (beyond mere presence).
+
+    The emerging spec is Markdown: an H1 title, a short summary (blockquote or
+    lead paragraph), and curated sections of Markdown links to key pages.
+    """
+    if not content:
+        return {"present": False}
+    lines = content.splitlines()
+    has_title = any(re.match(r"#\s+\S", line) for line in lines)
+    has_summary = any(line.lstrip().startswith(">") for line in lines) or bool(
+        re.search(r"^\s*[A-Za-z][^#>\n]{40,}", content, re.MULTILINE)
+    )
+    link_count = len(re.findall(r"\[[^\]]+\]\([^)]+\)", content))
+    section_count = len(re.findall(r"^##\s+\S", content, re.MULTILINE))
+    return {
+        "present": True,
+        "has_title": has_title,
+        "has_summary": has_summary,
+        "link_count": link_count,
+        "section_count": section_count,
+        "well_formed": has_title and link_count >= 3,
+    }
+
+
 from modules import register_module  # noqa: E402
 from modules.base import AuditModule  # noqa: E402
 
@@ -171,6 +227,40 @@ class AISearchModule(AuditModule):
         except Exception:
             return None
 
+    def _wikidata_lookup(self, name, timeout=8):
+        """Return True/False if ``name`` matches a Wikidata entity, None on error.
+
+        Uses the public wbsearchentities endpoint (no key). Network errors and
+        rate limits return None so the check degrades to 'unknown', never a
+        false 'no entity'.
+        """
+        if not name:
+            return None
+        try:
+            params = urllib.parse.urlencode(
+                {
+                    "action": "wbsearchentities",
+                    "search": name,
+                    "language": "en",
+                    "format": "json",
+                    "limit": 5,
+                    "type": "item",
+                }
+            )
+            req = urllib.request.Request(
+                "https://www.wikidata.org/w/api.php?" + params,
+                headers={"User-Agent": "fat-agent-aisearch/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status != 200:
+                    return None
+                import json as _json
+
+                data = _json.loads(resp.read().decode("utf-8", errors="replace"))
+                return len(data.get("search") or []) > 0
+        except Exception:
+            return None
+
     def analyse(self, html: str, url: str = "", headers: dict = None, **kwargs) -> dict:
         robots_txt = kwargs.get("robots_txt")
         llms_txt = kwargs.get("llms_txt")
@@ -181,6 +271,13 @@ class AISearchModule(AuditModule):
 
         report = ai_bot_report(robots_txt or "")
         blocked = [b for b, p in report.items() if p == "blocked"]
+
+        entity_name = extract_entity_name(html)
+        # Wikidata is a live lookup; tests inject ``wikidata_hit`` to avoid I/O.
+        wikidata_hit = kwargs.get("wikidata_hit")
+        if wikidata_hit is None and url and entity_name:
+            wikidata_hit = self._wikidata_lookup(entity_name)
+
         return {
             "robots_available": robots_txt is not None,
             "ai_bots": report,
@@ -188,8 +285,13 @@ class AISearchModule(AuditModule):
             "blocked_answer_bots": [b for b in blocked if b in ANSWER_BOTS],
             "blocked_training_bots": [b for b in blocked if b in TRAINING_BOTS],
             "llms_txt": bool(llms_txt),
+            "llms_validation": validate_llms_txt(
+                llms_txt if isinstance(llms_txt, str) else ""
+            ),
             "extraction": extraction_readiness(html),
             "entity": entity_clarity(html),
+            "entity_name": entity_name,
+            "wikidata_entity": wikidata_hit,
         }
 
     def score(self, analysis: dict) -> dict:
@@ -278,4 +380,40 @@ class AISearchModule(AuditModule):
                 fix="Add Organization schema with `sameAs` to your socials and, ideally, "
                 "Wikipedia/Wikidata.",
                 effort="low",
+            )
+
+        # llms.txt present but structurally weak — presence alone isn't enough.
+        llms_v = a.get("llms_validation") or {}
+        if llms_v.get("present") and not llms_v.get("well_formed"):
+            missing = []
+            if not llms_v.get("has_title"):
+                missing.append("an H1 title")
+            if llms_v.get("link_count", 0) < 3:
+                missing.append("curated Markdown links to key pages (>=3)")
+            if not llms_v.get("has_summary"):
+                missing.append("a short summary")
+            self.add_finding(
+                priority="P3",
+                title="llms.txt present but thin",
+                description="An `/llms.txt` exists but is missing %s, so it gives AI "
+                "engines little usable structure." % ", ".join(missing),
+                fix="Structure llms.txt as Markdown: an H1 title, a one-paragraph or "
+                "blockquote summary, then `## sections` of `[label](url)` links to your "
+                "most important pages.",
+                effort="low",
+            )
+
+        # Wikidata presence — the strongest off-site entity signal for AI grounding.
+        # Only fire when the lookup actually ran (True/False); None = unknown, skip.
+        if a.get("wikidata_entity") is False:
+            name = a.get("entity_name") or "your brand"
+            self.add_finding(
+                priority="P3",
+                title="No Wikidata entity found for '%s'" % name,
+                description="A Wikidata (and ideally Wikipedia) entry is the strongest "
+                "off-site grounding signal AI engines use to recognise and disambiguate "
+                "a brand. None was found for the detected entity name.",
+                fix="Establish notable, independently-sourced coverage, then create/claim "
+                "a Wikidata item and link it from your Organization schema `sameAs`.",
+                effort="high",
             )

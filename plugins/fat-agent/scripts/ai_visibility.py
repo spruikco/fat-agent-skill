@@ -57,6 +57,44 @@ DEFAULT_MODEL = "sonar"
 ENV_VAR = "PERPLEXITY_API_KEY"
 HISTORY_FILE = ".fat-ai-visibility-history.json"
 
+# Community / UGC platforms answer engines lean on heavily. Being cited FROM
+# these is a distinct, winnable channel (seed a helpful answer, earn a mention)
+# separate from out-ranking a competitor's own site.
+COMMUNITY_PLATFORMS = {
+    "reddit.com": "Reddit",
+    "quora.com": "Quora",
+    "youtube.com": "YouTube",
+    "medium.com": "Medium",
+    "stackexchange.com": "Stack Exchange",
+    "stackoverflow.com": "Stack Overflow",
+    "linkedin.com": "LinkedIn",
+    "wikipedia.org": "Wikipedia",
+    "g2.com": "G2",
+    "trustpilot.com": "Trustpilot",
+    "producthunt.com": "Product Hunt",
+    "github.com": "GitHub",
+    "facebook.com": "Facebook",
+    "yelp.com": "Yelp",
+    "tripadvisor.com": "TripAdvisor",
+}
+
+
+def classify_channels(top_domains):
+    """Split top-cited domains into community platforms vs everything else."""
+    community, competitors = [], []
+    for item in top_domains:
+        domain = item["domain"]
+        label = None
+        for suffix, name in COMMUNITY_PLATFORMS.items():
+            if domain == suffix or domain.endswith("." + suffix):
+                label = name
+                break
+        if label:
+            community.append({**item, "platform": label})
+        else:
+            competitors.append(item)
+    return community, competitors
+
 
 class VisibilityError(Exception):
     """Raised on an API or transport failure (message is always key-redacted)."""
@@ -197,6 +235,7 @@ def analyse_results(domain, results, competitors=None):
     top_other = [
         {"domain": d, "citations": c} for d, c in top_domains if d != target
     ][:10]
+    community, competitors = classify_channels(top_other)
 
     return {
         "domain": target,
@@ -208,6 +247,8 @@ def analyse_results(domain, results, competitors=None):
         ),
         "total_citations_seen": total_citations,
         "top_cited_domains": top_other,
+        "top_competitor_domains": competitors,
+        "community_channels": community,
         "competitor_citation_queries": competitor_hits,
         "per_query": per_query,
     }
@@ -259,24 +300,45 @@ def build_findings(summary):
                 "module": "ai_visibility",
             }
         )
-    if summary["top_cited_domains"]:
+    community, competitors = classify_channels(summary["top_cited_domains"])
+    if competitors:
         top = ", ".join(
-            "%s (%d)" % (d["domain"], d["citations"])
-            for d in summary["top_cited_domains"][:5]
+            "%s (%d)" % (d["domain"], d["citations"]) for d in competitors[:5]
         )
         findings.append(
             {
                 "priority": "P3",
-                "title": "Sources answer engines trust for your queries",
+                "title": "Competitor sites answer engines trust for your queries",
                 "description": (
-                    "Most-cited domains across the query set: %s. These are the "
-                    "competitors (or platforms) to study, out-answer, or earn "
-                    "mentions on." % top
+                    "Most-cited competitor/other domains across the query set: %s. "
+                    "These are the pages to study and out-answer." % top
                 ),
                 "fix": (
-                    "Treat heavily cited third-party platforms (directories, Reddit, "
-                    "industry bodies) as placement targets — a presence there is a "
-                    "citation channel in its own right."
+                    "For each, open the cited page and match its directness and "
+                    "structure on your own equivalent page, then cover the "
+                    "sub-questions it answers."
+                ),
+                "effort": "medium",
+                "module": "ai_visibility",
+            }
+        )
+    if community:
+        chan = ", ".join(
+            "%s (%d)" % (d["platform"], d["citations"]) for d in community[:5]
+        )
+        findings.append(
+            {
+                "priority": "P3",
+                "title": "Community platforms are citation channels for your queries",
+                "description": (
+                    "Answer engines cite these community/UGC platforms for your "
+                    "topics: %s. A helpful presence there is a citation channel in "
+                    "its own right, separate from your own site ranking." % chan
+                ),
+                "fix": (
+                    "Seed genuinely useful answers (no spam) in the relevant threads/"
+                    "subreddits/Q&A, and earn mentions on the review and listing "
+                    "platforms that keep appearing."
                 ),
                 "effort": "medium",
                 "module": "ai_visibility",
