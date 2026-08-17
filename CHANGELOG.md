@@ -1,5 +1,51 @@
 # Changelog
 
+## [3.5.0] - 2026-08-18
+
+### Added — live AI visibility (AEO/GEO citations) + security depth
+
+**AI visibility: measure the outcome, not just readiness.** The `ai_search`
+module says whether a site *can* be cited; the new layer says whether it *is*.
+
+- **`scripts/ai_visibility.py`** — runs a query set through the Perplexity API
+  (`PERPLEXITY_API_KEY`, semrush.py-style redaction; exits `{"available":
+  false}` without a key) and reports **citation rate**, **citation rank**,
+  **share of voice**, and the **top-cited domains** — the sources answer
+  engines actually trust for the site's own topics. Findings (module
+  `ai_visibility`) flow into the punch list: never cited across ≥3 queries is
+  P1, under ~a third is P2, competitor-source intel is P3. `--save-history`
+  appends to `.fat-ai-visibility-history.json` so citation rate is trackable
+  audit-over-audit.
+- **SKILL.md 1.24** — query-set construction (GSC opportunity keywords →
+  money pages → brand controls), the browser spot-check fallback when no key
+  is available (Perplexity / ChatGPT search / Google AI Mode), and the
+  **citation simulation**: answer each query from the target page alone,
+  quoting the passage you'd cite — no quotable passage = the extraction gap
+  to fix. 1.18 now cross-references the live check.
+
+**Security: quality, not just presence** (findings-only — score buckets and
+calculate-score.py parity are untouched):
+
+- **CSP quality** — `'unsafe-inline'` / `'unsafe-eval'` / wildcard sources in
+  `default-src`/`script-src` (P2: a CSP with these is theatre).
+- **HSTS quality** — `max-age` < ~180 days (P2); missing `includeSubDomains`
+  (P3).
+- **Set-Cookie flags** — missing `Secure` / `HttpOnly` / `SameSite` (P2).
+- **Secrets in the served source** — Stripe `sk_live_`, AWS `AKIA`, GitHub /
+  Slack / Anthropic / OpenAI tokens, private-key blocks → **P0 rotate now**;
+  Google `AIza` keys → P2 "verify referrer/API restrictions". Matches are
+  reported truncated — the full credential is never echoed into a report.
+- **Subresource Integrity** — cross-origin scripts without `integrity` (P3).
+- **Server version disclosure** — `Server` / `X-Powered-By` with version
+  numbers (P3).
+- **Source maps in production** — `sourceMappingURL` shipping readable source
+  (P3).
+
+### Tests
+- +47 (ai_visibility unit + CLI with injected transport, security depth
+  matrix incl. legacy-analysis-dict compatibility) = **969 passing**.
+
+
 ## [3.4.1] - 2026-07-22
 
 ### Fixed — hidden-container inputs no longer flagged as unlabelled

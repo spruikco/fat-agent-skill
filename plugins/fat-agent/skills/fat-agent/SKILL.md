@@ -323,6 +323,22 @@ From the HTML, check:
 - Mixed content: `http://` resources (images, scripts, stylesheets) loaded on an HTTPS page
 - External links with `target="_blank"` have `rel="noopener"` (security + performance)
 
+**Depth checks (findings-only — the `security` module runs these automatically):**
+- **CSP quality**, not just presence — flag `'unsafe-inline'`, `'unsafe-eval'`, and
+  wildcard `*` sources in `default-src`/`script-src` (a CSP with these is theatre).
+- **HSTS quality** — `max-age` under ~180 days (P2) and missing `includeSubDomains` (P3).
+- **Set-Cookie flags** — cookies without `Secure` / `HttpOnly` / `SameSite`.
+- **Server version disclosure** — `Server`/`X-Powered-By` headers carrying version
+  numbers (a shortcut to known CVEs).
+- **Subresource Integrity** — cross-origin `<script src>` without an `integrity`
+  hash (supply-chain exposure if the CDN/vendor is compromised).
+- **Secrets in the served source** — Stripe `sk_live_`, AWS `AKIA…`, GitHub/Slack/
+  Anthropic/OpenAI tokens, and private-key blocks are P0 (rotate immediately);
+  Google `AIza…` keys are P2 with a "verify referrer/API restrictions" fix.
+  Secrets are reported truncated — never echo the full credential into a report.
+- **Source maps in production** — `sourceMappingURL` references shipping your
+  readable source to anyone who looks.
+
 ### 1.5 — Accessibility Quick Scan
 From the HTML, check:
 - All `<img>` tags have `alt` attributes (not just present — non-empty and meaningful)
@@ -611,6 +627,9 @@ sources. Uses `scripts/modules/ai_search.py`. Checks:
 - **Extraction-readiness** — concise lead answer/summary, Q&A, lists, tables, clear headings.
 - **Entity clarity** — Organization/Person + `sameAs` to Wikipedia/Wikidata.
 
+This section is *readiness*; for the measured outcome (is the site actually
+cited?), run the live check in **1.24 — AI Visibility**.
+
 ### 1.19 — Technical SEO depth (module: `technical_seo`, always-on)
 
 Header- and DOM-level technical checks beneath the core SEO module. Uses
@@ -671,6 +690,48 @@ Checks for **VideoObject** structured data with its required properties (`name`,
 > user-visible content; first-party reviews only — no externally-aggregated
 > `aggregateRating`; use the most specific type) and **Google Discover** readiness
 > (`max-image-preview:large`, images ≥1200px wide, an RSS/Atom feed).
+
+### 1.24 — AI Visibility: live citation check (module: `ai_visibility`, opt-in)
+
+Section 1.18 audits AI-search *readiness*; this measures the *outcome* — does the
+site actually get cited when answer engines answer the queries that matter?
+
+**1. Build the query set (10–20 queries).** Pull from, in order of preference:
+GSC `opportunity_keywords` (real demand), the site's money pages (one query per
+service/product in natural question form), and 2–3 brand queries ("who is X",
+"X reviews") as a control. Save one per line to `./.fat-work/ai-queries.txt`.
+
+**2. Run the live check (Perplexity API, key from `PERPLEXITY_API_KEY`):**
+
+```bash
+python scripts/ai_visibility.py --domain example.com     --queries ./.fat-work/ai-queries.txt     --competitors rival-one.com,rival-two.com     --output ./.fat-work/ai_visibility.json --save-history
+```
+
+Reports **citation rate** (queries where the domain is cited), **citation rank**,
+**share of voice** (domain citations ÷ all citations seen), and the
+**top-cited domains** — the sources answer engines actually trust for these
+topics. Findings (module `ai_visibility`) merge into the punch list: never cited
+across ≥3 queries is P1; under ~a third is P2; the top-cited-domains list is the
+competitor-intel finding. `--save-history` appends to
+`.fat-ai-visibility-history.json` so the rate is trackable audit-over-audit —
+re-run after readiness fixes land and show the delta.
+
+**3. No API key? Spot-check by browser.** With browser tools available, run 3–5
+of the queries manually in Perplexity, ChatGPT search, and Google AI Mode, and
+record which sources each answer cites. Slower and unscored, but the same
+insight; note in the report that the sample was manual.
+
+**4. Citation simulation (no key needed, run it either way).** Take the target
+page's content and answer each query *using only that page*, quoting the passage
+you'd cite. Where no quotable passage exists, that's the extraction gap — the
+page never says the thing the query asks, or buries it. Feed each gap to the fix
+list as "add a direct answer for: <query>".
+
+**Interpreting results:** blocked answer bots (1.18) explain a zero rate — fix
+access first, re-test after recrawl. If access is fine but competitors dominate,
+the gap is content shape (direct answers, original data, entity clarity) and
+third-party presence — heavily cited directories, Reddit threads, and industry
+bodies are placement targets in their own right.
 
 ---
 
@@ -1318,6 +1379,7 @@ For extended check details, see:
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
 - `scripts/pagespeed.py` — PageSpeed Insights API wrapper (Core Web Vitals)
+- `scripts/ai_visibility.py` — Live AEO/GEO citation check via the Perplexity API (key from `PERPLEXITY_API_KEY`) → citation rate, share of voice, top-cited competitor domains, punch-list findings
 - `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
 - `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
 - `scripts/gsc.py` — Google Search Console behavioural analysis (NavBoost proxy) → striking-distance, low-CTR, branded share, `opportunity_keywords`
