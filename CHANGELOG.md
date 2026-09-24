@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.8.2] - 2026-09-24
+
+- Version bump so installed plugins pick up the 3.8.1 follow-up fixes (verifiable-fact question, unique-word keep rule, discriminating `ping`).
+
 ## [3.8.1] - 2026-09-24
 
 ### Changed — OpenJev tested end to end; judge design hardened
