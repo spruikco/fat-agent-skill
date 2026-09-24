@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.8.0] - 2026-09-24
+
+### Added — model judgments via Jev, OpenJev or the agent (no key required)
+
+- **New `scripts/jev.py`:** a stdlib client for the System One API
+  (`POST /v1/systemone`), with retries on 429/529 honouring `retry-after`,
+  parallel workers, and an on-disk answer cache. Two tasks:
+  - `doorway`: judges templated pages for genuine local substance (Noul)
+    and originality (Score), then combines that with GSC into a per-URL
+    keep / improve / prune with reasons.
+  - `fanout`: asks whether shortlisted pages actually answer each fan-out
+    sub-query, replacing word-overlap "mentions".
+- **Three backends, same questions:** hosted TypeSafe Jev
+  (`TYPESAFE_API_KEY`), any Jev-wire-compatible local server such as OpenJev
+  (`--base-url`, no key), or **agent mode**. Agent mode exports a sampled
+  question batch for the agent running the audit to answer, then reads it
+  back. The audit never requires a key.
+- The crawler stores a `main_excerpt` (the first 1,500 chars of main
+  content) so pages can be judged without re-fetching.
+- SKILL.md 1.30 and reference §6b: backends, agent-mode answer format,
+  OpenJev setup, accuracy caveats.
+
+Tests: 1086 passing.
+
 ## [3.7.1] - 2026-09-24
 
 ### Added — full-fidelity Search Console data

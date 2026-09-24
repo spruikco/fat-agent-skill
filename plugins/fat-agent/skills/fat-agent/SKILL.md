@@ -891,6 +891,71 @@ pricing, process, comparisons, proof) or write one strong guide. **Never** spin
 up a thin page per sub-query. That turns a fan-out gap into the
 scaled-content problem from 1.27.
 
+### 1.30 — Model judgments: Jev / OpenJev / agent (script: `jev.py`)
+
+Some checks are bounded judgments that regexes approximate badly. Two matter
+most: "does this location page carry genuinely local substance, or is it
+the template with the suburb swapped?" and "does this page actually answer
+this sub-query?". `scripts/jev.py` asks exactly those questions using the
+System One question types (Noul = P(yes), Choice, Score, all with calibrated
+confidence), then turns the answers into findings.
+
+**Backends (same questions and answer shape, so results are comparable):**
+
+| Backend | Who it's for | Setup |
+|---|---|---|
+| `typesafe` | Hosted Jev: fastest, and judges every page | `TYPESAFE_API_KEY` (typesafe.ai). About $0.0004 per decision |
+| `local` | Any Jev-wire-compatible server, e.g. OpenJev. Free, private | `--base-url http://localhost:8000` or `TYPESAFE_BASE_URL`. No key |
+| `agent` | Everyone else, zero install | Nothing. You (the agent) answer the batch; see below |
+
+`--backend auto` (the default) uses typesafe if a key is set, local if a
+base URL is set, otherwise agent. **Never make a key a requirement:** the
+audit must work in agent mode.
+
+```bash
+python scripts/jev.py ping                                   # which backend, is it up
+python scripts/jev.py doorway --db .fat-work/crawl/site.db \
+    --gsc .fat-work/gsc_pages.json --out .fat-work/jev_doorway.json
+python scripts/jev.py fanout --db .fat-work/crawl/site.db \
+    --seed "seo agency melbourne" --out .fat-work/jev_fanout.json
+```
+
+- **`doorway`** judges pages in each templated cluster (1.27) for local
+  substance and originality. It combines that with GSC clicks and
+  impressions into **keep / improve / prune** per URL, with a reason for
+  each.
+- **`fanout`** shortlists candidate pages per sub-query (1.29) and asks
+  whether each one actually answers it. That replaces word-overlap
+  "mentions" with a real judgment.
+
+The crawl must include `main_excerpt`, so re-crawl with v3.8 or later.
+Answers are cached in `.fat-work/jev_cache.json`, so re-runs cost nothing.
+
+**Agent mode (no key, no server).** The first run writes
+`.fat-work/jev_batch.json` as `[{id, state, questions}]`. In agent mode
+`doorway` samples 5 pages per template by default (`--per-cluster`), so the
+batch stays small enough to read. Answer every item **honestly from the
+state only**, in the Jev answer shape, and write:
+
+```json
+{"<id>": {"local_substance": {"type": "noul", "noul": 0.15},
+          "originality": {"type": "score", "score": 1.0, "legend": {"0": "...", "4": "..."}}}}
+```
+
+Noul is your probability that the answer is yes (0 to 1). Don't round
+everything to 0 or 1: use values near 0.5 when the state is genuinely
+ambiguous. Then re-run with `--answers .fat-work/jev_answers.json --out ...`.
+
+**Treat every judgment as triage-grade.** TypeSafe reports Jev at 67.8% on
+its own benchmark (Claude Opus 5: 73.1%), and open models vary. Use
+confidence to route: act on clear answers, spot-check borderline ones
+(noul 0.3 to 0.7) yourself, and never delete pages on a model verdict
+without a human look at a sample. Pin a versioned model
+(`--model jev-1.13.0`) when you tune thresholds.
+
+**Running OpenJev locally (optional, free):** see
+`references/google-guidelines.md` §6b.
+
 ---
 
 ## Phase 2 — FIX
@@ -1534,6 +1599,7 @@ For extended check details, see:
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
 - `scripts/sitecrawl.py` — Site-wide concurrent crawler → SQLite (`pages` + `links` graph, sitemap seeding, SSRF guard, adaptive throttling)
 - `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans, sitemap hygiene, doorway/scaled-content clusters, Google guideline patterns; `--gsc` for keep/improve/prune triage) + capped SQL drill-down
+- `scripts/jev.py` — Model judgments (doorway local-substance triage, fan-out answer check) via hosted Jev, any Jev-compatible local server (OpenJev), or keyless agent mode
 - `scripts/gsc_fetch.py` — Full Search Console export to disk (paginated, no row cap, reuses a saved OAuth login); `--list-sites`
 - `scripts/update_impact.py` — Traffic before/after every Google core/spam update window (GSC by date or SEMrush history), worst first
 - `scripts/fanout.py` — AI search query fan-out coverage per seed (templates + Autocomplete + agent-written), exports the set for `ai_visibility.py`

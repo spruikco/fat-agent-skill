@@ -207,6 +207,44 @@ nobody has published an AU study. Test it rather than assume it.
   citation consistency is a separate workstream (use your citation tool of
   choice). Bring the results into the report by hand.
 
+### 6b. Model judgments: Jev and open alternatives
+
+TypeSafe's **Jev** (early access, 15 Sep 2026) is a "System One" model. It
+returns typed decisions with calibrated probabilities (Noul, Choice, Score)
+instead of text, in about 70 to 500ms at $0.042 per million input tokens,
+with free output. FAT's `jev.py` uses it for bounded judgments: doorway
+local-substance triage and fan-out answer checks.
+
+- **API:** `POST https://api.typesafe.ai/v1/systemone`, `Authorization:
+  Bearer $TYPESAFE_API_KEY`, body `{state, model: "jev-latest", questions}`.
+- **Limits:** 64k tokens per request, 32k for state plus the longest
+  question, and 1,200 requests a minute. Limits are adjusting dynamically.
+  Retry 429 and 529 with backoff. [P: docs.typesafe.ai]
+- **Accuracy:** 67.8% on TypeSafe's own four-workflow benchmark, versus
+  73.1% for Claude Opus 5. That's vendor data, not independently verified.
+  Triage-grade.
+
+**Open, keyless alternatives** (community projects, verify before relying
+on them):
+
+| Project | Notes |
+|---|---|
+| OpenJev (GitHub30/OpenJev, MIT) | Claims full wire compatibility with the TypeSafe API. Runs any Hugging Face instruct model (default Qwen2.5-1.5B). GPU preferred, CPU works but is slower. Serve on :8000 and point FAT at it |
+| Laya (Apache-2.0, 322 to 421M) | CPU-viable, about 0.2 to 0.5s per question. Reported accuracy 0.766 |
+| Kev-9B (Apache-2.0) | Reported accuracy 0.852 vs Jev 0.857. Needs a GPU or a 32GB Mac |
+
+```bash
+git clone https://github.com/GitHub30/OpenJev.git && cd OpenJev
+uv venv && uv pip install -e ".[hf,server,dev]"
+openjev serve --model Qwen/Qwen2.5-1.5B-Instruct --port 8000
+# then, in the audit:
+python scripts/jev.py ping --backend local --base-url http://localhost:8000
+```
+
+If none of these are available, `jev.py` falls back to agent mode, where the
+agent running the audit answers a sampled batch itself. The audit never
+requires a key.
+
 Frame it for clients like this: AI search is entity SEO with more at stake.
 Be the business the web keeps mentioning (reviews, directories, Reddit,
 YouTube, press, "best X" lists) and answer the whole cluster of questions
@@ -247,3 +285,7 @@ have access to our internal ranking data". So in reports:
 - Semrush most-cited domains: https://www.semrush.com/blog/most-cited-domains-ai/
 - iPullRank query fan-out: https://ipullrank.com/expanding-queries-with-fanout
 - BrightLocal ChatGPT sources: https://www.brightlocal.com/research/uncovering-chatgpt-search-sources/
+- TypeSafe API: https://docs.typesafe.ai/api
+- TypeSafe models and limits: https://docs.typesafe.ai/models
+- OpenJev: https://github.com/GitHub30/OpenJev
+- Open-weights Jev alternatives: https://rohitraj.tech/notes/jev-alternatives-open-weights-decision-models-2026

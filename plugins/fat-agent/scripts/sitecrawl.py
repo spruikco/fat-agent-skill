@@ -516,6 +516,12 @@ class PageParser(HTMLParser):
         return self._main_words
 
     @property
+    def main_excerpt(self):
+        """First ~1,500 chars of main content: enough for a model to judge a page."""
+        text = " ".join(" ".join(self._main_chunks).split())
+        return text[:1500] or None
+
+    @property
     def simhash(self):
         return simhash64(" ".join(self._main_chunks))
 
@@ -543,7 +549,8 @@ CREATE TABLE pages (
   jsonld_count INTEGER, blank_no_noopener INTEGER,
   sec_headers TEXT, truncated INTEGER,
   indexable INTEGER, index_reason TEXT, in_sitemap INTEGER, error TEXT,
-  main_word_count INTEGER, simhash TEXT, schema_types TEXT, headings TEXT
+  main_word_count INTEGER, simhash TEXT, schema_types TEXT, headings TEXT,
+  main_excerpt TEXT
 );
 CREATE TABLE links (source TEXT, target TEXT, anchor TEXT, rel TEXT, type TEXT);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -593,6 +600,7 @@ PAGE_COLS = [
     "simhash",
     "schema_types",
     "headings",
+    "main_excerpt",
 ]
 
 
@@ -817,6 +825,7 @@ def consume(url, depth, r, ctx: Crawl):
             "simhash": p.simhash,
             "schema_types": ",".join(sorted(p.schema_types)) or None,
             "headings": " | ".join(p.headings) or None,
+            "main_excerpt": p.main_excerpt,
         }
     )
     ctx.rows.append(row)
