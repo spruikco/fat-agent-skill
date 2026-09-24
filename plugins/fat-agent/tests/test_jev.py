@@ -168,7 +168,7 @@ def test_doorway_end_to_end_with_gsc(server, tmp_path, capsys):
     out = tmp_path / "out.json"
     rc = jev.main(["doorway", "--db", db, "--gsc", str(gsc), "--backend", "local",
                    "--base-url", server, "--cache", str(tmp_path / "c.json"),
-                   "--out", str(out)])
+                   "--trust-judge", "--out", str(out)])
     assert rc == 0
     res = json.loads(out.read_text())
     verdicts = {p["url"].split("-in-")[1].strip("/"): p["verdict"]
@@ -284,3 +284,26 @@ def test_single_local_line_caps_at_improve():
                                                 "https://e.com/x/b/": 120})
     v = {p["url"]: p["verdict"] for p in groups[0]["pages"]}
     assert v == {"https://e.com/x/a/": "improve", "https://e.com/x/b/": "keep"}
+
+
+def test_untrusted_model_is_advisory_only(server, tmp_path):
+    db, _ = _crawl(tmp_path)
+    out = tmp_path / "out.json"
+    assert jev.main(["doorway", "--db", db, "--backend", "local", "--base-url", server,
+                     "--cache", str(tmp_path / "c.json"), "--out", str(out)]) == 0
+    res = json.loads(out.read_text())
+    carlton = next(p for g in res["groups"] for p in g["pages"] if "carlton" in p["url"])
+    # the fake judge says 0.9, but without --trust-judge it can't change the verdict
+    assert carlton["verdict"] == "prune" and "advisory" in carlton["why"]
+    assert carlton["local_substance"] == 0.9
+
+
+def test_cluster_kind_place_vs_service():
+    place = {"shape": "/local/seo-in-{*}/", "urls": [
+        "https://e.com/local/seo-in-st-kilda-melbourne/",
+        "https://e.com/local/seo-in-bondi-sydney/"]}
+    service = {"shape": "/sydney/{*}/", "urls": [
+        "https://e.com/sydney/email-marketing/", "https://e.com/sydney/public-relations/"]}
+    assert jev.cluster_kind(place) == "place"
+    assert jev.cluster_kind(service) == "service"
+    assert jev._fixed_place(service) == "sydney"

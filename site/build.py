@@ -20,7 +20,7 @@ DIST = os.path.join(HERE, "dist")
 
 tpl = open(os.path.join(HERE, "index.template.html"), encoding="utf-8").read()
 chart = open(os.path.join(HERE, "chart.svg.part"), encoding="utf-8").read()
-STYLE = tpl[tpl.index("<style>"): tpl.index("</style>") + len("</style>")]
+STYLE = tpl[tpl.index("<style>"): tpl.index("</style>") + len("</style>")].replace("url(assets/", "url(/assets/")
 FONTS = tpl[tpl.index('<link rel="preconnect"'): tpl.index("<style>")]
 BODY = tpl[tpl.index("</style>") + len("</style>"):]
 SCRIPT = BODY[BODY.index("<script>"):]
@@ -28,11 +28,12 @@ SCRIPT = BODY[BODY.index("<script>"):]
 EXTRA_CSS = """<style>
 .page-hero{padding-block:clamp(48px,7vw,88px) clamp(32px,5vw,56px);background:
   radial-gradient(ellipse 45% 70% at 80% 30%,rgba(200,16,46,.12),transparent 70%),linear-gradient(180deg,var(--night),#0c0e13)}
-.page-hero .wrap{display:grid;grid-template-columns:1.2fr .8fr;gap:40px;align-items:center}
+.page-hero .wrap{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
 @media (max-width:880px){.page-hero .wrap{grid-template-columns:1fr}}
 .page-hero h1{font-family:var(--display);font-weight:400;font-size:clamp(44px,7vw,92px);line-height:.95;margin:12px 0 18px}
 .page-hero h1 .red{color:var(--stamp-soft);display:block}
-.page-hero img{width:min(100%,360px);justify-self:center;height:auto;filter:drop-shadow(0 24px 34px rgba(0,0,0,.6))}
+.page-hero .wrap>img{width:min(100%,300px);justify-self:center;height:auto}
+.page-hero .scene img{width:100%}
 .counters{display:flex;flex-wrap:wrap;gap:12px 30px;margin-top:26px;font-family:var(--type);color:var(--chrome-dim)}
 .counters b{font-family:var(--display);font-weight:400;font-size:30px;color:var(--chrome);margin-right:8px}
 .nav nav a[aria-current="page"]{color:var(--chrome);text-decoration:underline;text-underline-offset:6px}
@@ -96,6 +97,7 @@ INSTALL = """<section id="install" class="install" aria-labelledby="install-titl
         <h2 id="install-title">Put him on the case.</h2>
         <p>Inside Claude Code, run these two lines. Then point him at a site.</p>
       </div>
+      <img class="sticker" src="/assets/scenes/pose-thumbs.png" alt="" width="400" height="600" loading="lazy">
       <ol class="steps">
         <li><div class="cmd"><code id="cmd-1">/plugin marketplace add spruikco/fat-agent-skill</code><button type="button" data-copy="cmd-1">Copy</button></div></li>
         <li><div class="cmd"><code id="cmd-2">/plugin install fat-agent@fat-agent-marketplace</code><button type="button" data-copy="cmd-2">Copy</button></div></li>
@@ -169,7 +171,7 @@ SECURITY = """
           <span><b>8</b>secret types</span><span><b>24</b>sensitive paths</span><span><b>40+</b>security checks</span>
         </div>
       </div>
-      <img src="/assets/badge-topsecret.png" alt="FAT Agent holding a folder stamped top secret" width="394" height="440">
+      <figure class="scene" style="margin:0"><img src="/assets/scenes/raid.jpg" alt="FAT Agent kicking open a server room door as web pages with error marks fly past" width="1672" height="940"><figcaption>Exhibit 06: the raid</figcaption></figure>
     </div>
   </section>
 
@@ -398,7 +400,7 @@ def build_dossier():
           <span><b>{total}</b>distinct findings</span><span><b>{len(cards)}</b>departments</span><span><b>P0 to P3</b>ranked</span>
         </div>
       </div>
-      <img src="/assets/badge-testing.png" alt="FAT Agent holding a folder marked testing" width="465" height="520">
+      <img class="sticker" src="/assets/scenes/pose-magnifier.png" alt="FAT Agent peering through a magnifying glass" width="400" height="600">
     </div>
   </section>
   <section aria-label="All findings" style="padding-top:8px">
@@ -422,8 +424,20 @@ def main():
     open(os.path.join(DIST, "security", "index.html"), "w", encoding="utf-8").write(build_security())
     dossier, total = build_dossier()
     open(os.path.join(DIST, "dossier", "index.html"), "w", encoding="utf-8").write(dossier)
-    for f in os.listdir(os.path.join(HERE, "assets")):
-        shutil.copy(os.path.join(HERE, "assets", f), os.path.join(DIST, "assets", f))
+    shutil.copytree(os.path.join(HERE, "assets"), os.path.join(DIST, "assets"),
+                    dirs_exist_ok=True)
+    # leave out any illustration that hasn't been added yet, rather than ship a broken image
+    def have(rel):
+        return os.path.exists(os.path.join(HERE, rel.lstrip("/")))
+
+    for page in ("index.html", "security/index.html", "dossier/index.html"):
+        path = os.path.join(DIST, page)
+        txt = open(path, encoding="utf-8").read()
+        txt = re.sub(r'<figure class="scene[^"]*"[^>]*>\s*<img src="(/?assets/scenes/[^"]+)".*?</figure>',
+                     lambda m: m.group(0) if have(m.group(1)) else "", txt, flags=re.S)
+        txt = re.sub(r'<img class="sticker" src="(/?assets/scenes/[^"]+)"[^>]*>',
+                     lambda m: m.group(0) if have(m.group(1)) else "", txt)
+        open(path, "w", encoding="utf-8").write(txt)
     for page in ("index.html", "security/index.html", "dossier/index.html"):
         txt = open(os.path.join(DIST, page), encoding="utf-8").read()
         assert "—" not in txt and "–" not in txt, f"dash in {page}"

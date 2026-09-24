@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.8.5] - 2026-09-24
+
+### Changed: model judges are advisory until proven (evaluation-driven)
+
+An honest evaluation on spruik.co (`site/jev-eval/REPORT.md`) found the local
+OpenJev judge (Qwen2.5-3B) made results worse. It agreed with hand-labelled
+keep/improve/prune verdicts 57% of the time, versus 95% for FAT's code-diff +
+Search Console rule with no model. It would have kept 14 template pages, and
+fan-out matching was at chance (AUC 0.52).
+
+- `jev.py doorway`: model scores from local or hosted judges are reported
+  as an advisory signal and no longer change verdicts. Pass `--trust-judge`
+  after validating a judge on your own labelled pages. Claude (agent mode)
+  answers stay trusted. Pages earning clicks are kept.
+- The diff detects clusters that vary by service within a fixed place
+  (`/sydney/{service}/`) using a place list, and judges those pages' own
+  text against the real place. Previously it stripped the local content
+  and asked about the service as if it were the location.
+- `--workers` defaults to 1 for local servers (one GPU queues requests).
+- spruik.co triage on the new defaults: keep 31 / improve 55 / prune 462.
+- Tests: 1092 passing.
+
 ## [3.8.4] - 2026-09-24
 
 ### Added

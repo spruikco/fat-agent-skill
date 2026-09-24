@@ -1,0 +1,1247 @@
+{
+ "notes": {
+  "labeller": "Claude (Opus), reading unique text, crawl excerpt and, where the excerpt was cut, the live page",
+  "doorway_rule": "Claude's labels (written by hand after reading every item), assembled into ground_truth.json.\n\ndoorway: substance = genuine, verifiable, location-specific substance that would justify the\npage existing for that place (office/venue address, named local client or project, local\nprice or dated local event, or a substantial block of real local facts). One templated\n'local flavour' sentence naming the region's industries, suburb lists, 'local experts'\nclaims and unnamed templated testimonials do NOT count.\nliteral = the page would pass jev.py's question AS WORDED (names at least one real,\ncheckable local entity: company, institution, landmark, statistic), whatever its purpose.",
+  "fanout_rule": "a searcher asking the query finds a direct, useful answer on that page",
+  "missed_by_both_shortlists": [
+   "claude code training / cost / how long: /melbourne/claude-code-training/ states A$1,095 per seat and a one-day format, and /services/claude-code-training/ is the national hub, but neither page is ever shortlisted (124 pages tie on token overlap for 'claude code training cost' and 'cost' only appears in body text)"
+  ]
+ },
+ "doorway": [
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/richmond/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Capital One)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/charlotte/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (BoA, Truist, Wells Fargo)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/anchorage/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (no names)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/texas/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Houston/Dallas/Austin sectors)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/indiana/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (no names)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/honolulu/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (State of Hawaii)"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/indianapolis/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Lilly, Roche)"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/delaware/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (no names)"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/colorado/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (no names)"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/washington/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Microsoft, Amazon, Boeing)"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/rhode-island/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Brown University)"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/chicago/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (The Loop, West Loop)"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-agency-in-prospect-adelaide/",
+   "shape": "/local/claude-code-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-agency-in-manly-sydney/",
+   "shape": "/local/claude-code-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-agency-in-bayview-darwin/",
+   "shape": "/local/claude-code-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-agency-in-barton-canberra/",
+   "shape": "/local/claude-code-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-agency-in-burnside-adelaide/",
+   "shape": "/local/claude-code-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-cowork-training-in-footscray-melbourne/",
+   "shape": "/local/claude-cowork-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-cowork-training-in-fyshwick-canberra/",
+   "shape": "/local/claude-cowork-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-cowork-training-in-toorak-melbourne/",
+   "shape": "/local/claude-cowork-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-cowork-training-in-barton-canberra/",
+   "shape": "/local/claude-cowork-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/seo-agency-in-nightcliff-darwin/",
+   "shape": "/local/seo-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/seo-agency-in-cottesloe-perth/",
+   "shape": "/local/seo-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/seo-agency-in-southbank-brisbane/",
+   "shape": "/local/seo-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/seo-agency-in-phillip-canberra/",
+   "shape": "/local/seo-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/seo-agency-in-semaphore-adelaide/",
+   "shape": "/local/seo-agency-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-training-in-norwood-adelaide/",
+   "shape": "/local/claude-code-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-training-in-kingston-canberra/",
+   "shape": "/local/claude-code-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-training-in-claremont-perth/",
+   "shape": "/local/claude-code-training-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/ai-consultant-in-mitchell-canberra/",
+   "shape": "/local/ai-consultant-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/ai-consultant-in-southbank-brisbane/",
+   "shape": "/local/ai-consultant-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/local/ai-consultant-in-fitzroy-melbourne/",
+   "shape": "/local/ai-consultant-in-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/book/wollongong/",
+   "shape": "/book/{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "booking shell: 'Loading upcoming workshops', no local content in the crawl"
+  },
+  {
+   "url": "https://spruik.co/book/adelaide/",
+   "shape": "/book/{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "booking shell: 'Loading upcoming workshops', no local content in the crawl"
+  },
+  {
+   "url": "https://spruik.co/canberra/ai-engineering-workshops/",
+   "shape": "/{*}/ai-engineering-workshops/",
+   "substance": false,
+   "literal": false,
+   "reason": "'Canberra CBD' venue without an address; otherwise template"
+  },
+  {
+   "url": "https://spruik.co/melbourne/ai-engineering-workshops/",
+   "shape": "/{*}/ai-engineering-workshops/",
+   "substance": false,
+   "literal": false,
+   "reason": "'Melbourne CBD' venue without an address; otherwise template"
+  },
+  {
+   "url": "https://spruik.co/hobart/ai-strategy-advisory/",
+   "shape": "/{*}/ai-strategy-advisory/",
+   "substance": false,
+   "literal": false,
+   "reason": "'Hobart CBD' only; template"
+  },
+  {
+   "url": "https://spruik.co/gold-coast/ai-strategy-advisory/",
+   "shape": "/{*}/ai-strategy-advisory/",
+   "substance": false,
+   "literal": false,
+   "reason": "'Southport CBD' only; template"
+  },
+  {
+   "url": "https://spruik.co/ai-seo-canberra/",
+   "shape": "/ai-seo-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/ai-seo-brisbane/",
+   "shape": "/ai-seo-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/sydney/public-relations/",
+   "shape": "/sydney/{*}/",
+   "substance": true,
+   "literal": true,
+   "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (ASX, RBA, Macquarie, population/CPC stats)"
+  },
+  {
+   "url": "https://spruik.co/sydney/email-marketing/",
+   "shape": "/sydney/{*}/",
+   "substance": true,
+   "literal": true,
+   "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (same Sydney block)"
+  },
+  {
+   "url": "https://spruik.co/canberra/team-ai-adoption/",
+   "shape": "/{*}/team-ai-adoption/",
+   "substance": false,
+   "literal": false,
+   "reason": "pure template: place name swapped into generic copy"
+  },
+  {
+   "url": "https://spruik.co/hobart/executive-ai-training/",
+   "shape": "/{*}/executive-ai-training/",
+   "substance": false,
+   "literal": false,
+   "reason": "'Hobart CBD' only; template"
+  },
+  {
+   "url": "https://spruik.co/adelaide/ecommerce/",
+   "shape": "/adelaide/{*}/",
+   "substance": true,
+   "literal": true,
+   "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (BAE at Osborne, AUKUS, SA wine share)"
+  },
+  {
+   "url": "https://spruik.co/us/miami/ai-seo/",
+   "shape": "/us/{*}/ai-seo/",
+   "substance": false,
+   "literal": true,
+   "reason": "neighbourhood list and a metro population figure; no local client or venue"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/tampa/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Raymond James, CENTCOM)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/houston/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Texas Medical Center)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/nashville/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (HCA, Vanderbilt)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/dallas/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (AT&T, ExxonMobil, McKesson)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/atlanta/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Coca-Cola, Delta, UPS)"
+  },
+  {
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/raleigh/",
+   "shape": "/services/microsoft-copilot-cowork-training/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Cisco RTP, SAS)"
+  },
+  {
+   "url": "https://spruik.co/geelong/shopify-development/",
+   "shape": "/geelong/{*}/",
+   "substance": true,
+   "literal": true,
+   "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (LAND 400 at Avalon, Carbon Revolution HQ, Cotton On)"
+  },
+  {
+   "url": "https://spruik.co/hobart-digital-marketing-agency/",
+   "shape": "/{*}-digital-marketing-agency/",
+   "substance": false,
+   "literal": false,
+   "reason": "suburb/neighbourhood list plus unverifiable claims ('500+ businesses served')"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-agency-in-sandy-bay-hobart/",
+   "shape": "/local/claude-code-agency-in-{*}-hobart/",
+   "substance": false,
+   "literal": false,
+   "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place"
+  },
+  {
+   "url": "https://spruik.co/local/claude-code-training-in-north-adelaide-adelaide/",
+   "shape": "/local/claude-code-{*}/",
+   "substance": false,
+   "literal": false,
+   "reason": "garbled template (place name injected repeatedly), no local facts"
+  },
+  {
+   "url": "https://spruik.co/local/n8n-consultant-in-cullen-bay-darwin/",
+   "shape": "/local/{*}-in-cullen-bay-darwin/",
+   "substance": false,
+   "literal": false,
+   "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place ('Rachel P., Cullen Bay')"
+  },
+  {
+   "url": "https://spruik.co/local/seo-agency-in-port-adelaide-adelaide/",
+   "shape": "/local/{*}-in-port-adelaide-adelaide/",
+   "substance": false,
+   "literal": false,
+   "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place"
+  },
+  {
+   "url": "https://spruik.co/local/web-developer-in-cullen-bay-darwin/",
+   "shape": "/local/{*}-in-cullen-bay-darwin/",
+   "substance": false,
+   "literal": false,
+   "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place"
+  },
+  {
+   "url": "https://spruik.co/local/web-developer-in-new-farm-brisbane/",
+   "shape": "/local/{*}-in-new-farm-brisbane/",
+   "substance": false,
+   "literal": false,
+   "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place"
+  },
+  {
+   "url": "https://spruik.co/melbourne-digital-marketing-agency/",
+   "shape": "/{*}-digital-marketing-agency/",
+   "substance": false,
+   "literal": false,
+   "reason": "suburb/neighbourhood list plus unverifiable claims ('500+ businesses served')"
+  },
+  {
+   "url": "https://spruik.co/newcastle-digital-marketing-agency/",
+   "shape": "/{*}-digital-marketing-agency/",
+   "substance": false,
+   "literal": false,
+   "reason": "suburb/neighbourhood list plus unverifiable claims ('500+ businesses served')"
+  },
+  {
+   "url": "https://spruik.co/services/claude-code-agency/washington-dc/",
+   "shape": "/services/claude-code-agency/{*}/",
+   "substance": false,
+   "literal": true,
+   "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Beltway, federal agencies)"
+  }
+ ],
+ "fanout": [
+  {
+   "query": "seo agency melbourne",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": true,
+   "reason": "the Melbourne SEO services page"
+  },
+  {
+   "query": "seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": true,
+   "reason": "an SEO agency page for a Melbourne suburb"
+  },
+  {
+   "query": "seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": true,
+   "reason": "an SEO agency page for a Melbourne suburb"
+  },
+  {
+   "query": "seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": true,
+   "reason": "an SEO agency page for a Melbourne suburb"
+  },
+  {
+   "query": "what is seo agency melbourne",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how does seo agency melbourne work",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how does seo agency melbourne work",
+   "url": "https://spruik.co/wollongong/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how does seo agency melbourne work",
+   "url": "https://spruik.co/melbourne/google-ads-management/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how does seo agency melbourne work",
+   "url": "https://spruik.co/ai/how-to-rank-in-ai-search/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how long does seo agency melbourne take",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": true,
+   "reason": "FAQ 'How long does SEO take to work in Melbourne?' with a timeline"
+  },
+  {
+   "query": "how long does seo agency melbourne take",
+   "url": "https://spruik.co/melbourne/ai-seo/",
+   "answers": false,
+   "reason": "AI SEO timeline, a different service"
+  },
+  {
+   "query": "how long does seo agency melbourne take",
+   "url": "https://spruik.co/ai/how-to-rank-in-ai-search/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how long does seo agency melbourne take",
+   "url": "https://spruik.co/perth/seo-services/",
+   "answers": false,
+   "reason": "answers it for Perth, not Melbourne"
+  },
+  {
+   "query": "seo agency melbourne cost",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": true,
+   "reason": "FAQ gives $1,500-$5,000/month"
+  },
+  {
+   "query": "seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": true,
+   "reason": "FAQ 'from $990/month'"
+  },
+  {
+   "query": "seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": true,
+   "reason": "FAQ 'from $990/month'"
+  },
+  {
+   "query": "seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": true,
+   "reason": "FAQ 'from $990/month'"
+  },
+  {
+   "query": "how much does seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-hamilton-brisbane/",
+   "answers": false,
+   "reason": "Brisbane suburb page"
+  },
+  {
+   "query": "how much does seo agency melbourne cost",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": true,
+   "reason": "FAQ gives $1,500-$5,000/month"
+  },
+  {
+   "query": "how much does seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": true,
+   "reason": "FAQ 'from $990/month'"
+  },
+  {
+   "query": "how much does seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": true,
+   "reason": "FAQ 'from $990/month'"
+  },
+  {
+   "query": "how much does seo agency melbourne cost",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": true,
+   "reason": "FAQ 'from $990/month'"
+  },
+  {
+   "query": "best seo agency melbourne",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best seo agency melbourne",
+   "url": "https://spruik.co/blog/digital-marketing-topic-cluster/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne alternatives",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne alternatives",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne alternatives",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne alternatives",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose seo agency melbourne",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose seo agency melbourne",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is seo agency melbourne worth it",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is seo agency melbourne worth it",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is seo agency melbourne worth it",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is seo agency melbourne worth it",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne pros and cons",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne pros and cons",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne pros and cons",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne pros and cons",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne mistakes to avoid",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne mistakes to avoid",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne mistakes to avoid",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne mistakes to avoid",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne reviews",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne reviews",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne reviews",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne reviews",
+   "url": "https://spruik.co/melbourne/claude-code-agency/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne case studies",
+   "url": "https://spruik.co/ai/how-to-rank-in-ai-search/",
+   "answers": true,
+   "reason": "has a Melbourne client search case study section (borderline yes)"
+  },
+  {
+   "query": "seo agency melbourne case studies",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne case studies",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne case studies",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne 2026",
+   "url": "https://spruik.co/wollongong/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne 2026",
+   "url": "https://spruik.co/gold-coast/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne 2026",
+   "url": "https://spruik.co/melbourne/",
+   "answers": true,
+   "reason": "Melbourne digital agency hub offering SEO, 2026 in title (weak yes)"
+  },
+  {
+   "query": "seo agency melbourne 2026",
+   "url": "https://spruik.co/geelong/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "seo agency melbourne near me",
+   "url": "https://spruik.co/melbourne/seo-services/",
+   "answers": true,
+   "reason": "Melbourne SEO page"
+  },
+  {
+   "query": "seo agency melbourne near me",
+   "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+   "answers": true,
+   "reason": "suburb SEO page"
+  },
+  {
+   "query": "seo agency melbourne near me",
+   "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+   "answers": true,
+   "reason": "suburb SEO page"
+  },
+  {
+   "query": "seo agency melbourne near me",
+   "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+   "answers": true,
+   "reason": "suburb SEO page"
+  },
+  {
+   "query": "claude code training",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": true,
+   "reason": "a Claude Code training page (suburb template, weak yes)"
+  },
+  {
+   "query": "claude code training",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "Copilot training, not Claude Code training"
+  },
+  {
+   "query": "claude code training",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "Cowork course, says it is not Claude Code"
+  },
+  {
+   "query": "claude code training",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "a build agency page, not training"
+  },
+  {
+   "query": "claude code training",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is claude code training",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": true,
+   "reason": "describes what the training covers (weak yes)"
+  },
+  {
+   "query": "what is claude code training",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is claude code training",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is claude code training",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "what is claude code training",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how does claude code training work",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how does claude code training work",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": true,
+   "reason": "what's included + one-day format (weak yes)"
+  },
+  {
+   "query": "how does claude code training work",
+   "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+   "answers": true,
+   "reason": "same template as Hyde Park"
+  },
+  {
+   "query": "how does claude code training work",
+   "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+   "answers": true,
+   "reason": "same template as Hyde Park"
+  },
+  {
+   "query": "how long does claude code training take",
+   "url": "https://spruik.co/",
+   "answers": false,
+   "reason": "homepage, no training duration"
+  },
+  {
+   "query": "how long does claude code training take",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "Copilot tiers of 2 hours, different course"
+  },
+  {
+   "query": "how long does claude code training take",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "Cowork day, different course"
+  },
+  {
+   "query": "how long does claude code training take",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": false,
+   "reason": "cost FAQ gives no price ('scoped to your team')"
+  },
+  {
+   "query": "claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+   "answers": false,
+   "reason": "no price"
+  },
+  {
+   "query": "claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+   "answers": false,
+   "reason": "no price"
+  },
+  {
+   "query": "claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-mitchell-canberra/",
+   "answers": false,
+   "reason": "no price"
+  },
+  {
+   "query": "how much does claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how much does claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how much does claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how much does claude code training cost",
+   "url": "https://spruik.co/local/claude-code-training-in-mitchell-canberra/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best claude code training",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best claude code training",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best claude code training",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "best claude code training",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training alternatives",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training alternatives",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training alternatives",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training alternatives",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose claude code training",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose claude code training",
+   "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose claude code training",
+   "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "how to choose claude code training",
+   "url": "https://spruik.co/local/claude-code-training-in-mitchell-canberra/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is claude code training worth it",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/fort-worth/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is claude code training worth it",
+   "url": "https://spruik.co/services/claude-code-agency/fort-worth/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is claude code training worth it",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "is claude code training worth it",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training pros and cons",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training pros and cons",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training pros and cons",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training pros and cons",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training mistakes to avoid",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training mistakes to avoid",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training mistakes to avoid",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training mistakes to avoid",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training reviews",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "agency page, no reviews"
+  },
+  {
+   "query": "claude code training reviews",
+   "url": "https://spruik.co/newcastle/claude-code-agency/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training reviews",
+   "url": "https://spruik.co/services/claude-code-agency/orlando/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training reviews",
+   "url": "https://spruik.co/services/claude-code-agency/new-mexico/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training case studies",
+   "url": "https://spruik.co/case-studies/",
+   "answers": true,
+   "reason": "case studies page includes a Sydney Claude Code meetup (borderline yes)"
+  },
+  {
+   "query": "claude code training case studies",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training case studies",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training case studies",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training 2026",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training 2026",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training 2026",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training 2026",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/california/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training near me",
+   "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+   "answers": true,
+   "reason": "local Claude Code training page"
+  },
+  {
+   "query": "claude code training near me",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training near me",
+   "url": "https://spruik.co/perth/claude-cowork-training/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training near me",
+   "url": "https://spruik.co/services/claude-code-agency/alabama/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  },
+  {
+   "query": "claude code training near me",
+   "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+   "answers": false,
+   "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+  }
+ ]
+}

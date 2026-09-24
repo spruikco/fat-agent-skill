@@ -302,6 +302,58 @@ def _page_state(row, location_hint=""):
     }
 
 
+# Known places, used to tell a cluster that varies by PLACE (/local/seo-in-{suburb}/)
+# from one that varies by SERVICE within a fixed place (/sydney/{service}/). Diffing a
+# service-varying cluster against a same-city sibling strips exactly the local content
+# we want to judge (found in the 24 Sep 2026 evaluation, site/jev-eval/REPORT.md).
+PLACES = set("""sydney melbourne brisbane perth adelaide hobart darwin canberra gold-coast goldcoast
+newcastle wollongong geelong townsville cairns sunshine-coast ballarat bendigo toowoomba
+launceston mackay rockhampton bunbury mandurah albury auckland wellington christchurch
+hamilton tauranga dunedin london manchester birmingham leeds glasgow edinburgh bristol
+new-york los-angeles chicago houston phoenix philadelphia san-antonio san-diego dallas
+san-jose austin jacksonville fort-worth columbus charlotte indianapolis san-francisco
+seattle denver washington-dc washington boston nashville miami atlanta tampa orlando
+minneapolis milwaukee baltimore cincinnati kansas-city raleigh richmond saint-louis
+st-louis pittsburgh portland las-vegas detroit buffalo sacramento cleveland memphis
+louisville oklahoma-city salt-lake-city alabama alaska arizona arkansas california
+colorado connecticut delaware florida georgia hawaii idaho illinois indiana iowa kansas
+kentucky louisiana maine maryland massachusetts michigan minnesota mississippi missouri
+montana nebraska nevada new-hampshire new-jersey new-mexico north-carolina north-dakota
+ohio oklahoma oregon pennsylvania rhode-island south-carolina south-dakota tennessee texas
+utah vermont virginia west-virginia wisconsin wyoming""".split())
+
+
+def _is_place(slug):
+    slug = slug.strip("/").lower().replace(" ", "-")
+    return any(slug == pl or slug.endswith("-" + pl) or slug.startswith(pl + "-")
+               for pl in PLACES)
+
+
+def cluster_kind(c):
+    """'place' (varies by place), 'service' (fixed place, varies by service) or 'unknown'."""
+    from urllib.parse import urlparse
+
+    sh = c["shape"].strip("/").split("/")
+    vary = []
+    for u in c["urls"]:
+        segs = urlparse(u).path.strip("/").split("/")
+        for seg, pat in zip(segs, sh):
+            if "{*}" in pat:
+                vary.append(seg)
+    if vary and sum(_is_place(v) for v in vary) / len(vary) >= 0.5:
+        return "place"
+    if any("{*}" not in pat and _is_place(pat) for pat in sh):
+        return "service"
+    return "unknown"
+
+
+def _fixed_place(c):
+    for pat in c["shape"].strip("/").split("/"):
+        if "{*}" not in pat and _is_place(pat):
+            return pat.replace("-", " ")
+    return ""
+
+
 def _location_hint(url, shape):
     """The part of the URL the template varies on (e.g. 'st-kilda-melbourne')."""
     from urllib.parse import urlparse
@@ -367,6 +419,7 @@ def doorway_items(con, clusters, per_cluster=0):
 
     items = []
     for c in clusters:
+        kind = cluster_kind(c)
         located = [u for u in c["urls"] if _location_hint(u, c["shape"])]
         urls = located
         if per_cluster and len(urls) > per_cluster:
@@ -376,6 +429,14 @@ def doorway_items(con, clusters, per_cluster=0):
             row = fetch(url)
             hint = _location_hint(url, c["shape"])
             if not row or not hint:  # no location in the URL = the hub, not a doorway
+                continue
+            if kind == "service":
+                # fixed place, varying service: siblings share the city copy, so a diff
+                # would strip it. Judge the page's own text against the real place.
+                place = _fixed_place(c)
+                qs = {**DOORWAY_QUESTIONS,
+                      "local_substance": local_substance_question(place.title())}
+                items.append((url, (row[5] or "")[:EXCERPT_CHARS], qs))
                 continue
             sib_url = next((u for u in located if u != url), None)
             sib = fetch(sib_url) if sib_url else None
@@ -394,8 +455,14 @@ def doorway_items(con, clusters, per_cluster=0):
 
 
 def doorway_verdicts(clusters, answers, gsc=None, keep_p=0.7, prune_p=0.3,
-                     unique_words=None):
-    """Combine judgments (+ GSC) into keep / improve / prune with a reason each."""
+                     unique_words=None, trusted=True):
+    """Combine judgments (+ GSC) into keep / improve / prune with a reason each.
+
+    With trusted=False (an unvalidated model judge), the model's score is reported as
+    an advisory signal but the verdict comes from the code diff and GSC alone: on the
+    spruik.co evaluation that rule agreed with hand labels 95% of the time, versus 57%
+    when a local 3B judge drove the verdicts.
+    """
     from sitewide import url_key
 
     out = []
@@ -404,12 +471,16 @@ def doorway_verdicts(clusters, answers, gsc=None, keep_p=0.7, prune_p=0.3,
         for url in c["urls"]:
             ans = answers.get(url) or {}
             p = noul(ans, "local_substance")
+            signal = p
+            decided_in_code = (ans.get("local_substance") or {}).get("decided_by")
+            if p is not None and not trusted and not decided_in_code:
+                p = 0.02  # advisory only: verdict from code + GSC
             s, top, conf = score(ans, "originality")
             g = (gsc or {}).get(url_key(url)) or {}
             clicks, imps = g.get("clicks", 0), g.get("impressions", 0)
             if p is None:
                 verdict, why = "unjudged", ans.get("error", "no answer")
-            elif clicks >= 1 and p >= prune_p:
+            elif clicks >= 1 and (p >= prune_p or not trusted):
                 verdict, why = "keep", f"{int(clicks)} clicks, local substance {p:.2f}"
             elif p >= keep_p and (unique_words or {}).get(url, KEEP_MIN_UNIQUE_WORDS)                     >= KEEP_MIN_UNIQUE_WORDS:
                 verdict, why = "keep", f"genuine local substance ({p:.2f})"
@@ -425,8 +496,10 @@ def doorway_verdicts(clusters, answers, gsc=None, keep_p=0.7, prune_p=0.3,
                                          f"{int(imps)} impressions, no clicks")
             else:
                 verdict, why = "improve", f"borderline local substance ({p:.2f})"
+            if signal is not None and not trusted and not decided_in_code:
+                why += f" (model signal {signal:.2f}, advisory)"
             rows.append({"url": url, "verdict": verdict, "why": why,
-                         "local_substance": p, "originality": s,
+                         "local_substance": signal, "originality": s,
                          "originality_max": top, "originality_confidence": conf,
                          "clicks": clicks, "impressions": imps})
         tally = {v: sum(1 for r in rows if r["verdict"] == v)
@@ -550,7 +623,8 @@ def _run(items, args):
             "{id: {question_id: answer}} JSON, then re-run with --answers <file>.",
         }))
         return None, backend, None
-    client = JevClient(base_url, api_key, args.model, args.cache, workers=args.workers)
+    workers = args.workers or (1 if backend == "local" else 8)
+    client = JevClient(base_url, api_key, args.model, args.cache, workers=workers)
     answers = client.ask_many(items)
     return {**answers, **decided}, backend, client
 
@@ -570,7 +644,10 @@ def main(argv=None):
     ap.add_argument("--base-url")
     ap.add_argument("--api-key")
     ap.add_argument("--model", default=os.environ.get("TYPESAFE_MODEL", DEFAULT_MODEL))
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", type=int, default=None,
+                    help="parallel requests (default 1 for local servers, 8 hosted)")
+    ap.add_argument("--trust-judge", action="store_true",
+                    help="let a model judge change verdicts (validate on labelled pages first)")
     ap.add_argument("--cache", default=os.path.join(".fat-work", "jev_cache.json"))
     ap.add_argument("--export", help="agent backend: where to write the question batch")
     ap.add_argument("--answers", help="agent backend: answers JSON to read back")
@@ -623,7 +700,8 @@ def main(argv=None):
         groups = doorway_verdicts(
             [{**c, "urls": [u for u in c["urls"] if u in judged]} for c in clusters
              if any(u in judged for u in c["urls"])],
-            answers, gsc, unique_words=uniq_words)
+            answers, gsc, unique_words=uniq_words,
+            trusted=(backend == "agent" or args.trust_judge))
         findings = doorway_findings(groups)
         result = {"task": "doorway", "groups": groups}
     else:

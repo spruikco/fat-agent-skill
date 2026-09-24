@@ -128,12 +128,12 @@ section{padding-block:clamp(56px,8vw,96px)}
 .reel-label{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-family:var(--type);font-size:14px;color:var(--chrome-dim);margin-top:12px}
 
 /* platforms */
-.beats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.beats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 .plate{position:relative;background:var(--manila);color:var(--manila-ink);border-radius:3px;padding:18px 16px 14px;display:grid;gap:4px;box-shadow:0 10px 22px rgba(0,0,0,.35)}
 .plate:nth-child(odd){transform:rotate(-.8deg)}
 .plate:nth-child(3n){transform:rotate(.7deg)}
 .plate .no{font-family:var(--type);font-size:12px;letter-spacing:.12em;color:var(--manila-muted)}
-.plate .name{font-family:var(--display);font-size:clamp(20px,2.2vw,26px);line-height:1.05}
+.plate .name{font-family:var(--display);font-size:clamp(19px,1.9vw,24px);line-height:1.05;overflow-wrap:anywhere}
 .plate .what{font-family:var(--type);font-size:13px;color:#4a3f2a}
 .plate .hole{position:absolute;top:10px;right:12px;width:12px;height:12px;border-radius:50%;background:var(--asphalt);box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
 .plate.feat .name{color:var(--stamp)}
@@ -146,6 +146,30 @@ section{padding-block:clamp(56px,8vw,96px)}
 .suspect b{display:block;font-family:var(--display);font-weight:400;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
 .suspect span{font-family:var(--type);font-size:14px;line-height:1.35}
 .suspect.guilty{border-color:var(--stamp);color:var(--stamp)}
+
+
+/* scenes (illustrations) */
+.hero.scened{background:
+  linear-gradient(90deg,rgba(12,14,19,.97) 0%,rgba(12,14,19,.9) 34%,rgba(12,14,19,.35) 68%,rgba(12,14,19,.55) 100%),
+  url(assets/scenes/stakeout-hero.jpg) 30% 40%/cover no-repeat,var(--night)}
+.hero.scened .wrap{grid-template-columns:1fr;min-height:clamp(520px,62vw,700px)}
+.hero.scened .wrap>div{max-width:620px}
+.hero-caption{position:absolute;right:clamp(16px,4vw,48px);bottom:22px;background:var(--manila);color:var(--manila-ink);font-family:var(--type);font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;transform:rotate(-2deg);box-shadow:0 8px 18px rgba(0,0,0,.45)}
+@media (max-width:880px){.hero.scened{background:linear-gradient(180deg,rgba(12,14,19,.92),rgba(12,14,19,.82)),url(assets/scenes/stakeout-hero.jpg) 30% 40%/cover no-repeat,var(--night)}.hero-caption{display:none}}
+.scene{position:relative;margin:0 0 40px;border-radius:6px;overflow:hidden;box-shadow:0 24px 50px rgba(0,0,0,.5);border:1px solid var(--line);background:#0b0d11}
+.scene img{display:block;width:100%;height:auto}
+.scene.wide img{aspect-ratio:21/8;object-fit:cover}
+@media (max-width:640px){.scene.wide img{aspect-ratio:16/9}}
+.scene figcaption{position:absolute;left:14px;bottom:14px;background:var(--manila);color:var(--manila-ink);font-family:var(--type);font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;transform:rotate(-1.5deg);box-shadow:0 6px 14px rgba(0,0,0,.4)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;margin-bottom:40px}
+.split .sec-head{margin-bottom:0}
+.split .scene{margin:0}
+@media (max-width:880px){.split{grid-template-columns:1fr}}
+.sticker{width:clamp(150px,18vw,230px);height:auto;filter:drop-shadow(0 16px 24px rgba(0,0,0,.55))}
+.install .wrap{position:relative}
+.install .sticker{position:absolute;right:var(--gutter);top:-20px;transform:rotate(6deg)}
+@media (max-width:880px){.install .sticker{display:none}}
+.signoff .sticker{display:block;margin:0 auto 18px;transform:rotate(-3deg);width:clamp(170px,22vw,260px)}
 
 /* method */
 .method{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0;border:1px solid var(--line);border-radius:4px;overflow:hidden}
@@ -204,7 +228,7 @@ footer a{color:var(--chrome)}
 </header>
 
 <main id="top">
-  <section class="hero" aria-labelledby="hero-title">
+  <section class="hero scened" aria-labelledby="hero-title">
     <div class="wrap">
       <div>
         <p class="eyebrow">Fix · Audit · Test</p>
@@ -221,11 +245,8 @@ footer a{color:var(--chrome)}
           <span><b>$0</b>MIT licence</span>
         </div>
       </div>
-      <div class="hero-art">
-        <img class="badge" src="assets/badge-testing.png" alt="FAT Agent: a heavy-set detective in a fedora and sunglasses, holding a folder marked testing" width="465" height="520">
-        <p class="tag">Known for finding what Google found first.</p>
-      </div>
     </div>
+    <p class="hero-caption">Exhibit 01: the stakeout</p>
   </section>
 
 
@@ -236,7 +257,7 @@ footer a{color:var(--chrome)}
         <h2 id="trailer-title">Roll the tape.</h2>
       </div>
       <div class="screen">
-        <video controls preload="metadata" playsinline poster="assets/promo-poster.jpg" src="assets/fat-agent-promo.mp4">
+        <video controls preload="metadata" playsinline poster="assets/scenes/stakeout.jpg" src="assets/fat-agent-promo.mp4">
           <a href="assets/fat-agent-promo.mp4">Watch the FAT Agent trailer</a>
         </video>
       </div>
@@ -251,6 +272,10 @@ footer a{color:var(--chrome)}
         <h2 id="evidence-title">He's been over every inch of it.</h2>
         <p>Twenty-three modules and one standard: find the problem before Google does. Every finding lands on a punch list, ranked from P0 (the site is broken) to P3 (polish).</p>
       </div>
+      <figure class="scene wide">
+        <img src="assets/scenes/evidence-board.jpg" alt="FAT Agent pinning printed web pages to an evidence board linked with red string" width="1672" height="940" loading="lazy">
+        <figcaption>Exhibit 02: the evidence board</figcaption>
+      </figure>
       <div class="cards">
         <article class="card" data-tab="Spam policies">
           <h3>Google's rulebook</h3>
@@ -304,10 +329,16 @@ footer a{color:var(--chrome)}
 
   <section id="platforms" aria-labelledby="platforms-title">
     <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">Jurisdiction</p>
-        <h2 id="platforms-title">He works every beat.</h2>
-        <p>If it's live on the web, he can audit it. Hosted builders, headless stacks, the lot. Stores switch on the e-commerce checks automatically.</p>
+      <div class="split">
+        <div class="sec-head">
+          <p class="eyebrow">Jurisdiction</p>
+          <h2 id="platforms-title">He works every beat.</h2>
+          <p>If it's live on the web, he can audit it. Hosted builders, headless stacks, the lot. Stores switch on the e-commerce checks automatically.</p>
+        </div>
+        <figure class="scene">
+          <img src="assets/scenes/shop-beat.jpg" alt="FAT Agent inspecting a price tag in a shop window through a magnifying glass on a rainy night" width="1672" height="940" loading="lazy">
+          <figcaption>Exhibit 03: the shop beat</figcaption>
+        </figure>
       </div>
       <div class="beats">
         <div class="plate feat"><span class="hole"></span><span class="no">BEAT 01</span><span class="name">Shopify</span><span class="what">Stores, products, schema</span></div>
@@ -355,15 +386,19 @@ footer a{color:var(--chrome)}
             <li><span class="stamp p2">P2</span><span>Every suburb page claimed to be run by "local experts" but listed the same interstate phone number.</span></li>
           </ul>
           <div class="tri" aria-label="Model-verified triage of the templated pages">
-            <div><b>41</b><span>Keep</span></div>
-            <div><b>150</b><span>Improve</span></div>
-            <div class="prune"><b>468</b><span>Prune</span></div>
+            <div><b>31</b><span>Keep</span></div>
+            <div><b>55</b><span>Improve</span></div>
+            <div class="prune"><b>462</b><span>Prune</span></div>
           </div>
           <p class="verdict"><b>Verdict:</b> consistent with a doorway and scaled-content demotion. Prune the templates, strengthen the hub pages, and watch for recovery at the next core update.</p>
-          <p class="fineprint">Triage by page diffing plus a local OpenJev judge, cross-checked against Search Console clicks. Correlation, not a confession: FAT never claims Google penalised you unless Search Console shows a manual action.</p>
+          <p class="fineprint">Triage by page diffing and real Search Console clicks. We also tested a small local AI judge on this site: it made the calls worse, so model judges stay advisory until they prove themselves. Correlation, not a confession: FAT never claims Google penalised you unless Search Console shows a manual action.</p>
         </article>
       </div>
-      <div class="dossier" style="margin-top:56px">
+      <figure class="scene wide" style="margin-top:64px">
+        <img src="assets/scenes/lineup.jpg" alt="FAT Agent shining a torch on a police lineup of identical shop web pages" width="1672" height="940" loading="lazy">
+        <figcaption>Exhibit 04: the lineup</figcaption>
+      </figure>
+      <div class="dossier">
         <div class="dossier-side">
           <img src="assets/agent-portrait.png" alt="FAT Agent portrait" width="312" height="350">
           <p>Second file on the desk. A store this time.</p>
@@ -398,6 +433,10 @@ footer a{color:var(--chrome)}
         <h2 id="method-title">Fix. Audit. Test.</h2>
         <p>Three letters, one routine, and a punch list that remembers what it found.</p>
       </div>
+      <figure class="scene wide">
+        <img src="assets/scenes/case-closed.jpg" alt="FAT Agent stamping a manila folder case closed at his desk under a banker's lamp" width="1672" height="940" loading="lazy">
+        <figcaption>Exhibit 05: case closed</figcaption>
+      </figure>
       <div class="method">
         <div class="step">
           <span class="letter" aria-hidden="true">F</span>
@@ -430,7 +469,7 @@ footer a{color:var(--chrome)}
         <div class="inf-card">
           <span class="role">Default</span>
           <h3>Claude</h3>
-          <p>Nothing to set up. Claude judges a sample of pages as part of the audit.</p>
+          <p>Nothing to set up. Claude judges a sample of pages as part of the audit, and was the most accurate judge in our own testing.</p>
           <p class="cost">Free · works everywhere</p>
         </div>
         <div class="inf-card">
@@ -442,7 +481,7 @@ footer a{color:var(--chrome)}
         <div class="inf-card">
           <span class="role">Local</span>
           <h3>OpenJev</h3>
-          <p>An open, Jev-compatible model running on your own graphics card. Private, and free to run as often as you like.</p>
+          <p>An open, Jev-compatible model on your own graphics card. Free and private, and advisory until you validate it: in our test a small local model made worse calls than Claude.</p>
           <p class="cost">Needs an 8GB GPU · free</p>
         </div>
       </div>
@@ -457,6 +496,7 @@ footer a{color:var(--chrome)}
         <h2 id="install-title">Put him on the case.</h2>
         <p>Inside Claude Code, run these two lines. Then point him at a site.</p>
       </div>
+      <img class="sticker" src="assets/scenes/pose-thumbs.png" alt="" width="400" height="600" loading="lazy">
       <ol class="steps">
         <li><div class="cmd"><code id="cmd-1">/plugin marketplace add spruikco/fat-agent-skill</code><button type="button" data-copy="cmd-1">Copy</button></div></li>
         <li><div class="cmd"><code id="cmd-2">/plugin install fat-agent@fat-agent-marketplace</code><button type="button" data-copy="cmd-2">Copy</button></div></li>
@@ -466,7 +506,7 @@ footer a{color:var(--chrome)}
   </section>
 
   <div class="signoff">
-    <img src="assets/agent-portrait.png" alt="" width="312" height="350">
+    <img class="sticker" src="assets/scenes/pose-hat.png" alt="" width="400" height="600" loading="lazy">
     <p>He's not fat.<br><span>He's thorough.</span></p>
   </div>
 </main>

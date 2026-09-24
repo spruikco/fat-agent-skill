@@ -10,7 +10,7 @@ import sys
 import wave
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 import promo as P
 from promo import (BADGE, CHROME, DIM, DISP, INK, MANILA, MONO, NIGHT, PORTRAIT, RED, RED2,
@@ -42,6 +42,12 @@ EV = {
     "motif": [7.0, 42.3],
 }
 ILLUSTRATIVE = (10.5, 38.0)
+RINGS = [(3.9, 0.85), (5.05, 0.85)]  # (start, length): old bell phone, two rings
+FADE = 0.3  # dip-to-black between scenes (seconds of source time)
+
+
+def TW(x):  # time warp for audio events (identity here; promo3 slows scenes)
+    return x
 
 
 def exhibit_label(img, fr, t):
@@ -55,11 +61,54 @@ def exhibit_label(img, fr, t):
 
 
 # ----------------------------------------------------------------- scenes
+_GLOW = None
+
+
+def draw_phone(img, fr, t):
+    """A black rotary desk phone that rattles while it rings."""
+    ringing = any(a <= t < a + ln for a, ln in RINGS)
+    shake = (np.sin(fr * 2.7) * 6, np.cos(fr * 3.3) * 3) if ringing else (0, 0)
+    ph = Image.new("RGBA", (340, 260), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(ph)
+    ink, hi = (20, 21, 26, 255), (150, 156, 168, 255)
+    pd.polygon([(40, 250), (300, 250), (262, 120), (78, 120)], fill=ink, outline=hi)
+    pd.ellipse((118, 138, 222, 242), fill=(28, 30, 36, 255), outline=hi, width=3)
+    for k in range(10):
+        ang = math.radians(200 + k * 25)
+        cx, cy = 170 + math.cos(ang) * 34, 190 + math.sin(ang) * 34
+        pd.ellipse((cx - 7, cy - 7, cx + 7, cy + 7), fill=(12, 12, 14, 255), outline=hi)
+    pd.ellipse((158, 178, 182, 202), fill=(200, 16, 46, 255))
+    lift = -10 if ringing and (fr // 2) % 2 else 0
+    pd.rounded_rectangle((30, 70 + lift, 310, 108 + lift), radius=18, fill=ink, outline=hi, width=3)
+    pd.ellipse((14, 58 + lift, 88, 120 + lift), fill=ink, outline=hi, width=3)
+    pd.ellipse((252, 58 + lift, 326, 120 + lift), fill=ink, outline=hi, width=3)
+    cx0, cy0 = 400, 800
+    global _GLOW
+    if _GLOW is None:  # soft warm pool of light behind the phone (built once)
+        _GLOW = Image.new("RGBA", (1000, 760), (232, 213, 163, 0))
+        ImageDraw.Draw(_GLOW).ellipse((200, 170, 800, 590), fill=(232, 213, 163, 80))
+        _GLOW = _GLOW.filter(ImageFilter.GaussianBlur(80))
+    glow = _GLOW
+    put(img, glow, cx0, cy0 + 40)
+    put(img, ph.rotate(shake[0] * 0.6, resample=Image.BICUBIC, expand=True),
+        cx0 + shake[0], cy0 + shake[1])
+    if ringing:
+        d = ImageDraw.Draw(img)
+        for k in range(3):
+            r = 150 + k * 34 + (fr % 6) * 4
+            for side in (-1, 1):
+                a0 = -60 if side > 0 else 180 - 20
+                d.arc((cx0 - r, cy0 - 40 - r, cx0 + r, cy0 - 40 + r), a0, a0 + 40,
+                      fill=RED2, width=6)
+        put(img, text_img("RING", DISP[64], RED2, 4, INK, jrot(fr, 3)), cx0, cy0 - 250)
+
+
 def s1(fr, t, img, d):
     img.paste(P.BG_STREET)
     P.rain(d, fr, 170)
     a = smooth(seg(t, 3.9, 5.0))
     put(img, PORTRAIT, 1560, 560 + (1 - a) * 60, 1.3 + 0.06 * t / 6.5, a)
+    draw_phone(img, fr, t)
     for start, txt, rate, size, col, x, y in TYPED:
         s = typed(txt, t, start, rate)
         if s:
@@ -345,8 +394,8 @@ def render_frame(fr):
             f = (1 - (t - at) / 0.35) ** 2 * (1.0 if (fr % 3) else 0.6)
             arr = arr * (1 - f * 0.85) + 255 * f * 0.85
     # dip to black between scenes (breathing room), long fade at the very end
-    fin = 0.5 if idx == 0 else 0.3
-    fout = 0.9 if idx == len(SCENES) - 1 else 0.3
+    fin = 0.5 if idx == 0 else FADE
+    fout = 0.9 if idx == len(SCENES) - 1 else FADE
     fade = min(seg(t, a0, a0 + fin), 1 - seg(t, b0 - fout, b0))
     arr *= fade
     return np.clip(arr, 0, 255).astype(np.uint8)
@@ -382,16 +431,16 @@ def audio():
         return np.where((tv * freq) % 1 < duty, 1.0, -1.0).astype(np.float32)
 
     r = lp(rng.standard_normal(n).astype(np.float32), 5)
-    lvl = np.interp(np.arange(n) / SR, [0, 6.0, 6.8, 41, 42.5, 50],
+    lvl = np.interp(np.arange(n) / SR, [0, TW(6.0), TW(6.8), TW(41), TW(42.5), DUR],
                     [0.10, 0.10, 0.03, 0.03, 0.07, 0.0])
     out += r * lvl
 
     beat = 0.6  # 100 bpm: slower, more brooding than v1
     walk = [36, 39, 41, 43, 44, 43, 41, 39, 41, 44, 46, 48, 46, 44, 43, 39]
-    k, tb = 0, 6.5
-    while tb < 48.5:
+    k, tb = 0, TW(6.5)
+    while tb < TW(48.5):
         # let the lineup breathe: bass drops out while the flashlight sweeps
-        quiet = 26.0 <= tb < 29.9
+        quiet = TW(26.0) <= tb < TW(29.9)
         f = hz(walk[k % len(walk)])
         s = lp(pulse(f, beat * 0.95), 18) * np.exp(-tt(beat * 0.95) * 4.0)
         place(s, tb, 0.07 if quiet else 0.20)
@@ -406,22 +455,22 @@ def audio():
         tb += beat
         k += 1
     # suspense drone under the lineup
-    dt_ = tt(4.2)
+    dt_ = tt(TW(30.1) - TW(25.9))
     drone = (np.sin(2 * np.pi * hz(36) * dt_) + 0.5 * np.sin(2 * np.pi * hz(43) * dt_)) * \
-        np.minimum(1, dt_ / 0.6) * np.minimum(1, (4.2 - dt_) / 0.4)
-    place(drone.astype(np.float32), 25.9, 0.12)
+        np.minimum(1, dt_ / 0.6) * np.minimum(1, (dt_[-1] - dt_) / 0.4)
+    place(drone.astype(np.float32), TW(25.9), 0.12)
 
     motif = [(67, .3), (68, .3), (67, .3), (65, .3), (63, .6), (62, .3), (60, .9)]
     for at in EV["motif"]:
-        x = at
+        x = TW(at)
         for m, dd in motif:
             place(pulse(hz(m), dd * 0.9, 0.25) * np.exp(-tt(dd * 0.9) * 2.0), x, 0.075)
             x += dd
     for at in EV["stinger"]:
         for i, m in enumerate((72, 76, 79, 84)):
-            place(pulse(hz(m), 0.7, 0.25) * np.exp(-tt(0.7) * 3), at + i * 0.08, 0.08)
+            place(pulse(hz(m), 0.7, 0.25) * np.exp(-tt(0.7) * 3), TW(at) + i * 0.08, 0.08)
     for m in (48, 60, 63, 67):
-        place(lp(pulse(hz(m), 2.2, 0.5), 10) * np.exp(-tt(2.2) * 1.2), 47.6, 0.06)
+        place(lp(pulse(hz(m), 2.2, 0.5), 10) * np.exp(-tt(2.2) * 1.2), TW(47.6), 0.06)
 
     def click(at, g=0.2):
         c = rng.standard_normal(int(SR * 0.012)).astype(np.float32)
@@ -435,19 +484,19 @@ def audio():
     for start, txt, rate, *_ in TYPED:
         for i, ch in enumerate(txt):
             if ch != " ":
-                click(start + i * rate)
-        bell(start + len(txt) * rate + 0.05)
+                click(TW(start + i * rate))
+        bell(TW(start + len(txt) * rate) + 0.05)
     for at, txt in EXHIBITS:
         for i, ch in enumerate(txt):
             if ch != " ":
-                click(at + i * 0.045, 0.14)
+                click(TW(at + i * 0.045), 0.14)
     s0, txt, rate = END_TYPE
     for i, ch in enumerate(txt):
         if ch != " ":
-            click(s0 + i * rate)
+            click(TW(s0 + i * rate))
     a, b, cnt = EV["ticks"]
     for i in range(cnt):
-        click(a + (b - a) * i / cnt, 0.12)
+        click(TW(a + (b - a) * i / cnt), 0.12)
 
     def thunk(at, g):
         kt = tt(0.22)
@@ -456,23 +505,32 @@ def audio():
         place((body * 0.9 + slap * 0.5).astype(np.float32), at, g)
 
     for at in EV["thunk"]:
-        thunk(at, 0.5)
+        thunk(TW(at), 0.5)
     for at in EV["bigthunk"]:
-        thunk(at, 0.85)
+        thunk(TW(at), 0.85)
     for at in EV["thunder"]:
         crack = rng.standard_normal(int(SR * 0.12)).astype(np.float32)
-        place((crack - lp(crack, 8)) * np.exp(-tt(0.12) * 25), at, 0.45)
+        place((crack - lp(crack, 8)) * np.exp(-tt(0.12) * 25), TW(at), 0.45)
         rum = lp(rng.standard_normal(int(SR * 2.4)).astype(np.float32), 90) * 6
         envr = np.minimum(1, tt(2.4) / 0.08) * np.exp(-tt(2.4) * 1.4)
-        place((rum * envr).astype(np.float32), at + 0.02, 0.55)
+        place((rum * envr).astype(np.float32), TW(at) + 0.02, 0.55)
+    # old telephone bell: two detuned bells, hammer at 20 Hz
+    for at, ln in RINGS:
+        tr = tt(ln)
+        bell2 = (np.sin(2 * np.pi * 980 * tr) + 0.8 * np.sin(2 * np.pi * 1310 * tr)
+                 + 0.3 * np.sin(2 * np.pi * 2620 * tr))
+        hammer = 0.55 + 0.45 * np.sign(np.sin(2 * np.pi * 20 * tr))
+        envb = np.minimum(1, tr / 0.02) * np.minimum(1, (ln - tr) / 0.06)
+        place((bell2 * hammer * envb).astype(np.float32), TW(at), 0.16)
+    click(TW(RINGS[-1][0] + RINGS[-1][1] + 0.25), 0.4)  # receiver picked up
     # flashlight click on and off
     for at in (25.9, 29.95):
-        click(at, 0.35)
+        click(TW(at), 0.35)
     for at in EV["whoosh"]:
         dd = 0.5
         w = lp(rng.standard_normal(int(SR * dd)).astype(np.float32), 5)
         envw = np.sin(np.pi * np.clip(tt(dd) / dd, 0, 1)) ** 2
-        place((w * envw).astype(np.float32), at - 0.25, 0.13)
+        place((w * envw).astype(np.float32), TW(at) - 0.25, 0.13)
 
     out = np.tanh(out * 1.2)
     out /= max(1e-6, np.abs(out).max()) / 0.89

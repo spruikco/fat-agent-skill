@@ -1,0 +1,23 @@
+{
+ "workers_1": {
+  "calls": 50,
+  "wall_s": 56.79,
+  "ms_per_call": 1136,
+  "input_tokens": 25827,
+  "requests": 50,
+  "p50_ms": 546,
+  "p90_ms": 3914
+ },
+ "workers_8": {
+  "calls": 50,
+  "wall_s": 162.39,
+  "ms_per_call": 3248,
+  "input_tokens": 25827,
+  "requests": 50,
+  "p50_ms": null,
+  "p90_ms": null
+ },
+ "uncached_items_total": 271,
+ "items_total": 659,
+ "tokens_per_call": 517
+}

@@ -1,0 +1,2484 @@
+{
+ "auc_openjev": {
+  "doorway_all_63 (strict)": 0.369,
+  "doorway_all_63 (literal)": 0.705,
+  "doorway_model_judged_only (strict)": 0.242,
+  "doorway_model_judged_only (literal)": 0.404,
+  "doorway_model_judged_n": 34,
+  "fanout_judged_pairs": 0.521,
+  "fanout_judged_pairs_n": 128,
+  "note": "0.5 = coin toss; below 0.5 = ranks the wrong way round"
+ },
+ "doorway": {
+  "sample_size": 63,
+  "truth_substance_yes": 4,
+  "truth_literal_yes": 20,
+  "openjev_keeps_in_sample": 18,
+  "openjev_keeps_with_real_substance": 1,
+  "openjev_keeps_with_clicks": 3,
+  "literal_question_classification (does OpenJev answer the question as worded?)": {
+   "openjev (noul >= 0.7)": {
+    "n": 63,
+    "accuracy": 0.683,
+    "precision": 0.5,
+    "recall": 0.4,
+    "tp": 8,
+    "fp": 8,
+    "fn": 12,
+    "tn": 35
+   },
+   "openjev (noul >= 0.5)": {
+    "n": 63,
+    "accuracy": 0.698,
+    "precision": 0.524,
+    "recall": 0.55,
+    "tp": 11,
+    "fp": 10,
+    "fn": 9,
+    "tn": 33
+   },
+   "code_diff_only": {
+    "n": 63,
+    "accuracy": 0.778,
+    "precision": 0.588,
+    "recall": 1.0,
+    "tp": 20,
+    "fp": 14,
+    "fn": 0,
+    "tn": 29
+   }
+  },
+  "substance_classification": {
+   "no_judge_text_similarity (every templated page = template)": {
+    "n": 63,
+    "accuracy": 0.937,
+    "precision": null,
+    "recall": 0.0,
+    "tp": 0,
+    "fp": 0,
+    "fn": 4,
+    "tn": 59
+   },
+   "code_diff_only (any unique sentence = substance)": {
+    "n": 63,
+    "accuracy": 0.524,
+    "precision": 0.118,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 30,
+    "fn": 0,
+    "tn": 29
+   },
+   "openjev (noul >= 0.7, jev.py keep threshold)": {
+    "n": 63,
+    "accuracy": 0.714,
+    "precision": 0.062,
+    "recall": 0.25,
+    "tp": 1,
+    "fp": 15,
+    "fn": 3,
+    "tn": 44
+   },
+   "openjev (noul >= 0.5)": {
+    "n": 63,
+    "accuracy": 0.635,
+    "precision": 0.048,
+    "recall": 0.25,
+    "tp": 1,
+    "fp": 20,
+    "fn": 3,
+    "tn": 39
+   }
+  },
+  "verdicts_vs_truth_derived": {
+   "no_judge_gsc_only (sitewide.triage)": {
+    "agreement": 0.619,
+    "confusion_truth_by_pred": {
+     "keep": {
+      "keep": 7,
+      "improve": 3,
+      "prune": 0
+     },
+     "improve": {
+      "keep": 0,
+      "improve": 7,
+      "prune": 0
+     },
+     "prune": {
+      "keep": 0,
+      "improve": 21,
+      "prune": 25
+     }
+    },
+    "prunes_a_keeper": 0,
+    "counts": {
+     "keep": 7,
+     "improve": 31,
+     "prune": 25
+    }
+   },
+   "no_judge_jev_rule (substance assumed false everywhere, same GSC thresholds)": {
+    "agreement": 0.952,
+    "confusion_truth_by_pred": {
+     "keep": {
+      "keep": 7,
+      "improve": 2,
+      "prune": 1
+     },
+     "improve": {
+      "keep": 0,
+      "improve": 7,
+      "prune": 0
+     },
+     "prune": {
+      "keep": 0,
+      "improve": 0,
+      "prune": 46
+     }
+    },
+    "prunes_a_keeper": 1,
+    "counts": {
+     "keep": 7,
+     "improve": 9,
+     "prune": 47
+    }
+   },
+   "openjev_full_pipeline (jev.py doorway)": {
+    "agreement": 0.571,
+    "confusion_truth_by_pred": {
+     "keep": {
+      "keep": 3,
+      "improve": 6,
+      "prune": 1
+     },
+     "improve": {
+      "keep": 1,
+      "improve": 6,
+      "prune": 0
+     },
+     "prune": {
+      "keep": 14,
+      "improve": 5,
+      "prune": 27
+     }
+    },
+    "prunes_a_keeper": 1,
+    "counts": {
+     "keep": 18,
+     "improve": 17,
+     "prune": 28
+    }
+   },
+   "truth_derived": {
+    "counts": {
+     "keep": 10,
+     "improve": 7,
+     "prune": 46
+    }
+   }
+  },
+  "by_template": {
+   "/services/microsoft-copilot-cowork-training/{*}/": {
+    "n": 12,
+    "truth_yes": 0,
+    "openjev_yes": 7,
+    "agree": 5
+   },
+   "/services/claude-code-agency/{*}/": {
+    "n": 7,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 7
+   },
+   "/local/claude-code-agency-in-{*}/": {
+    "n": 5,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 5
+   },
+   "/local/claude-cowork-training-in-{*}/": {
+    "n": 4,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 4
+   },
+   "/local/seo-agency-in-{*}/": {
+    "n": 5,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 5
+   },
+   "/local/claude-code-training-in-{*}/": {
+    "n": 3,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 3
+   },
+   "/local/ai-consultant-in-{*}/": {
+    "n": 3,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 3
+   },
+   "/book/{*}/": {
+    "n": 2,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 2
+   },
+   "/{*}/ai-engineering-workshops/": {
+    "n": 2,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 2
+   },
+   "/{*}/ai-strategy-advisory/": {
+    "n": 2,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 2
+   },
+   "/ai-seo-{*}/": {
+    "n": 2,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 2
+   },
+   "/sydney/{*}/": {
+    "n": 2,
+    "truth_yes": 2,
+    "openjev_yes": 0,
+    "agree": 0
+   },
+   "/{*}/team-ai-adoption/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 1
+   },
+   "/{*}/executive-ai-training/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 1
+   },
+   "/adelaide/{*}/": {
+    "n": 1,
+    "truth_yes": 1,
+    "openjev_yes": 0,
+    "agree": 0
+   },
+   "/us/{*}/ai-seo/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 1
+   },
+   "/geelong/{*}/": {
+    "n": 1,
+    "truth_yes": 1,
+    "openjev_yes": 1,
+    "agree": 1
+   },
+   "/{*}-digital-marketing-agency/": {
+    "n": 3,
+    "truth_yes": 0,
+    "openjev_yes": 3,
+    "agree": 0
+   },
+   "/local/claude-code-agency-in-{*}-hobart/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 1,
+    "agree": 0
+   },
+   "/local/claude-code-{*}/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 0,
+    "agree": 1
+   },
+   "/local/{*}-in-cullen-bay-darwin/": {
+    "n": 2,
+    "truth_yes": 0,
+    "openjev_yes": 2,
+    "agree": 0
+   },
+   "/local/{*}-in-port-adelaide-adelaide/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 1,
+    "agree": 0
+   },
+   "/local/{*}-in-new-farm-brisbane/": {
+    "n": 1,
+    "truth_yes": 0,
+    "openjev_yes": 1,
+    "agree": 0
+   }
+  },
+  "disagreements": [
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/richmond/",
+    "truth": false,
+    "openjev_p": 0.731,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Capital One)",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Richmond Microsoft Copilot Training in Richmond Richmond financial services (Capital One), federal contracting and tobacco/CPG run M365 deep — frontier-model overlay is the next leap.\nA live, hands-on workshop for Richmond teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/charlotte/",
+    "truth": false,
+    "openjev_p": 0.438,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (BoA, Truist, Wells Fargo)",
+    "clicks": 0.0,
+    "impressions": 3.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "prune",
+    "unique_text": "Charlotte Microsoft Copilot Training in Charlotte Charlotte banking (BoA, Truist, Wells Fargo) is one of the most Copilot-mature analyst markets in the country — frontier overlay is the natural next move.\nA live, hands-on workshop for Charlotte teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/anchorage/",
+    "truth": false,
+    "openjev_p": 0.562,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (no names)",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "prune",
+    "unique_text": "Anchorage Microsoft Copilot Training in Anchorage Anchorage's energy operators, tribal corporations and logistics hubs pair Microsoft Copilot with frontier-model reasoning for compliance and proposals.\nA live, hands-on workshop for Anchorage teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/honolulu/",
+    "truth": false,
+    "openjev_p": 0.562,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (State of Hawaii)",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "prune",
+    "unique_text": "Honolulu Microsoft Copilot Training in Honolulu Honolulu hospitality groups, the State of Hawaii and Pacific-facing defence contractors pair Microsoft Copilot with frontier-model reasoning.\nA live, hands-on workshop for Honolulu teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/indianapolis/",
+    "truth": false,
+    "openjev_p": 0.037,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Lilly, Roche)",
+    "clicks": 2.0,
+    "impressions": 6.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "keep",
+    "unique_text": "Indianapolis Claude Code Agency Indianapolis The Claude Code-first software agency for Indianapolis teams.\nIndianapolis life sciences (Lilly, Roche) and the insurance cluster are running Microsoft Copilot deep — frontier reasoning is the natural next step.\nWe ship MVPs, agents, MCP servers and migrations on the Opus 4.7 frontier model.\nClaude Ambassador for Australia Anthropic-recognised community"
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/washington/",
+    "truth": false,
+    "openjev_p": 0.622,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Microsoft, Amazon, Boeing)",
+    "clicks": 0.0,
+    "impressions": 2.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "prune",
+    "unique_text": "Seattle's tech giants (Microsoft, Amazon), Boeing and the Puget Sound life-sciences scene are pushing Copilot the furthest — frontier model integration is now the expectation."
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/chicago/",
+    "truth": false,
+    "openjev_p": 0.029,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (The Loop, West Loop)",
+    "clicks": 1.0,
+    "impressions": 10.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "keep",
+    "unique_text": "Chicago Claude Code Agency Chicago The Claude Code-first software agency for Chicago teams.\nThe Loop and West Loop — finance, law, consulting, ag-trading — are aggressive Copilot adopters who want a frontier-model assistant on every analyst desk.\nWe ship MVPs, agents, MCP servers and migrations on the Opus 4.7 frontier model.\nClaude Ambassador for Australia Anthropic-recognised community lead Cert"
+   },
+   {
+    "url": "https://spruik.co/canberra/ai-engineering-workshops/",
+    "truth": false,
+    "openjev_p": 0.02,
+    "reason": "'Canberra CBD' venue without an address; otherwise template",
+    "clicks": 1.0,
+    "impressions": 6.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "keep",
+    "unique_text": ""
+   },
+   {
+    "url": "https://spruik.co/melbourne/ai-engineering-workshops/",
+    "truth": false,
+    "openjev_p": 0.02,
+    "reason": "'Melbourne CBD' venue without an address; otherwise template",
+    "clicks": 1.0,
+    "impressions": 11.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "keep",
+    "unique_text": ""
+   },
+   {
+    "url": "https://spruik.co/sydney/public-relations/",
+    "truth": true,
+    "openjev_p": 0.002,
+    "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (ASX, RBA, Macquarie, population/CPC stats)",
+    "clicks": 0.0,
+    "impressions": 330.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "keep",
+    "unique_text": "PR & Communications Agency\nSpruik Sydney's Strategic Communications Partner Public Relations in Sydney Shape your narrative and build your reputation in Sydney.\nOur PR specialists help businesses across Bondi, Sydney CBD, and New South Wales earn media coverage, manage crises, and establish thought leadership.\nGet a Free PR Consultation Media Public Relations Build Public Relationships with journa"
+   },
+   {
+    "url": "https://spruik.co/sydney/email-marketing/",
+    "truth": true,
+    "openjev_p": 0.014,
+    "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (same Sydney block)",
+    "clicks": 0.0,
+    "impressions": 12.0,
+    "openjev_verdict": "prune",
+    "truth_verdict": "keep",
+    "unique_text": "Spruik Campaigns That Nurture & Convert Email Marketing Sydney Strategic Email Marketing for Sydney businesses.\nWe create campaigns that nurture leads, drive revenue, and build loyalty for businesses across Bondi, Surry Hills, and Sydney CBD.\nSupercharge Your Email Marketing Campaign Strategy Data-driven Email Marketing strategies designed to engage your audience and drive conversions.\nAutomation "
+   },
+   {
+    "url": "https://spruik.co/adelaide/ecommerce/",
+    "truth": true,
+    "openjev_p": 0.119,
+    "reason": "real multi-paragraph city market block (named institutions, industries, stats) that is verifiable and specific to the city, though shared by that city's service pages (BAE at Osborne, AUKUS, SA wine share)",
+    "clicks": 0.0,
+    "impressions": 77.0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "keep",
+    "unique_text": "Spruik Complete Online Store Solutions Ecommerce Solutions Adelaide End-to-end Ecommerce solutions for Adelaide businesses.\nFrom online store development to digital marketing, we help retailers in Glenelg and Adelaide CBD succeed in the digital marketplace.\nLaunch Your Ecommerce Success Platform Selection Expert guidance on choosing the right Ecommerce platform for your needs.\nMulti-channel Sellin"
+   },
+   {
+    "url": "https://spruik.co/us/miami/ai-seo/",
+    "truth": false,
+    "openjev_p": 0.622,
+    "reason": "neighbourhood list and a metro population figure; no local client or venue",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "improve",
+    "truth_verdict": "prune",
+    "unique_text": "We help businesses in South Beach , Brickell , and across Miami achieve measurable results.\nAI Visibility Increase 50+ AI Sources Monitored #1 AI SEO Specialists Why Choose Us AI SEO Benefits for Miami Businesses Get found by ChatGPT & AI assistants Dominate AI-powered search results Future-proof your online presence Reach new audiences through AI What's Included Our AI SEO Services AI search visi"
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/tampa/",
+    "truth": false,
+    "openjev_p": 0.818,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Raymond James, CENTCOM)",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Tampa Microsoft Copilot Training in Tampa Tampa financial services (Raymond James), healthcare and CENTCOM-adjacent defence run Copilot deep — frontier models are the next leap.\nA live, hands-on workshop for Tampa teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/houston/",
+    "truth": false,
+    "openjev_p": 0.852,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Texas Medical Center)",
+    "clicks": 0.0,
+    "impressions": 4.0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Houston Microsoft Copilot Training in Houston Houston's energy majors and the Texas Medical Center are running M365 at scale — and want frontier reasoning on top of Copilot for engineering and clinical work.\nA live, hands-on workshop for Houston teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/nashville/",
+    "truth": false,
+    "openjev_p": 0.818,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (HCA, Vanderbilt)",
+    "clicks": 0.0,
+    "impressions": 3.0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Nashville Microsoft Copilot Training in Nashville Nashville's healthcare HQ cluster (HCA, Vanderbilt) and the music industry pair Copilot with frontier-model reasoning for compliance and creative work.\nA live, hands-on workshop for Nashville teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/dallas/",
+    "truth": false,
+    "openjev_p": 0.731,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (AT&T, ExxonMobil, McKesson)",
+    "clicks": 0.0,
+    "impressions": 1.0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Dallas Microsoft Copilot Training in Dallas Dallas-Fort Worth's banking, telecom and corporate-HQ cluster (AT&T, ExxonMobil, McKesson) leads the South in Copilot adoption and frontier-model interest.\nA live, hands-on workshop for Dallas teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/atlanta/",
+    "truth": false,
+    "openjev_p": 0.905,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Coca-Cola, Delta, UPS)",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Atlanta Microsoft Copilot Training in Atlanta Atlanta's Fortune 500 cluster (Coca-Cola, Delta, UPS, Home Depot) is one of the highest-density Microsoft Copilot markets in the South.\nA live, hands-on workshop for Atlanta teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/raleigh/",
+    "truth": false,
+    "openjev_p": 0.924,
+    "reason": "one templated flavour sentence naming the region's industries/employers; delivered online from AU, no local client, venue or price (Cisco RTP, SAS)",
+    "clicks": 0.0,
+    "impressions": 1.0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Raleigh Microsoft Copilot Training in Raleigh Research Triangle biotech, Cisco's RTP campus and the SAS-led analytics cluster pair Microsoft Copilot with frontier-model reasoning for R&D.\nA live, hands-on workshop for Raleigh teams covering Microsoft Copilot in M365 plus frontier-grade reasoning on Claude Opus 4.7 — delivered by Rye Smith , Claude Ambassador for Australia."
+   },
+   {
+    "url": "https://spruik.co/hobart-digital-marketing-agency/",
+    "truth": false,
+    "openjev_p": 0.986,
+    "reason": "suburb/neighbourhood list plus unverifiable claims ('500+ businesses served')",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Spruik Hobart, Tasmania Hobart's Leading Digital Marketing Agency From the waterfront to the mountain, we help Hobart businesses dominate online.\nCBD Battery Point Sandy Bay North Hobart South Hobart Mount Wellington Glenorchy Bellerive New Town Kingston Moonah Lindisfarne + All Hobart Suburbs Ready to Grow Your Hobart Business?"
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-sandy-bay-hobart/",
+    "truth": false,
+    "openjev_p": 0.818,
+    "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place",
+    "clicks": 0.0,
+    "impressions": 5.0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Custom app & MVP development AI agent & automation builds Claude Code workflow setup for your team Legacy code modernisation MCP & API integrations Ongoing build & maintenance support Get Started Today Why Sandy Bay Businesses Choose Us No Lock-in Contracts We earn your business every month Transparent Reporting See exactly what we're doing and the results Fast Results We move quickly to deliver R"
+   },
+   {
+    "url": "https://spruik.co/local/n8n-consultant-in-cullen-bay-darwin/",
+    "truth": false,
+    "openjev_p": 0.777,
+    "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place ('Rachel P., Cullen Bay')",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Workflow Automation Expert Serving Cullen Bay , Darwin N8N Consultant in Cullen Bay , Darwin Expert N8N Consultant workflow automation consulting to streamline your business operations and save hours every week.\nGet Free Quote Call (03) 9099 1380 400+ App Integrations 20hrs Saved Per Week 90% Error Reduction 4.9★ Client Rating Why Choose Our N8N Consultant Services in Cullen Bay ?\nAutomate repetit"
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-port-adelaide-adelaide/",
+    "truth": false,
+    "openjev_p": 0.905,
+    "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place",
+    "clicks": 0.0,
+    "impressions": 45.0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "improve",
+    "unique_text": "Rank #1 on Google\nLocal Seo Agency Experts Serving Port Adelaide , Adelaide Seo Agency in Port Adelaide , Adelaide Expert search engine optimisation services to help your business rank higher on Google and attract more customers.\nGet Free Quote Call (03) 9099 1380 487% Avg Traffic Increase #1 Google Rankings 200+ Local Clients 4.9★ Client Rating Why Choose Our Seo Agency Services in Port Adelaide "
+   },
+   {
+    "url": "https://spruik.co/local/web-developer-in-cullen-bay-darwin/",
+    "truth": false,
+    "openjev_p": 0.731,
+    "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Fast & Affordable Serving Cullen Bay , Darwin Web Developer in Cullen Bay , Darwin Professional Web Developer development services creating fast, beautiful, and conversion-optimised Web Developersites for local businesses.\nGet Free Quote Call (03) 9099 1380 500+ Web Developersites Built <2s Load Time 100% Mobile Responsive 4.9★ Client Rating Why Choose Our Web Developer Services in Cullen Bay ?\nCu"
+   },
+   {
+    "url": "https://spruik.co/local/web-developer-in-new-farm-brisbane/",
+    "truth": false,
+    "openjev_p": 0.777,
+    "reason": "template copy plus an unnamed templated testimonial; nothing checkable about the place",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Fast & Affordable Serving New Farm , Brisbane Web Developer in New Farm , Brisbane Professional Web Developer development services creating fast, beautiful, and conversion-optimised Web Developersites for local businesses.\nGet Free Quote Call (03) 9099 1380 500+ Web Developersites Built <2s Load Time 100% Mobile Responsive 4.9★ Client Rating Why Choose Our Web Developer Services in New Farm ?\nCust"
+   },
+   {
+    "url": "https://spruik.co/melbourne-digital-marketing-agency/",
+    "truth": false,
+    "openjev_p": 0.924,
+    "reason": "suburb/neighbourhood list plus unverifiable claims ('500+ businesses served')",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Spruik Melbourne, Victoria Melbourne's Leading Digital Marketing Agency From the CBD to the suburbs, we help Melbourne businesses dominate online.\nCBD South Yarra Richmond St Kilda Fitzroy Carlton Prahran Brunswick Collingwood Toorak Brighton Hawthorn + All Melbourne Suburbs Ready to Grow Your Melbourne Business?"
+   },
+   {
+    "url": "https://spruik.co/newcastle-digital-marketing-agency/",
+    "truth": false,
+    "openjev_p": 0.94,
+    "reason": "suburb/neighbourhood list plus unverifiable claims ('500+ businesses served')",
+    "clicks": 0,
+    "impressions": 0,
+    "openjev_verdict": "keep",
+    "truth_verdict": "prune",
+    "unique_text": "Spruik Newcastle, New South Wales Newcastle's Leading Digital Marketing Agency From the harbour to Lake Macquarie, we help Newcastle businesses dominate online.\nCBD The Hill Hamilton Merewether Charlestown Kotara Jesmond Mayfield Wickham Adamstown New Lambton Wallsend + All Newcastle Suburbs Ready to Grow Your Newcastle Business?"
+   }
+  ],
+  "per_page": [
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/richmond/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.731,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/charlotte/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.438,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 3.0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/anchorage/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.562,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/texas/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.076,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/indiana/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.148,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/honolulu/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.562,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/indianapolis/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.037,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 2.0,
+    "impressions": 6.0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/delaware/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.004,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 2.0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/colorado/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.0,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/washington/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.622,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 2.0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/rhode-island/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.0,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/chicago/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.029,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 1.0,
+    "impressions": 10.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-prospect-adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 5.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-manly-sydney/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.0,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 5.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-bayview-darwin/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-barton-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 5.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-burnside-adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-cowork-training-in-footscray-melbourne/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 2.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-cowork-training-in-fyshwick-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/claude-cowork-training-in-toorak-melbourne/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 4.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-cowork-training-in-barton-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-nightcliff-darwin/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 14.0
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-cottesloe-perth/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 32.0
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-southbank-brisbane/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 142.0
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-phillip-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-semaphore-adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 40.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-training-in-norwood-adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 9.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-training-in-kingston-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-training-in-claremont-perth/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/local/ai-consultant-in-mitchell-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/local/ai-consultant-in-southbank-brisbane/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 107.0
+   },
+   {
+    "url": "https://spruik.co/local/ai-consultant-in-fitzroy-melbourne/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/book/wollongong/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/book/adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 37.0
+   },
+   {
+    "url": "https://spruik.co/canberra/ai-engineering-workshops/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 1.0,
+    "impressions": 6.0
+   },
+   {
+    "url": "https://spruik.co/melbourne/ai-engineering-workshops/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 1.0,
+    "impressions": 11.0
+   },
+   {
+    "url": "https://spruik.co/hobart/ai-strategy-advisory/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/gold-coast/ai-strategy-advisory/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 3.0
+   },
+   {
+    "url": "https://spruik.co/ai-seo-canberra/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 942.0
+   },
+   {
+    "url": "https://spruik.co/ai-seo-brisbane/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/sydney/public-relations/",
+    "truth": true,
+    "literal": true,
+    "openjev_p": 0.002,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "keep",
+    "clicks": 0.0,
+    "impressions": 330.0
+   },
+   {
+    "url": "https://spruik.co/sydney/email-marketing/",
+    "truth": true,
+    "literal": true,
+    "openjev_p": 0.014,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "keep",
+    "clicks": 0.0,
+    "impressions": 12.0
+   },
+   {
+    "url": "https://spruik.co/canberra/team-ai-adoption/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/hobart/executive-ai-training/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.02,
+    "openjev_verdict": "prune",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/adelaide/ecommerce/",
+    "truth": true,
+    "literal": true,
+    "openjev_p": 0.119,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "keep",
+    "clicks": 0.0,
+    "impressions": 77.0
+   },
+   {
+    "url": "https://spruik.co/us/miami/ai-seo/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.622,
+    "openjev_verdict": "improve",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/tampa/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.818,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/houston/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.852,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 4.0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/nashville/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.818,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 3.0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/dallas/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.731,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/atlanta/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.905,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/raleigh/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.924,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 1.0
+   },
+   {
+    "url": "https://spruik.co/geelong/shopify-development/",
+    "truth": true,
+    "literal": true,
+    "openjev_p": 0.731,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 1.0,
+    "impressions": 78.0
+   },
+   {
+    "url": "https://spruik.co/hobart-digital-marketing-agency/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.986,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-agency-in-sandy-bay-hobart/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.818,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "prune",
+    "clicks": 0.0,
+    "impressions": 5.0
+   },
+   {
+    "url": "https://spruik.co/local/claude-code-training-in-north-adelaide-adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.562,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 1.0,
+    "impressions": 21.0
+   },
+   {
+    "url": "https://spruik.co/local/n8n-consultant-in-cullen-bay-darwin/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.777,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/seo-agency-in-port-adelaide-adelaide/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.905,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "improve",
+    "truth_verdict": "improve",
+    "clicks": 0.0,
+    "impressions": 45.0
+   },
+   {
+    "url": "https://spruik.co/local/web-developer-in-cullen-bay-darwin/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.731,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/local/web-developer-in-new-farm-brisbane/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.777,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/melbourne-digital-marketing-agency/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.924,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/newcastle-digital-marketing-agency/",
+    "truth": false,
+    "literal": false,
+    "openjev_p": 0.94,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "prune",
+    "truth_verdict": "prune",
+    "clicks": 0,
+    "impressions": 0
+   },
+   {
+    "url": "https://spruik.co/services/claude-code-agency/washington-dc/",
+    "truth": false,
+    "literal": true,
+    "openjev_p": 0.378,
+    "openjev_verdict": "keep",
+    "gsc_only_verdict": "keep",
+    "truth_verdict": "keep",
+    "clicks": 1.0,
+    "impressions": 2.0
+   }
+  ],
+  "hosted_jev": "not evaluated: TYPESAFE_API_KEY not set in user env"
+ },
+ "fanout": {
+  "pairs_labelled": 132,
+  "pair_level": {
+   "token_overlap (page/section = answered)": {
+    "n": 132,
+    "accuracy": 0.765,
+    "precision": 0.432,
+    "recall": 0.615,
+    "tp": 16,
+    "fp": 21,
+    "fn": 10,
+    "tn": 85
+   },
+   "openjev (noul >= 0.6)": {
+    "n": 132,
+    "accuracy": 0.705,
+    "precision": 0.158,
+    "recall": 0.115,
+    "tp": 3,
+    "fp": 16,
+    "fn": 23,
+    "tn": 90
+   }
+  },
+  "query_level": {
+   "n_queries": 32,
+   "truth_answered": 12,
+   "token_overlap_claims_answered": 12,
+   "openjev_claims_answered": 11,
+   "token_overlap_correct": 21,
+   "openjev_correct": 16
+  },
+  "coverage_pct": {
+   "token_overlap": {
+    "seo agency melbourne": 38,
+    "claude code training": 38
+   },
+   "openjev": {
+    "seo agency melbourne": 44,
+    "claude code training": 25
+   }
+  },
+  "pairs": [
+   {
+    "query": "seo agency melbourne",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.0,
+    "reason": "the Melbourne SEO services page"
+   },
+   {
+    "query": "seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.037,
+    "reason": "an SEO agency page for a Melbourne suburb"
+   },
+   {
+    "query": "seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.009,
+    "reason": "an SEO agency page for a Melbourne suburb"
+   },
+   {
+    "query": "seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.119,
+    "reason": "an SEO agency page for a Melbourne suburb"
+   },
+   {
+    "query": "what is seo agency melbourne",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "page",
+    "openjev_p": 0.622,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "page",
+    "openjev_p": 0.679,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "page",
+    "openjev_p": 0.223,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": false,
+    "token_level": "page",
+    "openjev_p": 0.852,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how does seo agency melbourne work",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.182,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how does seo agency melbourne work",
+    "url": "https://spruik.co/wollongong/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how does seo agency melbourne work",
+    "url": "https://spruik.co/melbourne/google-ads-management/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how does seo agency melbourne work",
+    "url": "https://spruik.co/ai/how-to-rank-in-ai-search/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how long does seo agency melbourne take",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": true,
+    "token_level": "section",
+    "openjev_p": 0.0,
+    "reason": "FAQ 'How long does SEO take to work in Melbourne?' with a timeline"
+   },
+   {
+    "query": "how long does seo agency melbourne take",
+    "url": "https://spruik.co/melbourne/ai-seo/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.0,
+    "reason": "AI SEO timeline, a different service"
+   },
+   {
+    "query": "how long does seo agency melbourne take",
+    "url": "https://spruik.co/ai/how-to-rank-in-ai-search/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how long does seo agency melbourne take",
+    "url": "https://spruik.co/perth/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "answers it for Perth, not Melbourne"
+   },
+   {
+    "query": "seo agency melbourne cost",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "FAQ gives $1,500-$5,000/month"
+   },
+   {
+    "query": "seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "FAQ 'from $990/month'"
+   },
+   {
+    "query": "seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "FAQ 'from $990/month'"
+   },
+   {
+    "query": "seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.622,
+    "reason": "FAQ 'from $990/month'"
+   },
+   {
+    "query": "how much does seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-hamilton-brisbane/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": null,
+    "reason": "Brisbane suburb page"
+   },
+   {
+    "query": "how much does seo agency melbourne cost",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": true,
+    "token_level": "section",
+    "openjev_p": 0.0,
+    "reason": "FAQ gives $1,500-$5,000/month"
+   },
+   {
+    "query": "how much does seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": true,
+    "token_level": "section",
+    "openjev_p": 0.0,
+    "reason": "FAQ 'from $990/month'"
+   },
+   {
+    "query": "how much does seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": true,
+    "token_level": "section",
+    "openjev_p": 0.0,
+    "reason": "FAQ 'from $990/month'"
+   },
+   {
+    "query": "how much does seo agency melbourne cost",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": true,
+    "token_level": "section",
+    "openjev_p": 0.269,
+    "reason": "FAQ 'from $990/month'"
+   },
+   {
+    "query": "best seo agency melbourne",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.011,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.223,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.047,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best seo agency melbourne",
+    "url": "https://spruik.co/blog/digital-marketing-topic-cluster/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne alternatives",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.002,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne alternatives",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.023,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne alternatives",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.005,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne alternatives",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.321,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.731,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose seo agency melbourne",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.562,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.438,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose seo agency melbourne",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.852,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is seo agency melbourne worth it",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.095,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is seo agency melbourne worth it",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.953,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is seo agency melbourne worth it",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.622,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is seo agency melbourne worth it",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.953,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne pros and cons",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne pros and cons",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.009,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne pros and cons",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.003,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne pros and cons",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.037,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne mistakes to avoid",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne mistakes to avoid",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne mistakes to avoid",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne mistakes to avoid",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne reviews",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne reviews",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.06,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne reviews",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.023,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne reviews",
+    "url": "https://spruik.co/melbourne/claude-code-agency/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.818,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne case studies",
+    "url": "https://spruik.co/ai/how-to-rank-in-ai-search/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "has a Melbourne client search case study section (borderline yes)"
+   },
+   {
+    "query": "seo agency melbourne case studies",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne case studies",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne case studies",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne 2026",
+    "url": "https://spruik.co/wollongong/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne 2026",
+    "url": "https://spruik.co/gold-coast/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne 2026",
+    "url": "https://spruik.co/melbourne/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.679,
+    "reason": "Melbourne digital agency hub offering SEO, 2026 in title (weak yes)"
+   },
+   {
+    "query": "seo agency melbourne 2026",
+    "url": "https://spruik.co/geelong/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.037,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "seo agency melbourne near me",
+    "url": "https://spruik.co/melbourne/seo-services/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.095,
+    "reason": "Melbourne SEO page"
+   },
+   {
+    "query": "seo agency melbourne near me",
+    "url": "https://spruik.co/local/seo-agency-in-box-hill-melbourne/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.438,
+    "reason": "suburb SEO page"
+   },
+   {
+    "query": "seo agency melbourne near me",
+    "url": "https://spruik.co/local/seo-agency-in-carlton-melbourne/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.06,
+    "reason": "suburb SEO page"
+   },
+   {
+    "query": "seo agency melbourne near me",
+    "url": "https://spruik.co/local/seo-agency-in-footscray-melbourne/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": 0.777,
+    "reason": "suburb SEO page"
+   },
+   {
+    "query": "claude code training",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": null,
+    "reason": "a Claude Code training page (suburb template, weak yes)"
+   },
+   {
+    "query": "claude code training",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "Copilot training, not Claude Code training"
+   },
+   {
+    "query": "claude code training",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.269,
+    "reason": "Cowork course, says it is not Claude Code"
+   },
+   {
+    "query": "claude code training",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.002,
+    "reason": "a build agency page, not training"
+   },
+   {
+    "query": "claude code training",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is claude code training",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": null,
+    "reason": "describes what the training covers (weak yes)"
+   },
+   {
+    "query": "what is claude code training",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is claude code training",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.148,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is claude code training",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.003,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "what is claude code training",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how does claude code training work",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.029,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how does claude code training work",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "what's included + one-day format (weak yes)"
+   },
+   {
+    "query": "how does claude code training work",
+    "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.029,
+    "reason": "same template as Hyde Park"
+   },
+   {
+    "query": "how does claude code training work",
+    "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.014,
+    "reason": "same template as Hyde Park"
+   },
+   {
+    "query": "how long does claude code training take",
+    "url": "https://spruik.co/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "homepage, no training duration"
+   },
+   {
+    "query": "how long does claude code training take",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "Copilot tiers of 2 hours, different course"
+   },
+   {
+    "query": "how long does claude code training take",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "Cowork day, different course"
+   },
+   {
+    "query": "how long does claude code training take",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.0,
+    "reason": "cost FAQ gives no price ('scoped to your team')"
+   },
+   {
+    "query": "claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.269,
+    "reason": "no price"
+   },
+   {
+    "query": "claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.378,
+    "reason": "no price"
+   },
+   {
+    "query": "claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-mitchell-canberra/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.014,
+    "reason": "no price"
+   },
+   {
+    "query": "how much does claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.014,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how much does claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.119,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how much does claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.119,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how much does claude code training cost",
+    "url": "https://spruik.co/local/claude-code-training-in-mitchell-canberra/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.679,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best claude code training",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best claude code training",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.5,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best claude code training",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.321,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "best claude code training",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.007,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training alternatives",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.002,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training alternatives",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.002,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training alternatives",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training alternatives",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose claude code training",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.905,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose claude code training",
+    "url": "https://spruik.co/local/claude-code-training-in-coogee-sydney/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.924,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose claude code training",
+    "url": "https://spruik.co/local/claude-code-training-in-woolloongabba-brisbane/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.881,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "how to choose claude code training",
+    "url": "https://spruik.co/local/claude-code-training-in-mitchell-canberra/",
+    "truth": false,
+    "token_level": "section",
+    "openjev_p": 0.731,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is claude code training worth it",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/fort-worth/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is claude code training worth it",
+    "url": "https://spruik.co/services/claude-code-agency/fort-worth/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is claude code training worth it",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "is claude code training worth it",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.001,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training pros and cons",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training pros and cons",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training pros and cons",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training pros and cons",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training mistakes to avoid",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training mistakes to avoid",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training mistakes to avoid",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training mistakes to avoid",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training reviews",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.014,
+    "reason": "agency page, no reviews"
+   },
+   {
+    "query": "claude code training reviews",
+    "url": "https://spruik.co/newcastle/claude-code-agency/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.622,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training reviews",
+    "url": "https://spruik.co/services/claude-code-agency/orlando/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.269,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training reviews",
+    "url": "https://spruik.co/services/claude-code-agency/new-mexico/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.095,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training case studies",
+    "url": "https://spruik.co/case-studies/",
+    "truth": true,
+    "token_level": "mention",
+    "openjev_p": 0.014,
+    "reason": "case studies page includes a Sydney Claude Code meetup (borderline yes)"
+   },
+   {
+    "query": "claude code training case studies",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training case studies",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training case studies",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training 2026",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training 2026",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.076,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training 2026",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training 2026",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/california/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training near me",
+    "url": "https://spruik.co/local/claude-code-training-in-hyde-park-adelaide/",
+    "truth": true,
+    "token_level": "page",
+    "openjev_p": null,
+    "reason": "local Claude Code training page"
+   },
+   {
+    "query": "claude code training near me",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/buffalo/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training near me",
+    "url": "https://spruik.co/perth/claude-cowork-training/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.818,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training near me",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.011,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   },
+   {
+    "query": "claude code training near me",
+    "url": "https://spruik.co/services/microsoft-copilot-cowork-training/washington/",
+    "truth": false,
+    "token_level": "mention",
+    "openjev_p": 0.0,
+    "reason": "page does not address this intent (no comparison, reviews, definition, process or price for it)"
+   }
+  ],
+  "openjev_calls": {
+   "requests": 128,
+   "input_tokens": 97676
+  },
+  "openjev_wall_s": 1029.6,
+  "openjev_ms_per_call": 8044,
+  "openjev_items": 128,
+  "branded_token_overlap_examples": {
+   "spruik reviews": {
+    "level": "mention",
+    "url": "https://spruik.co/services/claude-code-agency/alabama/",
+    "evidence": "page text"
+   },
+   "is spruik any good": {
+    "level": "mention",
+    "url": "https://spruik.co/pricing/",
+    "evidence": "page text"
+   },
+   "spruik pricing": {
+    "level": "page",
+    "url": "https://spruik.co/pricing/",
+    "evidence": "title/H1"
+   },
+   "spruik alternatives": {
+    "level": "gap",
+    "url": null,
+    "evidence": null
+   }
+  }
+ },
+ "speed_cost": {
+  "doorway_pages": 659,
+  "decided_by_code_no_model_call": 388,
+  "model_calls_needed": 271,
+  "timing_sample": {
+   "workers_1": {
+    "calls": 50,
+    "wall_s": 56.79,
+    "ms_per_call": 1136,
+    "input_tokens": 25827,
+    "requests": 50,
+    "p50_ms": 546,
+    "p90_ms": 3914
+   },
+   "workers_8": {
+    "calls": 50,
+    "wall_s": 162.39,
+    "ms_per_call": 3248,
+    "input_tokens": 25827,
+    "requests": 50,
+    "p50_ms": null,
+    "p90_ms": null
+   },
+   "uncached_items_total": 271,
+   "items_total": 659,
+   "tokens_per_call": 517
+  },
+  "est_full_run_wall_s_sequential": 308,
+  "est_full_run_wall_s_8_workers": 880,
+  "est_without_code_diff_wall_s_8_workers": 2140,
+  "hosted_jev_est_cost_usd_full_doorway": 0.00588,
+  "hosted_jev_est_cost_usd_without_code_diff": 0.04293,
+  "note": "without-code-diff cost assumes a full page state is ~3x the tokens of the unique-sentence state; rough",
+  "fanout_tokens_per_call": 763,
+  "hosted_jev_est_cost_usd_fanout_2_seeds": 0.004102
+ },
+ "model": "OpenJev on Qwen2.5-3B-Instruct bf16, RTX 4060 (local)",
+ "reference": "Claude (Opus) labels, ground_truth.json"
+}
