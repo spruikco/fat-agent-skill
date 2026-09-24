@@ -16,12 +16,25 @@ what that exposed:
   everything and 3B say no to everything. The concrete wording
   discriminates on 3B: generic 0.00, place name only 0.00, real local
   detail 0.98.
+- **"Verifiable fact" question** ("could a reader check at least one fact
+  only true of X: an address, a named local business or client, a
+  landmark, a local price?", which excludes the bare place name, "local
+  experts" claims and unnamed testimonials). It scored 9/11 on control
+  cases with Qwen2.5-3B, getting all negatives right. Known miss: evidence
+  that is *only* a named client. `ping` now checks the backend actually
+  discriminates.
+- A page needs 40+ unique words to earn **keep**. One localised line in a
+  template caps it at **improve**.
+- Full spruik.co run on OpenJev (RTX 4060): 659 templated pages, 271 model
+  calls, 141k tokens → keep 41 / improve 150 / prune 468. Caveat: pages
+  with rotated template sentence variants (spintax-style) can still reach
+  keep. Spot-check keeps.
 - `--backend auto` checks that a configured local server is up and
   otherwise falls back to TypeSafe, then agent. It never blocks.
 - Reference §6b documents the tested OpenJev setup: use 3B not 1.5B, keep
   bfloat16 (float16 breaks Qwen), and uv's CPU torch shadowing CUDA.
 
-Tests: 1089 passing.
+Tests: 1090 passing.
 
 ## [3.8.0] - 2026-09-24
 

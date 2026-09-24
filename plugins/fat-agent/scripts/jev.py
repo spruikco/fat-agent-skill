@@ -64,6 +64,8 @@ RETRY_STATUSES = {429, 529, 502, 503}
 EXCERPT_CHARS = 1500
 # template copy needs real search demand to be worth improving rather than pruning
 IMPROVE_MIN_IMPRESSIONS = 20
+# one localised "flavour" sentence in a template doesn't make a page non-doorway
+KEEP_MIN_UNIQUE_WORDS = 40
 
 # --------------------------------------------------------------------------- #
 # Questions (one narrow judgment each; ids are for code, meaning is in the text)
@@ -73,12 +75,17 @@ IMPROVE_MIN_IMPRESSIONS = 20
 # to everything, 3B no to everything. Concrete, checkable wording with the
 # location written in, over plain-text state, discriminates cleanly on 3B
 # (generic 0.0, place-name-only 0.0, real local detail 0.98) and suits Jev too.
+# "Verifiable fact" framing scored 9/11 on controls with Qwen2.5-3B (all 5
+# negatives right, incl. fake "local experts" claims and templated testimonials);
+# known miss: evidence that is ONLY a named client is under-detected.
 def local_substance_question(location: str) -> dict:
     return {
         "type": "noul",
-        "instructions": f"Apart from the place name {location} itself, does this "
-        f"text name a specific local business, street address, landmark, person, "
-        f"price or project in or near {location}?",
+        "instructions": f"Could a reader check at least one specific fact in this "
+        f"text that is only true of {location}: an address, a named local business "
+        f"or client, a project done for a named {location} client, a landmark, or a "
+        f"local price? Mentions of the name {location}, claims like 'local experts', "
+        f"and unnamed testimonials do not count.",
     }
 
 
@@ -384,7 +391,8 @@ def doorway_items(con, clusters, per_cluster=0):
     return items
 
 
-def doorway_verdicts(clusters, answers, gsc=None, keep_p=0.7, prune_p=0.3):
+def doorway_verdicts(clusters, answers, gsc=None, keep_p=0.7, prune_p=0.3,
+                     unique_words=None):
     """Combine judgments (+ GSC) into keep / improve / prune with a reason each."""
     from sitewide import url_key
 
@@ -401,8 +409,12 @@ def doorway_verdicts(clusters, answers, gsc=None, keep_p=0.7, prune_p=0.3):
                 verdict, why = "unjudged", ans.get("error", "no answer")
             elif clicks >= 1 and p >= prune_p:
                 verdict, why = "keep", f"{int(clicks)} clicks, local substance {p:.2f}"
-            elif p >= keep_p:
+            elif p >= keep_p and (unique_words or {}).get(url, KEEP_MIN_UNIQUE_WORDS)                     >= KEEP_MIN_UNIQUE_WORDS:
                 verdict, why = "keep", f"genuine local substance ({p:.2f})"
+            elif p >= keep_p:
+                n = (unique_words or {}).get(url, 0)
+                verdict, why = "improve", (f"real local detail ({p:.2f}) but only {n} "
+                                           "unique words: one localised line in a template")
             elif clicks >= 1 or imps >= IMPROVE_MIN_IMPRESSIONS:
                 verdict, why = "improve", (f"earns search visibility ({int(imps)} impr) "
                                            f"but template copy (local substance {p:.2f})")
@@ -572,8 +584,12 @@ def main(argv=None):
         c = JevClient(base_url, api_key, args.model, cache_path=None)
         t = time.time()
         try:
-            a = c.ask("The page lists our Carlton office address and three Carlton "
-                      "client projects.", {"q": DOORWAY_QUESTIONS["local_substance"]})
+            q = {"q": local_substance_question("Carlton")}
+            a = c.ask("Our Carlton office is at 312 Lygon Street, next to Brunetti.", q)
+            g = c.ask("We deliver great results for Carlton businesses.", q)
+            yes, no = a["q"]["noul"], g["q"]["noul"]
+            a = {"local_detail": yes, "generic_copy": no,
+                 "discriminates": yes >= 0.7 and no <= 0.3}
         except JevError as e:
             print(json.dumps({"backend": backend, "ok": False, "error": str(e)}))
             return 1
@@ -600,10 +616,12 @@ def main(argv=None):
             return 0
         gsc = load_gsc_pages(args.gsc) if args.gsc else None
         judged = {i for i, _, _ in items}
+        uniq_words = {i: len(st.split()) if isinstance(st, str) else 0
+                      for i, st, _ in items}
         groups = doorway_verdicts(
             [{**c, "urls": [u for u in c["urls"] if u in judged]} for c in clusters
              if any(u in judged for u in c["urls"])],
-            answers, gsc)
+            answers, gsc, unique_words=uniq_words)
         findings = doorway_findings(groups)
         result = {"task": "doorway", "groups": groups}
     else:

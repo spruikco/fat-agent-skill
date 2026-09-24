@@ -173,7 +173,8 @@ def test_doorway_end_to_end_with_gsc(server, tmp_path, capsys):
     res = json.loads(out.read_text())
     verdicts = {p["url"].split("-in-")[1].strip("/"): p["verdict"]
                 for g in res["groups"] for p in g["pages"]}
-    assert verdicts == {"carlton": "keep", "fitzroy": "improve",
+    # Carlton has real local detail but only one unique sentence: capped at improve
+    assert verdicts == {"carlton": "improve", "fitzroy": "improve",
                         "richmond": "improve", "kew": "prune"}
     assert res["findings"][0]["module"] == "jev"
     # only the page with text its siblings lack reaches the model, as plain text,
@@ -234,6 +235,7 @@ def test_ping_server(server, capsys):
     assert jev.main(["ping", "--backend", "local", "--base-url", server]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["ok"] and out["model"] == "jev-1.13.0"
+    assert out["answer"]["discriminates"] is True  # fake server: "office" -> yes
 
 
 def test_per_cluster_sampling(tmp_path):
@@ -270,3 +272,15 @@ def test_unique_sentences_masks_place_and_ignores_truncation():
 def test_question_names_the_location():
     q = jev.local_substance_question("Carlton")
     assert "Carlton" in q["instructions"] and q["type"] == "noul"
+
+
+def test_single_local_line_caps_at_improve():
+    clusters = [{"shape": "/x/{*}/", "size": 2,
+                 "urls": ["https://e.com/x/a/", "https://e.com/x/b/"]}]
+    yes = {"local_substance": {"type": "noul", "noul": 0.95}}
+    groups = jev.doorway_verdicts(clusters, {"https://e.com/x/a/": yes,
+                                             "https://e.com/x/b/": yes},
+                                  unique_words={"https://e.com/x/a/": 12,
+                                                "https://e.com/x/b/": 120})
+    v = {p["url"]: p["verdict"] for p in groups[0]["pages"]}
+    assert v == {"https://e.com/x/a/": "improve", "https://e.com/x/b/": "keep"}
