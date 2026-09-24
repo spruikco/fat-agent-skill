@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.7.1] - 2026-09-24
+
+### Added — full-fidelity Search Console data
+
+- **New `scripts/gsc_fetch.py`:** exports Search Console Performance data
+  straight to disk via the API, paginating 25,000-row batches. GSC MCP
+  servers cap rows (the one tested returns at most 500), which silently
+  truncated page-level triage: 500 vs 1,532 pages on the first real site.
+  Reuses an OAuth login an MCP server already saved (refresh-token
+  exchange, saved file untouched) or takes `--access-token`;
+  `--list-sites` shows readable properties.
+- SKILL.md: drop diagnosis now checks the weekly impressions shape and
+  Manual Actions before calling a drop algorithmic.
+
+### Fixed
+- `gsc.py` and `update_impact.py` loaders read MCP-wrapped exports
+  (`{"_meta", "data": {"rows": [...]}}`). Previously they loaded 0 rows.
+
+Tests: 1072 passing.
+
 ## [3.7.0] - 2026-09-24
 
 ### Added — Google guidelines compliance (spam policies, doorway detection, 2026 doc changes)

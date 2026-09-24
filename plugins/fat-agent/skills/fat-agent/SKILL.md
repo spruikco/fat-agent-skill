@@ -826,8 +826,8 @@ with the pattern Google describes", never "Google penalised you" unless GSC
 shows a Manual Action.
 
 **Search Console cross-reference (make the doorway findings actionable):**
-pass a GSC Performance export with the page dimension (fetch it via the GSC
-MCP or API with a high row limit) to `sitewide.py --gsc gsc_pages.json`. Every
+pass a GSC Performance export with the page dimension (`gsc_fetch.py
+--dimension page`; an MCP export capped at 500 rows will under-count) to `sitewide.py --gsc gsc_pages.json`. Every
 templated group is then triaged by real data: **keep** (earns clicks),
 **improve** (impressions, no clicks), **prune** (no impressions). The full URL
 lists are in the JSON output (`clusters[].triage`). It also adds "Indexable
@@ -839,8 +839,13 @@ assessment.
 Measures traffic before vs after every Google update window, worst first,
 and emits findings for drops of 20% or more (P1 at 40% or more):
 
+Also check **impressions** by week around the flagged update. A cliff (say
+90%+ overnight) while URL Inspection still says "Submitted and indexed" is
+a demotion, not a technical deindex. Then check **Manual Actions** in the
+GSC UI (the API can't see them) before concluding it's algorithmic.
+
 ```bash
-# GSC clicks by date (date dimension), via the GSC MCP or API
+python scripts/gsc_fetch.py --site sc-domain:example.com --dimension date --days 480 --out gsc_by_date.json
 python scripts/update_impact.py --data gsc_by_date.json
 # or SEMrush domain_rank_history (monthly, coarse but works with no GSC access)
 python scripts/update_impact.py --data semrush_history.csv --since 2025-01-01
@@ -1529,6 +1534,7 @@ For extended check details, see:
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
 - `scripts/sitecrawl.py` — Site-wide concurrent crawler → SQLite (`pages` + `links` graph, sitemap seeding, SSRF guard, adaptive throttling)
 - `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans, sitemap hygiene, doorway/scaled-content clusters, Google guideline patterns; `--gsc` for keep/improve/prune triage) + capped SQL drill-down
+- `scripts/gsc_fetch.py` — Full Search Console export to disk (paginated, no row cap, reuses a saved OAuth login); `--list-sites`
 - `scripts/update_impact.py` — Traffic before/after every Google core/spam update window (GSC by date or SEMrush history), worst first
 - `scripts/fanout.py` — AI search query fan-out coverage per seed (templates + Autocomplete + agent-written), exports the set for `ai_visibility.py`
 - `scripts/link_opportunities.py` — Content→money-page internal-link gaps from the real link graph (+ GSC ranking & target suggestions)
@@ -1682,10 +1688,24 @@ The 2024 leak confirmed click signals (NavBoost) are among Google's strongest
 ranking inputs — invisible to a URL-only audit, but visible in Search Console.
 When the user grants access, fold GSC in:
 
-1. **Collect** the last 3 months of query+page performance rows. Prefer a connected
-   **GSC MCP** (e.g. `mcp__gsc__*` tools); otherwise the Search Console API, or a
-   manual export. Save as `gsc.json` (rows of query/page/clicks/impressions/ctr/position;
-   the GSC API `{"keys":[...]}` shape is accepted as-is).
+1. **Collect** the last 3 months of query+page performance rows. **For anything
+   site-wide use `scripts/gsc_fetch.py`**: it calls the Search Console API
+   directly, pages through 25,000-row batches and writes to disk. GSC MCP
+   servers usually cap results (often 500 rows), which silently truncates
+   page-level triage. It reuses an OAuth login an MCP server already saved
+   (`~/.gsc-mcp/oauth-token.json` + `GSC_OAUTH_SECRETS_FILE`) or takes
+   `--access-token`:
+   ```bash
+   python scripts/gsc_fetch.py --list-sites                     # properties you can read
+   python scripts/gsc_fetch.py --site sc-domain:example.com --dimension page  --days 90  --out .fat-work/gsc_pages.json
+   python scripts/gsc_fetch.py --site sc-domain:example.com --dimension date  --days 480 --out .fat-work/gsc_dates.json
+   python scripts/gsc_fetch.py --site sc-domain:example.com --dimension query --dimension page --days 90 --out .fat-work/gsc.json
+   ```
+   Use the GSC MCP tools for quick in-chat questions. All loaders accept the
+   API `{"keys":[...]}` shape, plain rows, and MCP-wrapped
+   `{"_meta", "data": {"rows"}}` exports.
+   **A property that won't load?** Domain properties are `sc-domain:example.com`;
+   the `https://` URL-prefix form fails unless that exact prefix is verified.
 2. **Analyse** with `scripts/gsc.py`:
 
 ```bash

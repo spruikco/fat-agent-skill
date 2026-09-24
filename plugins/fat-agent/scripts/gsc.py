@@ -82,6 +82,9 @@ def load_rows(data):
     """
     if isinstance(data, dict):
         data = data.get("rows", data.get("data", []))
+    # MCP wrappers nest one level deeper: {"_meta": ..., "data": {"rows": [...]}}
+    if isinstance(data, dict):
+        data = data.get("rows", [])
     rows = []
     for r in data or []:
         if not isinstance(r, dict):

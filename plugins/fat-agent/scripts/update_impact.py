@@ -92,6 +92,8 @@ def load_series(text: str) -> list:
         data = json.loads(text)
         if isinstance(data, dict):
             data = data.get("rows", data.get("data", []))
+        if isinstance(data, dict):  # MCP wrapper: {"_meta", "data": {"rows"}}
+            data = data.get("rows", [])
         for r in data or []:
             if not isinstance(r, dict):
                 continue
