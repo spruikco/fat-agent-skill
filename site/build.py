@@ -169,6 +169,11 @@ CONSENT_CSS = """<style>
 
 
 SITE = os.environ.get("FAT_SITE_URL", "https://fatagent.netlify.app").rstrip("/")
+# Search Console HTML-tag verification token (public by design); from FAT_GSC_VERIFY or site/gsc-verify.txt
+_gsc = os.environ.get("FAT_GSC_VERIFY", "").strip()
+if not _gsc and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gsc-verify.txt")):
+    _gsc = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gsc-verify.txt"), encoding="utf-8").read().strip()
+GSC_META = f'\n<meta name="google-site-verification" content="{html.escape(_gsc)}">' if _gsc else ""
 
 ORG = {"@type": "Organization", "@id": "https://www.spruik.co/#org", "name": "Spruik",
        "url": "https://www.spruik.co", "logo": SITE + "/assets/badge-mark.png",
@@ -213,7 +218,7 @@ def doc(title, desc, active, main):
 <meta property="og:type" content="website">
 <meta property="og:url" content="{SITE}{path}">
 <meta property="og:image" content="{SITE}/assets/og-card.png">
-<link rel="canonical" href="{SITE}{path}">
+<link rel="canonical" href="{SITE}{path}">{GSC_META}
 <meta name="theme-color" content="#101319">
 <link rel="apple-touch-icon" href="/assets/badge-mark.png">
 {jsonld(active)}
