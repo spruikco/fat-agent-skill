@@ -46,3 +46,6 @@ site/**/*.wav
 site/promo/*_preview.jpg
 site/promo/fonts/
 site/promo/__pycache__/
+
+.netlify/
+site/.netlify/

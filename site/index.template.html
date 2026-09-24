@@ -128,19 +128,34 @@ section{padding-block:clamp(56px,8vw,96px)}
 .reel-label{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-family:var(--type);font-size:14px;color:var(--chrome-dim);margin-top:12px}
 
 /* platforms */
-.beats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
-.plate{position:relative;background:var(--manila);color:var(--manila-ink);border-radius:3px;padding:18px 16px 14px;display:grid;gap:4px;box-shadow:0 10px 22px rgba(0,0,0,.35)}
+.beats{display:flex;flex-wrap:wrap;justify-content:center;gap:16px}
+.beats>.plate{flex:0 0 calc((100% - 48px)/4)}
+@media (max-width:1150px){.beats>.plate{flex-basis:calc((100% - 32px)/3)}}
+@media (max-width:780px){.beats>.plate{flex-basis:calc((100% - 16px)/2)}}
+@media (max-width:520px){.beats{gap:10px}.beats>.plate{flex-basis:100%;padding-block:14px 12px}.plate .logo{width:52px;height:52px}.plate .logo svg{width:26px;height:26px}.plate .logo svg.wide{width:36px}}
+.plate{position:relative;background:var(--manila);color:var(--manila-ink);border-radius:3px;padding:20px 16px 16px;display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:4px;align-content:center;box-shadow:0 10px 22px rgba(0,0,0,.35)}
+.plate>.no,.plate>.name,.plate>.what{grid-column:1;min-width:0}
+.plate{padding-inline:14px}
 .plate:nth-child(odd){transform:rotate(-.8deg)}
 .plate:nth-child(3n){transform:rotate(.7deg)}
 .plate .no{font-family:var(--type);font-size:12px;letter-spacing:.12em;color:var(--manila-muted)}
-.plate .name{font-family:var(--display);font-size:clamp(19px,1.9vw,24px);line-height:1.05;overflow-wrap:anywhere}
+.plate .name{font-family:var(--display);font-size:clamp(15px,1.15vw,17px);line-height:1.05;white-space:nowrap}
+@media (max-width:420px){.plate .name{white-space:normal;overflow-wrap:anywhere}}
 .plate .what{font-family:var(--type);font-size:13px;color:#4a3f2a}
-.plate .hole{position:absolute;top:10px;right:12px;width:12px;height:12px;border-radius:50%;background:var(--asphalt);box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.plate .hole{position:absolute;top:8px;left:50%;margin-left:-6px;width:12px;height:12px;border-radius:50%;background:var(--asphalt);box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
 .plate.feat .name{color:var(--stamp)}
+.plate .logo{grid-column:2;grid-row:1/span 3;align-self:center;width:62px;height:62px;border:3px solid currentColor;border-radius:50%;display:grid;place-items:center;color:var(--manila-ink);transform:rotate(-8deg);box-shadow:inset 0 0 0 4px var(--manila),inset 0 0 0 6px currentColor;opacity:.85;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.2 0 0 0 2.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.2 0 0 0 2.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");-webkit-mask-size:140px;mask-size:140px}
+.plate .logo svg{width:30px;height:30px;fill:currentColor}
+.plate .logo svg.wide{width:42px;height:auto}
+
+.weathered{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.2 0 0 0 2.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -3.2 0 0 0 2.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");-webkit-mask-size:140px;mask-size:140px}
+.plate .logo svg[fill="none"]{fill:none}
+.plate.feat .logo{color:var(--stamp)}
+.plate:nth-child(even) .logo{transform:rotate(7deg)}
 .beats-note{margin-top:22px;font-size:16px;color:#b9bfc9;max-width:70ch}
 
 /* sample case */
-.sample-tag{display:inline-block;font-family:var(--type);font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--manila);border:2px dashed var(--manila-2);padding:4px 10px;margin-bottom:6px}
+.sample-tag{display:inline-block;font-family:var(--type);font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--manila-ink);border:2px dashed var(--manila-ink);padding:4px 10px;margin-bottom:12px;transform:rotate(-1deg)}
 .suspects{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:8px 0 18px}
 .suspect{border:2px solid var(--manila-ink);border-radius:3px;padding:12px 14px;background:repeating-linear-gradient(0deg,transparent 0 22px,rgba(43,36,24,.08) 22px 23px)}
 .suspect b{display:block;font-family:var(--display);font-weight:400;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
@@ -155,7 +170,7 @@ section{padding-block:clamp(56px,8vw,96px)}
 .hero.scened .wrap{grid-template-columns:1fr;min-height:clamp(520px,62vw,700px)}
 .hero.scened .wrap>div{max-width:620px}
 .hero-caption{position:absolute;right:clamp(16px,4vw,48px);bottom:22px;background:var(--manila);color:var(--manila-ink);font-family:var(--type);font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;transform:rotate(-2deg);box-shadow:0 8px 18px rgba(0,0,0,.45)}
-@media (max-width:880px){.hero.scened{background:linear-gradient(180deg,rgba(12,14,19,.92),rgba(12,14,19,.82)),url(assets/scenes/stakeout-hero.jpg) 30% 40%/cover no-repeat,var(--night)}.hero-caption{display:none}}
+@media (max-width:880px){.hero.scened{background:linear-gradient(180deg,rgba(12,14,19,.55) 0%,rgba(12,14,19,.78) 45%,rgba(12,14,19,.94) 100%),url(assets/scenes/stakeout-hero.jpg) 62% 18%/auto 115% no-repeat,var(--night)}.hero-caption{display:none}}
 .scene{position:relative;margin:0 0 40px;border-radius:6px;overflow:hidden;box-shadow:0 24px 50px rgba(0,0,0,.5);border:1px solid var(--line);background:#0b0d11}
 .scene img{display:block;width:100%;height:auto}
 .scene.wide img{aspect-ratio:21/8;object-fit:cover}
@@ -167,7 +182,7 @@ section{padding-block:clamp(56px,8vw,96px)}
 @media (max-width:880px){.split{grid-template-columns:1fr}}
 .sticker{width:clamp(150px,18vw,230px);height:auto;filter:drop-shadow(0 16px 24px rgba(0,0,0,.55))}
 .install .wrap{position:relative}
-.install .sticker{position:absolute;right:var(--gutter);top:-20px;transform:rotate(6deg)}
+.install .sticker{position:absolute;right:var(--gutter);top:0;width:clamp(180px,20vw,260px);transform:rotate(4deg)}
 @media (max-width:880px){.install .sticker{display:none}}
 .signoff .sticker{display:block;margin:0 auto 18px;transform:rotate(-3deg);width:clamp(170px,22vw,260px)}
 
@@ -240,9 +255,9 @@ footer a{color:var(--chrome)}
         </div>
         <p class="cmd-note">Paste it into Claude Code. Two more lines and he's on the case. <a href="#install">Full install</a></p>
         <div class="facts" aria-label="At a glance">
-          <span><b>23</b>audit modules</span>
-          <span><b>1,090</b>tests passing</span>
-          <span><b>$0</b>MIT licence</span>
+          <span><b>222</b>things he checks</span>
+          <span><b>Minutes</b>not a two-week agency audit</span>
+          <span><b>$0</b>free, no subscription</span>
         </div>
       </div>
     </div>
@@ -341,16 +356,16 @@ footer a{color:var(--chrome)}
         </figure>
       </div>
       <div class="beats">
-        <div class="plate feat"><span class="hole"></span><span class="no">BEAT 01</span><span class="name">Shopify</span><span class="what">Stores, products, schema</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 02</span><span class="name">WooCommerce</span><span class="what">WordPress stores</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 03</span><span class="name">WordPress</span><span class="what">Themes, plugins, Yoast</span></div>
-        <div class="plate feat"><span class="hole"></span><span class="no">BEAT 04</span><span class="name">Wix</span><span class="what">Hosted sites and stores</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 05</span><span class="name">Squarespace</span><span class="what">Hosted sites and stores</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 06</span><span class="name">Webflow</span><span class="what">Visual builds</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 07</span><span class="name">BigCommerce</span><span class="what">Stores at scale</span></div>
-        <div class="plate feat"><span class="hole"></span><span class="no">BEAT 08</span><span class="name">Next.js</span><span class="what">Plus Astro, Nuxt, Remix</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 09</span><span class="name">Netlify</span><span class="what">Plus Vercel, Cloudflare</span></div>
-        <div class="plate"><span class="hole"></span><span class="no">BEAT 10</span><span class="name">Anything else</span><span class="what">Any live URL</span></div>
+        <div class="plate feat"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></svg></span><span class="no">BEAT 01</span><span class="name">Shopify</span><span class="what">Stores, products, schema</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg class="wide" viewBox="0 8.6 24 6.8" focusable="false"><path d="M10.118 8.895c-.562 0-.928.183-1.255.797l-1.49 2.811v-2.496c0-.745-.353-1.111-1.007-1.111s-.928.222-1.255.85l-1.412 2.757v-2.47c0-.797-.327-1.137-1.124-1.137H.954C.34 8.895 0 9.183 0 9.706s.327.837.928.837h.667v3.15c0 .889.601 1.412 1.464 1.412s1.255-.34 1.686-1.137l.941-1.765v1.49c0 .876.575 1.412 1.451 1.412s1.203-.301 1.699-1.137l2.17-3.66c.471-.798.144-1.413-.901-1.413zm4.078 0c-1.778 0-3.124 1.321-3.124 3.112s1.359 3.098 3.124 3.098 3.111-1.32 3.124-3.098c0-1.791-1.359-3.112-3.124-3.112m0 4.301c-.667 0-1.124-.497-1.124-1.19s.458-1.203 1.124-1.203 1.124.51 1.124 1.203-.444 1.19-1.124 1.19m6.68-4.301c-1.765 0-3.124 1.32-3.124 3.111s1.359 3.098 3.124 3.098S24 13.784 24 12.006s-1.359-3.111-3.124-3.111m0 4.301c-.68 0-1.111-.497-1.111-1.19s.444-1.203 1.111-1.203S22 11.313 22 12.006s-.444 1.19-1.124 1.19"/></svg></span><span class="no">BEAT 02</span><span class="name">WooCommerce</span><span class="what">WordPress stores</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M21.469 6.825c.84 1.537 1.318 3.3 1.318 5.175 0 3.979-2.156 7.456-5.363 9.325l3.295-9.527c.615-1.54.82-2.771.82-3.864 0-.405-.026-.78-.07-1.11m-7.981.105c.647-.03 1.232-.105 1.232-.105.582-.075.514-.93-.067-.899 0 0-1.755.135-2.88.135-1.064 0-2.85-.15-2.85-.15-.585-.03-.661.855-.075.885 0 0 .54.061 1.125.09l1.68 4.605-2.37 7.08L5.354 6.9c.649-.03 1.234-.1 1.234-.1.585-.075.516-.93-.065-.896 0 0-1.746.138-2.874.138-.2 0-.438-.008-.69-.015C4.911 3.15 8.235 1.215 12 1.215c2.809 0 5.365 1.072 7.286 2.833-.046-.003-.091-.009-.141-.009-1.06 0-1.812.923-1.812 1.914 0 .89.513 1.643 1.06 2.531.411.72.89 1.643.89 2.977 0 .915-.354 1.994-.821 3.479l-1.075 3.585-3.9-11.61.001.014zM12 22.784c-1.059 0-2.081-.153-3.048-.437l3.237-9.406 3.315 9.087c.024.053.05.101.078.149-1.12.393-2.325.609-3.582.609M1.211 12c0-1.564.336-3.05.935-4.39L7.29 21.709C3.694 19.96 1.212 16.271 1.211 12M12 0C5.385 0 0 5.385 0 12s5.385 12 12 12 12-5.385 12-12S18.615 0 12 0"/></svg></span><span class="no">BEAT 03</span><span class="name">WordPress</span><span class="what">Themes, plugins, Yoast</span></div>
+        <div class="plate feat"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="m0 7.354 2.113 9.292h.801a1.54 1.54 0 0 0 1.506-1.218l1.351-6.34a.171.171 0 0 1 .167-.137c.08 0 .15.058.167.137l1.352 6.34a1.54 1.54 0 0 0 1.506 1.218h.805l2.113-9.292h-.565c-.62 0-1.159.43-1.296 1.035l-1.26 5.545-1.106-5.176a1.76 1.76 0 0 0-2.19-1.324c-.639.176-1.113.716-1.251 1.365l-1.094 5.127-1.26-5.537A1.33 1.33 0 0 0 .563 7.354H0zm13.992 0a.951.951 0 0 0-.951.95v8.342h.635a.952.952 0 0 0 .951-.95V7.353h-.635zm1.778 0 3.158 4.66-3.14 4.632h1.325c.368 0 .712-.181.918-.486l1.756-2.59a.12.12 0 0 1 .197 0l1.754 2.59c.206.305.55.486.918.486h1.326l-3.14-4.632L24 7.354h-1.326c-.368 0-.712.181-.918.486l-1.772 2.617a.12.12 0 0 1-.197 0L18.014 7.84a1.108 1.108 0 0 0-.918-.486H15.77z"/></svg></span><span class="no">BEAT 04</span><span class="name">Wix</span><span class="what">Hosted sites and stores</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M22.655 8.719c-1.802-1.801-4.726-1.801-6.564 0l-7.351 7.35c-.45.45-.45 1.2 0 1.65.45.449 1.2.449 1.65 0l7.351-7.351c.899-.899 2.362-.899 3.264 0 .9.9.9 2.364 0 3.264l-7.239 7.239c.9.899 2.362.899 3.263 0l5.589-5.589c1.836-1.838 1.836-4.763.037-6.563zm-2.475 2.437c-.451-.45-1.201-.45-1.65 0l-7.354 7.389c-.9.899-2.361.899-3.262 0-.45-.45-1.2-.45-1.65 0s-.45 1.2 0 1.649c1.801 1.801 4.726 1.801 6.564 0l7.351-7.35c.449-.487.449-1.239.001-1.688zm-2.439-7.35c-1.801-1.801-4.726-1.801-6.564 0l-7.351 7.351c-.45.449-.45 1.199 0 1.649s1.2.45 1.65 0l7.395-7.351c.9-.899 2.371-.899 3.27 0 .451.45 1.201.45 1.65 0 .421-.487.421-1.199-.029-1.649h-.021zm-2.475 2.437c-.45-.45-1.2-.45-1.65 0l-7.351 7.389c-.899.9-2.363.9-3.265 0-.9-.899-.9-2.363 0-3.264l7.239-7.239c-.9-.9-2.362-.9-3.263 0L1.35 8.719c-1.8 1.8-1.8 4.725 0 6.563 1.801 1.801 4.725 1.801 6.564 0l7.35-7.351c.451-.488.451-1.238 0-1.688h.002z"/></svg></span><span class="no">BEAT 05</span><span class="name">Squarespace</span><span class="what">Hosted sites and stores</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="m24 4.515-7.658 14.97H9.149l3.205-6.204h-.144C9.566 16.713 5.621 18.973 0 19.485v-6.118s3.596-.213 5.71-2.435H0V4.515h6.417v5.278l.144-.001 2.622-5.277h4.854v5.244h.144l2.72-5.244H24Z"/></svg></span><span class="no">BEAT 06</span><span class="name">Webflow</span><span class="what">Visual builds</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12.645 13.663h3.027c.861 0 1.406-.474 1.406-1.235 0-.717-.545-1.234-1.406-1.234h-3.027c-.1 0-.187.086-.187.172v2.125c.015.1.086.172.187.172zm0 4.896h3.128c.961 0 1.535-.488 1.535-1.35 0-.746-.545-1.35-1.535-1.35h-3.128c-.1 0-.187.087-.187.173v2.34c.015.115.086.187.187.187zM23.72.053l-8.953 8.93h1.464c2.281 0 3.63 1.435 3.63 3 0 1.235-.832 2.14-1.722 2.541-.143.058-.143.259.014.316 1.033.402 1.765 1.48 1.765 2.742 0 1.78-1.19 3.202-3.5 3.202h-6.342c-.1 0-.187-.086-.187-.172V13.85L.062 23.64c-.13.13-.043.359.143.359h23.631a.16.16 0 0 0 .158-.158V.182c.043-.158-.158-.244-.273-.13z"/></svg></span><span class="no">BEAT 07</span><span class="name">BigCommerce</span><span class="what">Stores at scale</span></div>
+        <div class="plate feat"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M18.665 21.978C16.758 23.255 14.465 24 12 24 5.377 24 0 18.623 0 12S5.377 0 12 0s12 5.377 12 12c0 3.583-1.574 6.801-4.067 9.001L9.219 7.2H7.2v9.596h1.615V9.251l9.85 12.727Zm-3.332-8.533 1.6 2.061V7.2h-1.6v6.245Z"/></svg></span><span class="no">BEAT 08</span><span class="name">Next.js</span><span class="what">Plus Astro, Nuxt, Remix</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6.49 19.04h-.23L5.13 17.9v-.23l1.73-1.71h1.2l.15.15v1.2L6.5 19.04ZM5.13 6.31V6.1l1.13-1.13h.23L8.2 6.68v1.2l-.15.15h-1.2L5.13 6.31Zm9.96 9.09h-1.65l-.14-.13v-3.83c0-.68-.27-1.2-1.1-1.23-.42 0-.9 0-1.43.02l-.07.08v4.96l-.14.14H8.9l-.13-.14V8.73l.13-.14h3.7a2.6 2.6 0 0 1 2.61 2.6v4.08l-.13.14Zm-8.37-2.44H.14L0 12.82v-1.64l.14-.14h6.58l.14.14v1.64l-.14.14Zm17.14 0h-6.58l-.14-.14v-1.64l.14-.14h6.58l.14.14v1.64l-.14.14ZM11.05 6.55V1.64l.14-.14h1.65l.14.14v4.9l-.14.14h-1.65l-.14-.13Zm0 15.81v-4.9l.14-.14h1.65l.14.13v4.91l-.14.14h-1.65l-.14-.14Z"/></svg></span><span class="no">BEAT 09</span><span class="name">Netlify</span><span class="what">Plus Vercel, Cloudflare</span></div>
+        <div class="plate"><span class="hole"></span><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6.5"/><path d="M3.5 10h13M10 3.5c2 2 2.6 4.3 2.6 6.5S12 14.5 10 16.5M10 3.5C8 5.5 7.4 7.8 7.4 10S8 14.5 10 16.5"/><path d="M15 15l5.5 5.5" stroke-width="2.6" stroke-linecap="round"/></svg></span><span class="no">BEAT 10</span><span class="name">Anything else</span><span class="what">Any live URL</span></div>
       </div>
       <p class="beats-note">Every beat gets the full audit. Fixes come with step-by-step guides written for the platform you're on, so the advice matches the buttons you can actually press.</p>
     </div>
@@ -496,7 +511,7 @@ footer a{color:var(--chrome)}
         <h2 id="install-title">Put him on the case.</h2>
         <p>Inside Claude Code, run these two lines. Then point him at a site.</p>
       </div>
-      <img class="sticker" src="assets/scenes/pose-thumbs.png" alt="" width="400" height="600" loading="lazy">
+      <img class="sticker" src="assets/badge-testing.png" alt="" width="465" height="520" loading="lazy">
       <ol class="steps">
         <li><div class="cmd"><code id="cmd-1">/plugin marketplace add spruikco/fat-agent-skill</code><button type="button" data-copy="cmd-1">Copy</button></div></li>
         <li><div class="cmd"><code id="cmd-2">/plugin install fat-agent@fat-agent-marketplace</code><button type="button" data-copy="cmd-2">Copy</button></div></li>
@@ -506,7 +521,7 @@ footer a{color:var(--chrome)}
   </section>
 
   <div class="signoff">
-    <img class="sticker" src="assets/scenes/pose-hat.png" alt="" width="400" height="600" loading="lazy">
+    <img src="assets/agent-portrait.png" alt="" width="312" height="350">
     <p>He's not fat.<br><span>He's thorough.</span></p>
   </div>
 </main>

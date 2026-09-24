@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.10.0] - 2026-09-24
+
+### Added: FAT HQ (optional hosted dashboard)
+- `scripts/fat_hq.py` (stdlib): `login <key>`, `upload`, `status`, `logout`.
+  Uploads `.fat-work/scores.json` to FAT HQ, taking the site URL from the punch
+  list. When `.fat-work/gsc_dates.json` (a `gsc_fetch.py --dimension date`
+  export) exists, its daily clicks and impressions go too; `--no-gsc` skips it.
+  Keys live in `~/.fat-agent/hq.json` (mode 600) or `FAT_HQ_KEY`.
+- `/fat-hq` command: connect, upload or show status.
+- SKILL.md: "Send to FAT HQ" after the punch list update. Upload only when the
+  user has connected HQ; never invent or echo keys.
+- HQ itself (private repo spruikco/fat-hq) keeps every audit, charts the score
+  and Search Console traffic against Google's updates, shows what was fixed,
+  what's new and what came back, re-checks chosen pages on a schedule, emails on
+  new P0s, regressions and score drops, and makes client reports. Finding ids
+  match `punchlist.py`, so HQ and the local punch list agree.
+
+The plugin stays free and fully usable without HQ.
+
 ## [3.9.0] - 2026-09-24
 
 Lessons from a real audit of vend16.com, a server-rendered Node marketing site

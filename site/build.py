@@ -58,6 +58,20 @@ EXTRA_CSS = """<style>
 .dossier-grid .card h3{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .dossier-grid .card h3 small{font-family:var(--type);font-size:14px;color:var(--manila-muted)}
 .src{font-family:var(--type);font-size:12px;color:var(--manila-muted);margin-top:10px}
+.locks{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+@media (max-width:880px){.locks{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.locks{grid-template-columns:1fr}}
+.lock-stamp{display:inline-grid;place-items:center;width:92px;height:92px;border:3.5px solid var(--stamp);border-radius:50%;color:var(--stamp);transform:rotate(-10deg);box-shadow:inset 0 0 0 5px var(--night),inset 0 0 0 7.5px var(--stamp);margin-bottom:14px}
+.lock-stamp svg{width:44px;height:44px}
+.lock{background:var(--manila);color:var(--manila-ink);border-radius:3px;padding:16px 18px;display:grid;gap:6px;align-content:start;box-shadow:0 8px 18px rgba(0,0,0,.3)}
+.lock b{font-family:var(--display);font-weight:400;font-size:18px;line-height:1.1}
+.lock span:last-child{font-size:14px;line-height:1.4;color:#3a3020}
+.lock .stamp{justify-self:start}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+.cta{font-family:var(--type);font-size:16px;text-decoration:none;background:var(--stamp);color:#fff;padding:10px 18px;border-radius:3px}
+.cta:hover{background:var(--stamp-soft)}
+.cta.ghost{background:transparent;border:1px solid var(--chrome-dim);color:var(--chrome)}
+.casefile .split{align-items:center}
 .cards>*,.page-hero .wrap>*,.rules>*,.dossier-grid>*{min-width:0}
 .card p,.list li,.lede{overflow-wrap:anywhere}
 .sev .stamp{mix-blend-mode:normal}
@@ -68,7 +82,7 @@ html,body{overflow-x:clip}
 def nav(active):
     items = [("/#evidence", "What he checks", "home"), ("/#platforms", "Platforms", "home"),
              ("/security/", "Security", "security"), ("/dossier/", "Full dossier", "dossier"),
-             ("/#casework", "Case files", "home"), ("/#install", "Install", "home")]
+             ("/#casework", "Case files", "home"), ("/pricing/", "Pricing", "pricing"), ("/#install", "Install", "home")]
     links = "\n      ".join(
         f'<a href="{h}"{" aria-current=\"page\"" if a == active and h.startswith("/" + a) else ""}>{t}</a>'
         for h, t, a in items)
@@ -85,7 +99,7 @@ def nav(active):
 
 FOOTER = """<footer>
   <div class="wrap">
-    <span>FAT Agent is a <a href="https://www.spruik.co">Spruik</a> production. Free and open source under the MIT licence.</span>
+    <span>FAT Agent is a <a href="https://www.spruik.co">Spruik</a> production. Free and open source under the MIT licence. <a href="/privacy/">Privacy</a></span>
     <a href="https://github.com/spruikco/fat-agent-skill">github.com/spruikco/fat-agent-skill</a>
   </div>
 </footer>"""
@@ -97,7 +111,7 @@ INSTALL = """<section id="install" class="install" aria-labelledby="install-titl
         <h2 id="install-title">Put him on the case.</h2>
         <p>Inside Claude Code, run these two lines. Then point him at a site.</p>
       </div>
-      <img class="sticker" src="/assets/scenes/pose-thumbs.png" alt="" width="400" height="600" loading="lazy">
+      <img class="sticker" src="/assets/badge-testing.png" alt="" width="465" height="520" loading="lazy">
       <ol class="steps">
         <li><div class="cmd"><code id="cmd-1">/plugin marketplace add spruikco/fat-agent-skill</code><button type="button" data-copy="cmd-1">Copy</button></div></li>
         <li><div class="cmd"><code id="cmd-2">/plugin install fat-agent@fat-agent-marketplace</code><button type="button" data-copy="cmd-2">Copy</button></div></li>
@@ -105,6 +119,51 @@ INSTALL = """<section id="install" class="install" aria-labelledby="install-titl
       </ol>
     </div>
   </section>"""
+
+
+# Google Analytics 4. Set FAT_GA_ID=G-XXXXXXXXXX when building; empty = no tracking.
+GA_ID = os.environ.get("FAT_GA_ID", "").strip()
+if not GA_ID and os.path.exists(os.path.join(HERE, "ga_id.txt")):
+    GA_ID = open(os.path.join(HERE, "ga_id.txt"), encoding="utf-8").read().strip()
+# Consent Mode v2: denied by default where consent law requires opt-in (EEA, UK,
+# Switzerland), granted elsewhere; the banner lets anyone change it. This site
+# audits consent, so it has to pass its own check.
+CONSENT_REGIONS = ("AT BE BG HR CY CZ DK EE FI FR DE GR HU IS IE IT LV LI LT LU MT NL "
+                   "NO PL PT RO SK SI ES SE GB CH").split()
+
+
+def analytics_head():
+    if not GA_ID:
+        return ""
+    regions = ",".join(f"'{r}'" for r in CONSENT_REGIONS)
+    return f"""<script>
+window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}
+gtag('consent','default',{{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',region:[{regions}],wait_for_update:500}});
+gtag('consent','default',{{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'granted'}});
+try{{var c=localStorage.getItem('fat-consent');if(c){{gtag('consent','update',{{analytics_storage:c}});}}}}catch(e){{}}
+gtag('js',new Date());gtag('config','{GA_ID}',{{anonymize_ip:true}});
+</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id={GA_ID}"></script>"""
+
+
+CONSENT_BANNER = """<div id="consent" class="consent" hidden role="region" aria-label="Cookie choice">
+  <p>We use Google Analytics to count visits. No ads, no selling data. <a href="/privacy/">Privacy</a></p>
+  <div class="consent-btns"><button type="button" data-consent="denied">Decline</button><button type="button" data-consent="granted">Accept</button></div>
+</div>
+<script>
+(function(){var b=document.getElementById('consent');if(!b)return;var c=null;try{c=localStorage.getItem('fat-consent');}catch(e){}
+if(!c)b.hidden=false;b.addEventListener('click',function(e){var v=e.target.getAttribute('data-consent');if(!v)return;
+try{localStorage.setItem('fat-consent',v);}catch(e){}if(window.gtag)gtag('consent','update',{analytics_storage:v});b.hidden=true;});})();
+</script>"""
+
+CONSENT_CSS = """<style>
+.consent{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:50;max-width:560px;margin-inline:auto;background:var(--manila);color:var(--manila-ink);border-radius:4px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;box-shadow:0 18px 40px rgba(0,0,0,.55);font-size:15px}
+.consent p{flex:1 1 260px}
+.consent a{color:var(--manila-ink)}
+.consent-btns{display:flex;gap:8px}
+.consent button{font-family:var(--type);font-size:15px;border:2px solid var(--manila-ink);background:transparent;color:var(--manila-ink);padding:6px 14px;border-radius:3px;cursor:pointer}
+.consent button[data-consent="granted"]{background:var(--stamp);border-color:var(--stamp);color:#fff}
+</style>"""
 
 
 def doc(title, desc, active, main):
@@ -121,8 +180,9 @@ def doc(title, desc, active, main):
 <meta property="og:image" content="/assets/og-card.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/assets/badge-mark.png">
+{analytics_head()}
 {FONTS}{STYLE}
-{EXTRA_CSS}
+{EXTRA_CSS}<style>{HQ_CSS}</style>
 </head>
 <body>
 {nav(active)}
@@ -131,12 +191,109 @@ def doc(title, desc, active, main):
 </main>
 {FOOTER}
 {SCRIPT}
+{CONSENT_BANNER if GA_ID else ""}
+{CONSENT_CSS if GA_ID else ""}
 </body>
 </html>
 """
 
 
 # ------------------------------------------------------------------ home
+HQ_URL = os.environ.get("FAT_HQ_URL", "https://fathq.prodimus.com.au")
+
+HQ_SECTION = """
+  <section class="hq-band" aria-labelledby="hq-title">
+    <div class="wrap">
+      <div class="split">
+        <div class="sec-head">
+          <p class="eyebrow">FAT HQ</p>
+          <h2 id="hq-title">Keep him on retainer.</h2>
+          <p>The plugin is free and always will be. FAT HQ is where he keeps the case files after you close the laptop: every audit on one board, the score over time, your Search Console clicks against Google's updates, re-checks on a schedule and an email when something breaks.</p>
+          <div class="cta-row"><a class="cta" href="{hq}/signup">Start free</a><a class="cta ghost" href="/pricing/">See pricing</a></div>
+        </div>
+        <div class="hq-shot" aria-hidden="true">
+          <div class="hq-card"><span class="hq-grade">B</span><div><b>yourshop.com.au</b><small>Last audit this morning</small></div><span class="hq-score">79</span></div>
+          <svg viewBox="0 0 300 90" class="hq-line"><polyline points="0,70 40,62 80,66 120,48 160,52 200,34 240,30 300,18" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>
+          <ul class="hq-list"><li><span class="stamp p0">P0</span>Checkout 404s from the cart page <em>new</em></li><li><span class="stamp p1">P1</span>Missing Content-Security-Policy <em>fixed</em></li><li><span class="stamp p1">P1</span>Doorway pages <em>came back</em></li></ul>
+        </div>
+      </div>
+      <div class="hq-feats">
+        <div><b>Case files</b><span>Every audit from the plugin or HQ, with what got fixed, what's new and what came back.</span></div>
+        <div><b>Search Console</b><span>Weekly clicks and impressions with Google's core and spam updates marked, so "why did we drop?" has a date.</span></div>
+        <div><b>Stakeouts</b><span>Weekly or daily re-checks of the pages you pick. No laptop required.</span></div>
+        <div><b>Tip-offs</b><span>An email the moment a P0 appears, a fix comes undone or the score drops five points.</span></div>
+        <div><b>Client reports</b><span>A clean report link for each site. On Agency, with your name, logo and colour.</span></div>
+      </div>
+    </div>
+  </section>
+""".replace("{hq}", HQ_URL)
+
+HQ_CSS = """
+.hq-band{background:radial-gradient(ellipse 60% 70% at 80% 10%,rgba(200,16,46,.12),transparent 70%),var(--asphalt)}
+.hq-shot{background:var(--manila);color:var(--manila-ink);border-radius:4px;padding:22px;box-shadow:0 24px 50px rgba(0,0,0,.45);transform:rotate(1deg);display:grid;gap:14px}
+.hq-card{display:flex;align-items:center;gap:14px}.hq-card b{display:block;font-family:var(--display);font-size:18px}.hq-card small{font-size:13px;color:var(--manila-muted)}
+.hq-grade{font-family:var(--display);font-size:30px;color:#2f7d4d;border:3px solid currentColor;border-radius:50%;width:54px;height:54px;display:grid;place-items:center;transform:rotate(-8deg);flex:none}
+.hq-score{font-family:var(--display);font-size:38px;margin-left:auto}
+.hq-line{width:100%;height:auto;color:var(--stamp)}
+.hq-list{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:15px}.hq-list li{display:flex;gap:10px;align-items:center;border-top:1px dashed var(--manila-2);padding-top:8px}
+.hq-list em{margin-left:auto;font-family:var(--type);font-style:normal;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--manila-muted);white-space:nowrap}
+.hq-feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:8px}
+.hq-feats div{border:1px solid var(--line);border-radius:4px;padding:16px;display:grid;gap:6px;align-content:start;background:var(--night)}
+.hq-feats b{font-family:var(--display);font-size:17px;color:var(--chrome)}.hq-feats span{font-size:15px;color:var(--chrome-dim)}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;align-items:stretch}
+.plan{background:var(--manila);color:var(--manila-ink);border-radius:4px;padding:26px;display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 36px rgba(0,0,0,.4)}
+.plan.feat{outline:3px solid var(--stamp);outline-offset:5px}
+.plan h3{font-family:var(--display);font-size:28px}.plan .price{font-family:var(--display);font-size:44px;line-height:1}.plan .price small{font-family:var(--type);font-size:15px}
+.plan .fine{font-size:14px;color:var(--manila-muted)}.plan ul{margin:0;padding-left:18px;flex:1;display:grid;gap:6px;align-content:start}
+.plan .cta{align-self:flex-start}.plan .cta.ghost{color:var(--manila-ink);border-color:var(--manila-ink)}
+.plan-tag{font-family:var(--type);font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--stamp)}
+.faq{display:grid;gap:12px;max-width:820px}.faq details{border:1px solid var(--line);border-radius:4px;padding:14px 18px;background:var(--asphalt)}
+.faq summary{cursor:pointer;font-family:var(--display);font-size:17px}.faq p{margin-top:10px;color:var(--chrome-dim)}
+"""
+
+PRICING = """
+  <section class="page-hero" aria-labelledby="price-title">
+    <div class="wrap" style="grid-template-columns:1fr">
+      <div>
+        <p class="eyebrow">Pricing</p>
+        <h1 id="price-title">The plugin is free.<span class="red">HQ keeps watch.</span></h1>
+        <p class="lede">FAT Agent runs in Claude Code at no cost, MIT licensed, every check included. FAT HQ is the optional hosted side: case files, trends, Search Console, scheduled re-checks, alerts and client reports.</p>
+      </div>
+    </div>
+  </section>
+  <section aria-label="Plans" style="padding-top:12px">
+    <div class="wrap">
+      <div class="plans">
+        <div class="plan"><p class="plan-tag">The plugin</p><h3>FAT Agent</h3><p class="price">Free</p><p class="fine">Forever. MIT licence.</p>
+          <ul><li>All 222 checks, P0 to P3 punch list</li><li>Site-wide crawl, spam policy and doorway checks</li><li>Search Console, AI search and update impact</li><li>Fixes the code with you, then re-tests</li></ul>
+          <a class="cta ghost" href="/#install">Install</a></div>
+        <div class="plan"><p class="plan-tag">HQ</p><h3>Free</h3><p class="price">A$0</p><p class="fine">No card needed.</p>
+          <ul><li>1 site</li><li>Last 5 audits kept</li><li>Score trend, punch list, what changed</li><li>Search Console chart</li></ul>
+          <a class="cta" href="{hq}/signup">Start free</a></div>
+        <div class="plan feat"><p class="plan-tag">HQ</p><h3>Pro</h3><p class="price">A$29<small> /month</small></p><p class="fine">US$19 outside Australia. GST included.</p>
+          <ul><li>10 sites, full history</li><li>Weekly re-checks of up to 5 pages each</li><li>Email alerts: new P0s, regressions, score drops</li><li>Shareable client report links</li></ul>
+          <a class="cta" href="{hq}/signup?ref=pricing-pro">Start with Pro</a></div>
+        <div class="plan"><p class="plan-tag">HQ</p><h3>Agency</h3><p class="price">A$99<small> /month</small></p><p class="fine">US$69 outside Australia. GST included.</p>
+          <ul><li>50 sites</li><li>Daily re-checks of up to 20 pages each</li><li>White-label reports: your name, logo and colour</li><li>Everything in Pro</li></ul>
+          <a class="cta" href="{hq}/signup?ref=pricing-agency">Start with Agency</a></div>
+      </div>
+    </div>
+  </section>
+  <section aria-labelledby="faq-title">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">Questions</p><h2 id="faq-title">Before you hire him.</h2></div>
+      <div class="faq">
+        <details><summary>Do I need HQ to use FAT Agent?</summary><p>No. The plugin does the whole audit, the fixes and the re-test inside Claude Code. HQ only stores results and keeps watching between sessions.</p></details>
+        <details><summary>How do audits get into HQ?</summary><p>Make a plugin key in HQ, then tell FAT Agent to send the audit (or run <code>python scripts/fat_hq.py upload</code>). HQ can also check sites itself with "Check now" and on a schedule.</p></details>
+        <details><summary>Does HQ get my Google login?</summary><p>No. FAT Agent pulls your Search Console export on your machine and sends only daily clicks and impressions. HQ never sees your Google account.</p></details>
+        <details><summary>What do scheduled checks cover?</summary><p>The pages you choose, run through the same FAT Agent checks the plugin uses on a single page. Full site crawls stay in the plugin, where they can take as long as they need.</p></details>
+        <details><summary>Can I cancel?</summary><p>Any time, from the billing page. You drop back to Free and keep your latest five audits per site.</p></details>
+      </div>
+    </div>
+  </section>
+""".replace("{hq}", HQ_URL)
+
+
 def build_home():
     body = BODY.replace("{{CHART}}", chart)
     body = body[body.index("<main"):]
@@ -144,17 +301,34 @@ def build_home():
     main = main.replace('src="assets/', 'src="/assets/').replace('poster="assets/', 'poster="/assets/')
     main = main.replace('href="assets/', 'href="/assets/')
     extra = """
-  <section aria-labelledby="more-title" style="padding-block:clamp(40px,6vw,72px)">
+  <section class="casefile" aria-labelledby="more-title">
     <div class="wrap">
-      <div class="sec-head">
-        <p class="eyebrow">Beyond SEO</p>
-        <h2 id="more-title">He checks the locks too.</h2>
-        <p>Security headers, leaked keys, exposed files, cookies, TLS, email spoofing and consent. Read the <a href="/security/">security file</a>, or see <a href="/dossier/">every check he makes</a>.</p>
+      <div class="split">
+        <div class="sec-head">
+          <span class="lock-stamp weathered" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M8 10.5V7.2a4 4 0 0 1 8 0v3.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path fill="currentColor" fill-rule="evenodd" d="M6.5 10.5h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM12 13.6a1.6 1.6 0 0 0-.8 3v1.9h1.6v-1.9a1.6 1.6 0 0 0-.8-3z"/></svg></span>
+          <p class="eyebrow">Beyond SEO</p>
+          <h2 id="more-title">He checks the locks too.</h2>
+          <p>FAT Agent is a security tester as much as an SEO auditor. He looks at your site the way an attacker would, from the outside, grades every defence on quality rather than presence, and ranks what he finds from P0 to P3.</p>
+          <div class="cta-row"><a class="cta" href="/security/">Open the security file</a><a class="cta ghost" href="/dossier/">All 222 checks</a></div>
+        </div>
+        <figure class="scene">
+          <img src="/assets/scenes/raid.jpg" alt="FAT Agent kicking open a server room door as web pages with error marks fly past" width="1290" height="726" loading="lazy">
+          <figcaption>Exhibit 06: the raid</figcaption>
+        </figure>
+      </div>
+      <div class="locks">
+        <div class="lock"><span class="stamp p0">P0</span><b>Leaked keys</b><span>Stripe, AWS, GitHub, Slack, Anthropic and OpenAI keys in your page source</span></div>
+        <div class="lock"><span class="stamp p0">P0</span><b>Exposed files</b><span>.env, .git, database dumps and 20 more, probed only with your go-ahead</span></div>
+        <div class="lock"><span class="stamp p1">P1</span><b>Security headers</b><span>CSP and HSTS graded, not just ticked</span></div>
+        <div class="lock"><span class="stamp p1">P1</span><b>Email spoofing</b><span>SPF, DKIM and DMARC, so nobody phishes in your name</span></div>
+        <div class="lock"><span class="stamp p1">P1</span><b>Consent</b><span>Trackers that fire before anyone says yes</span></div>
+        <div class="lock"><span class="stamp p2">P2</span><b>Cookies and scripts</b><span>Secure, HttpOnly, SameSite, and third-party code without integrity checks</span></div>
       </div>
     </div>
   </section>
 """
     main = main.replace('  <section id="casework"', extra + '  <section id="casework"', 1)
+    main = main.replace('  <section id="install"', HQ_SECTION + '  <section id="install"', 1)
     return doc("FAT Agent", "The heavyweight website auditor for Claude Code. Fix. Audit. Test.",
                "home", main)
 
@@ -400,7 +574,7 @@ def build_dossier():
           <span><b>{total}</b>distinct findings</span><span><b>{len(cards)}</b>departments</span><span><b>P0 to P3</b>ranked</span>
         </div>
       </div>
-      <img class="sticker" src="/assets/scenes/pose-magnifier.png" alt="FAT Agent peering through a magnifying glass" width="400" height="600">
+      <img class="sticker" src="/assets/badge-topsecret.png" alt="FAT Agent holding a folder stamped top secret" width="394" height="440">
     </div>
   </section>
   <section aria-label="All findings" style="padding-top:8px">
@@ -416,21 +590,49 @@ def build_dossier():
                "dossier", main + INSTALL), total
 
 
+PRIVACY = """
+  <section class="page-hero" aria-labelledby="priv-title">
+    <div class="wrap" style="grid-template-columns:1fr">
+      <div>
+        <p class="eyebrow">Privacy</p>
+        <h1 id="priv-title">What we collect.<span class="red">Not much.</span></h1>
+        <p class="lede">This site is run by Spruik Co Pty Ltd, Melbourne, Australia. We use Google Analytics 4 to count visits and see which pages people read. That's it: no advertising, no remarketing, and we never sell or share data.</p>
+      </div>
+    </div>
+  </section>
+  <section aria-label="Details" style="padding-top:8px">
+    <div class="wrap" style="max-width:760px">
+      <div class="sec-head">
+        <h2>The details</h2>
+        <p><b>What Google Analytics records:</b> pages viewed, rough location (country or city), device and browser type, and how you arrived. Google Analytics 4 does not store IP addresses.</p>
+        <p><b>Your choice:</b> in the EU, UK and Switzerland analytics stays off until you accept. Everywhere else it is on until you decline. Change your mind any time by clearing this site's storage in your browser; the banner comes back.</p>
+        <p><b>The plugin itself:</b> FAT Agent runs inside your own Claude Code session. It sends nothing to us.</p>
+        <p><b>Contact:</b> rye@spruik.co</p>
+      </div>
+    </div>
+  </section>
+"""
+
+
 def main():
     os.makedirs(os.path.join(DIST, "assets"), exist_ok=True)
-    for sub in ("security", "dossier"):
+    for sub in ("security", "dossier", "privacy", "pricing"):
         os.makedirs(os.path.join(DIST, sub), exist_ok=True)
     open(os.path.join(DIST, "index.html"), "w", encoding="utf-8").write(build_home())
     open(os.path.join(DIST, "security", "index.html"), "w", encoding="utf-8").write(build_security())
     dossier, total = build_dossier()
     open(os.path.join(DIST, "dossier", "index.html"), "w", encoding="utf-8").write(dossier)
+    open(os.path.join(DIST, "pricing", "index.html"), "w", encoding="utf-8").write(
+        doc("FAT Agent Pricing", "FAT Agent is free. FAT HQ adds case files, Search Console trends, scheduled re-checks, alerts and client reports.", "pricing", PRICING))
+    open(os.path.join(DIST, "privacy", "index.html"), "w", encoding="utf-8").write(
+        doc("FAT Agent Privacy", "How the FAT Agent website uses analytics.", "privacy", PRIVACY))
     shutil.copytree(os.path.join(HERE, "assets"), os.path.join(DIST, "assets"),
                     dirs_exist_ok=True)
     # leave out any illustration that hasn't been added yet, rather than ship a broken image
     def have(rel):
         return os.path.exists(os.path.join(HERE, rel.lstrip("/")))
 
-    for page in ("index.html", "security/index.html", "dossier/index.html"):
+    for page in ("index.html", "security/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html"):
         path = os.path.join(DIST, page)
         txt = open(path, encoding="utf-8").read()
         txt = re.sub(r'<figure class="scene[^"]*"[^>]*>\s*<img src="(/?assets/scenes/[^"]+)".*?</figure>',
@@ -438,7 +640,7 @@ def main():
         txt = re.sub(r'<img class="sticker" src="(/?assets/scenes/[^"]+)"[^>]*>',
                      lambda m: m.group(0) if have(m.group(1)) else "", txt)
         open(path, "w", encoding="utf-8").write(txt)
-    for page in ("index.html", "security/index.html", "dossier/index.html"):
+    for page in ("index.html", "security/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html"):
         txt = open(os.path.join(DIST, page), encoding="utf-8").read()
         assert "—" not in txt and "–" not in txt, f"dash in {page}"
     print("built; dossier findings:", total)

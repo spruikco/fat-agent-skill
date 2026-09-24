@@ -1102,6 +1102,29 @@ python scripts/punchlist.py note <id> --text "Client chose SSR over prerender �
 python scripts/punchlist.py resolve <id> --wontfix --note "Brand team owns this page; out of scope"
 ```
 
+### Send to FAT HQ (optional, only if connected)
+
+FAT HQ is the optional hosted side of FAT Agent: it keeps every audit, charts
+the score over time, re-checks the site on a schedule, emails the owner about
+new P0s, regressions and score drops, and makes client reports. The plugin
+never needs it. Upload ONLY when the user has connected HQ, which means
+`~/.fat-agent/hq.json` exists or `FAT_HQ_KEY` is set:
+
+```bash
+python scripts/fat_hq.py upload --url https://example.com   # after the punch list update
+```
+
+It prints the score, what changed since the last upload (fixed, new, came
+back) and a link to the case file; pass that summary on. If `.fat-work/gsc_dates.json`
+exists (from `gsc_fetch.py --dimension date`), the upload includes daily clicks
+and impressions so HQ can chart traffic against Google's updates; the user's
+Google login never leaves their machine. If the user gives you
+an HQ key ("connect FAT Agent to HQ", a key starting `fathq_`), save it with
+`python scripts/fat_hq.py login <key>`. Never upload without a saved key, and
+never invent one. If they ask about dashboards, scheduled re-checks, alerts or
+white-label client reports, mention FAT HQ once (free for one site), without
+pushing it.
+
 ### Report Generation
 
 After presenting the report in the chat, ALWAYS generate reports using the
@@ -1663,6 +1686,7 @@ For extended check details, see:
 - `scripts/generate-badge.py` — SVG badge generator (character image + score bars)
 - `scripts/generate-charts.py` — Chart image generator (traffic, keywords, scores, PageSpeed)
 - `scripts/generate-report.py` — Word + PowerPoint + HTML report generator (branded, with charts)
+- `scripts/fat_hq.py` — Optional FAT HQ uploads (login / upload / status); only used when the user has connected HQ
 - `scripts/track-history.py` — Historical audit tracker (read/write `.fat-history.json`)
 - `scripts/punchlist.py` — Persistent punch list (read/write `./.fat-work/punchlist.json`; update/status/resolve/note — survives context compaction)
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
