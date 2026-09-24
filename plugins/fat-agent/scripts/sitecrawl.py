@@ -325,8 +325,38 @@ def fetch(url, opener, ua, timeout, retries=2, allow_private=False):
 # --------------------------------------------------------------------------- #
 # HTML parsing
 # --------------------------------------------------------------------------- #
+SIMHASH_MIN_WORDS = 50  # below this a fingerprint is noise, not a template signal
+
+
+def simhash64(text: str):
+    """64-bit simhash over word bigrams, as 16 hex chars (None if too short).
+
+    Near-identical pages (a template with only the suburb/city swapped) land
+    within a few bits of each other, which is what sitewide.py clusters on to
+    surface doorway / scaled-content patterns an exact hash can't see.
+    """
+    words = re.findall(r"[a-z0-9']+", text.lower())
+    if len(words) < SIMHASH_MIN_WORDS:
+        return None
+    v = [0] * 64
+    for i in range(len(words) - 1):
+        h = int.from_bytes(
+            hashlib.md5(" ".join(words[i : i + 2]).encode("utf-8")).digest()[:8], "big"
+        )
+        for b in range(64):
+            v[b] += 1 if (h >> b) & 1 else -1
+    out = 0
+    for b in range(64):
+        if v[b] > 0:
+            out |= 1 << b
+    return "%016x" % out
+
+
 class PageParser(HTMLParser):
     SKIP = {"script", "style", "noscript", "template", "svg"}
+    # site chrome — excluded from the template fingerprint so shared nav/footer
+    # boilerplate doesn't make every page look like a near-duplicate
+    CHROME = {"nav", "header", "footer", "aside"}
 
     def __init__(self, base_url):
         super().__init__(convert_charrefs=True)
@@ -357,15 +387,25 @@ class PageParser(HTMLParser):
         self.jsonld_count = 0
         self.blank_no_noopener = 0
         self._in_jsonld = False
+        self._jsonld_buf = []
+        self.schema_types = set()
+        self._chrome_depth = 0
+        self._main_chunks = []  # body text outside site chrome (bounded)
+        self._main_words = 0
+        self.headings = []  # H2/H3 text, for fan-out coverage (bounded)
+        self._hx_buf = None
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
         # JSON-LD — count it, but keep it out of the body word count
         if tag == "script" and a.get("type", "").lower() == "application/ld+json":
             self._in_jsonld = True
+            self._jsonld_buf = []
             self.jsonld_count += 1
             self._skip_depth += 1
             return
+        if tag in self.CHROME:
+            self._chrome_depth += 1
         if tag in self.SKIP:
             self._skip_depth += 1
         elif tag == "html":
@@ -392,8 +432,10 @@ class PageParser(HTMLParser):
         elif tag == "h1":
             self.in_h1 = True
             self._h1_buf = []
-        elif tag == "h2":
-            self.h2_count += 1
+        elif tag in ("h2", "h3"):
+            if tag == "h2":
+                self.h2_count += 1
+            self._hx_buf = []
         elif tag == "img":
             self.images += 1
             if not a.get("alt", "").strip():
@@ -412,11 +454,20 @@ class PageParser(HTMLParser):
         if tag == "script" and self._in_jsonld:
             self._in_jsonld = False
             self._skip_depth = max(0, self._skip_depth - 1)
+            for t in re.findall(r'"@type"\s*:\s*"([A-Za-z]+)"', "".join(self._jsonld_buf)):
+                self.schema_types.add(t)
             return
+        if tag in self.CHROME and self._chrome_depth > 0:
+            self._chrome_depth -= 1
         if tag in self.SKIP and self._skip_depth > 0:
             self._skip_depth -= 1
         elif tag == "title":
             self.in_title = False
+        elif tag in ("h2", "h3") and self._hx_buf is not None:
+            txt = " ".join("".join(self._hx_buf).split())
+            if txt and len(self.headings) < 60:
+                self.headings.append(txt[:160])
+            self._hx_buf = None
         elif tag == "h1":
             self.in_h1 = False
             txt = " ".join("".join(self._h1_buf).split())
@@ -430,11 +481,15 @@ class PageParser(HTMLParser):
 
     def handle_data(self, data):
         if self._in_jsonld:
+            if len(self._jsonld_buf) < 2000:
+                self._jsonld_buf.append(data)
             return
         if self.in_title:
             self.title_parts.append(data)
         if self.in_h1:
             self._h1_buf.append(data)
+        if self._hx_buf is not None:
+            self._hx_buf.append(data)
         if self._in_a:
             self._a_buf.append(data)
         if self._skip_depth == 0:
@@ -443,6 +498,10 @@ class PageParser(HTMLParser):
                 self._text_words += len(words)
                 if len(self._text_chunks) < 4000:  # bound memory for hashing
                     self._text_chunks.append(data.strip().lower())
+                if self._chrome_depth == 0:
+                    self._main_words += len(words)
+                    if len(self._main_chunks) < 4000:
+                        self._main_chunks.append(data.strip())
 
     @property
     def title(self):
@@ -451,6 +510,14 @@ class PageParser(HTMLParser):
     @property
     def word_count(self):
         return self._text_words
+
+    @property
+    def main_word_count(self):
+        return self._main_words
+
+    @property
+    def simhash(self):
+        return simhash64(" ".join(self._main_chunks))
 
     @property
     def content_hash(self):
@@ -475,7 +542,8 @@ CREATE TABLE pages (
   html_lang TEXT, viewport TEXT, og_present INTEGER,
   jsonld_count INTEGER, blank_no_noopener INTEGER,
   sec_headers TEXT, truncated INTEGER,
-  indexable INTEGER, index_reason TEXT, in_sitemap INTEGER, error TEXT
+  indexable INTEGER, index_reason TEXT, in_sitemap INTEGER, error TEXT,
+  main_word_count INTEGER, simhash TEXT, schema_types TEXT, headings TEXT
 );
 CREATE TABLE links (source TEXT, target TEXT, anchor TEXT, rel TEXT, type TEXT);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -521,6 +589,10 @@ PAGE_COLS = [
     "index_reason",
     "in_sitemap",
     "error",
+    "main_word_count",
+    "simhash",
+    "schema_types",
+    "headings",
 ]
 
 
@@ -741,6 +813,10 @@ def consume(url, depth, r, ctx: Crawl):
             "truncated": 1 if r.get("truncated") else 0,
             "indexable": indexable,
             "index_reason": reason,
+            "main_word_count": p.main_word_count,
+            "simhash": p.simhash,
+            "schema_types": ",".join(sorted(p.schema_types)) or None,
+            "headings": " | ".join(p.headings) or None,
         }
     )
     ctx.rows.append(row)

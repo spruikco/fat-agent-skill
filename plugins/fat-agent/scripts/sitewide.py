@@ -23,8 +23,20 @@ Drill-down (SELECT-only, capped rows — token-cheap by design):
 
 import argparse
 import json
+import os
+import re
 import sqlite3
 import sys
+from collections import Counter
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from modules.google_guidelines import (  # noqa: E402
+    META_MAX,
+    META_MIN,
+    RETIRED_RICH_RESULTS,
+    TITLE_MAX,
+    title_is_stuffed,
+)
 
 MODULE = "sitewide"
 SAMPLE_LIMIT = 8  # example URLs per finding — enough to act on, cheap to read
@@ -199,6 +211,79 @@ CHECKS = [
         "WHERE in_sitemap=1 AND status>=300 AND status<400",
     ),
     (
+        "slash_duplicates",
+        "P1",
+        "Same page indexable with and without trailing slash",
+        "Both /page and /page/ return 200 and self-canonicalise, so Google sees two "
+        "URLs competing for the same query and splits signals between them.",
+        "Pick one form site-wide: 301 the other and make canonicals, sitemaps and "
+        "internal links agree.",
+        "low",
+        "SELECT COUNT(*) FROM pages a JOIN pages b ON b.url = a.url || '/' "
+        "WHERE a.status=200 AND b.status=200 AND a.indexable=1 AND b.indexable=1",
+        "SELECT a.url || '  +  ' || b.url FROM pages a JOIN pages b "
+        "ON b.url = a.url || '/' WHERE a.status=200 AND b.status=200 "
+        "AND a.indexable=1 AND b.indexable=1",
+    ),
+    (
+        "missing_title",
+        "P1",
+        "Indexable pages missing a title",
+        "Without a title Google invents one from the page, usually badly.",
+        "Give every indexable page a unique, descriptive title.",
+        "low",
+        "SELECT COUNT(*) FROM pages WHERE indexable=1 AND (title IS NULL OR title='')",
+        "SELECT url FROM pages WHERE indexable=1 AND (title IS NULL OR title='')",
+    ),
+    (
+        "missing_meta_desc",
+        "P2",
+        "Indexable pages missing a meta description",
+        "Google falls back to scraping page text for the snippet, which rarely sells "
+        "the click.",
+        "Write a unique 120-160 character description for each page.",
+        "medium",
+        "SELECT COUNT(*) FROM pages WHERE indexable=1 "
+        "AND (meta_desc IS NULL OR meta_desc='')",
+        "SELECT url FROM pages WHERE indexable=1 AND (meta_desc IS NULL OR meta_desc='')",
+    ),
+    (
+        "missing_h1",
+        "P2",
+        "Indexable pages missing an H1",
+        "The H1 is one of the main signals Google uses to understand the page and to "
+        "build its title link.",
+        "Add one descriptive H1 per page.",
+        "low",
+        "SELECT COUNT(*) FROM pages WHERE indexable=1 AND COALESCE(h1_count,0)=0",
+        "SELECT url FROM pages WHERE indexable=1 AND COALESCE(h1_count,0)=0",
+    ),
+    (
+        "long_titles",
+        "P3",
+        "Titles likely truncated in results",
+        f"Titles over {TITLE_MAX} characters get cut off, and long titles are "
+        "rewritten by Google more often.",
+        "Front-load the topic and trim to about 50-60 characters.",
+        "low",
+        f"SELECT COUNT(*) FROM pages WHERE indexable=1 AND title_len>{TITLE_MAX}",
+        f"SELECT url || '  (' || title_len || ')' FROM pages WHERE indexable=1 "
+        f"AND title_len>{TITLE_MAX} ORDER BY title_len DESC",
+    ),
+    (
+        "meta_desc_length",
+        "P3",
+        "Meta descriptions too short or too long",
+        f"Under {META_MIN} characters is usually replaced by Google; over {META_MAX} "
+        "gets truncated.",
+        "Aim for 120-160 characters that summarise the page and the reason to click.",
+        "low",
+        f"SELECT COUNT(*) FROM pages WHERE indexable=1 AND meta_desc_len>0 "
+        f"AND (meta_desc_len<{META_MIN} OR meta_desc_len>{META_MAX})",
+        f"SELECT url || '  (' || meta_desc_len || ')' FROM pages WHERE indexable=1 "
+        f"AND meta_desc_len>0 AND (meta_desc_len<{META_MIN} OR meta_desc_len>{META_MAX})",
+    ),
+    (
         "sitemap_broken",
         "P1",
         "Sitemap lists broken URLs",
@@ -235,7 +320,7 @@ SLASH_HOP_SQL = {
 }
 
 
-def run_checks(con) -> list:
+def run_checks(con, gsc: dict = None) -> list:
     findings = []
     for key, priority, title, why, fix, effort, count_sql, sample_sql in CHECKS:
         count = con.execute(count_sql).fetchone()[0] or 0
@@ -269,8 +354,373 @@ def run_checks(con) -> list:
                 "key": key,
             }
         )
+    findings.extend(guideline_checks(con, gsc))
     order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
     findings.sort(key=lambda f: order.get(f["priority"], 9))
+    return findings
+
+
+# --------------------------------------------------------------------------- #
+# Google guideline patterns that only show up across a crawl
+# --------------------------------------------------------------------------- #
+NEAR_DUP_BITS = 8  # simhash Hamming distance: templates sit ~2-6 apart, unrelated ~30
+MIN_CLUSTER = 3
+SCALED_SHARE = 0.30  # share of indexable pages that are templated → site-level risk
+
+
+def _columns(con) -> set:
+    return {r[1] for r in con.execute("PRAGMA table_info(pages)")}
+
+
+def _url_shape(urls: list) -> str:
+    """Collapse a cluster's URLs into one pattern: /local/seo-agency-in-{*}/."""
+    from urllib.parse import urlparse
+
+    paths = [urlparse(u).path for u in urls]
+    split = [p.strip("/").split("/") for p in paths]
+    depth = Counter(len(x) for x in split).most_common(1)[0][0]
+    same = [x for x in split if len(x) == depth]
+    out = []
+    for i in range(depth):
+        segs = {x[i] for x in same}
+        if len(segs) == 1:
+            out.append(segs.pop())
+            continue
+        pre = os.path.commonprefix(list(segs))
+        suf = os.path.commonprefix([x[::-1] for x in segs])[::-1]
+        if len(pre) + len(suf) >= min(len(x) for x in segs):
+            suf = ""
+        out.append(pre + "{*}" + suf)
+    return "/" + "/".join(out) + ("/" if paths[0].endswith("/") else "")
+
+
+def near_duplicate_clusters(con) -> list:
+    """Seed (leader) clustering over simhash fingerprints of indexable pages.
+
+    Every member must be within NEAR_DUP_BITS of its cluster's seed page.
+    Union-find was tried first and chained unrelated templates together
+    through intermediate pages (A~B~C with A and C 19 bits apart), so a
+    single-linkage approach over-reports; seeding keeps each group honest.
+
+    Returns clusters (largest first) as dicts: urls, size, avg_words, shape.
+    Older crawl DBs without a simhash column simply return [].
+    """
+    if "simhash" not in _columns(con):
+        return []
+    rows = con.execute(
+        "SELECT url, simhash, COALESCE(main_word_count, word_count, 0) FROM pages "
+        "WHERE indexable=1 AND simhash IS NOT NULL ORDER BY url"
+    ).fetchall()
+    seeds: list = []  # (hash, [row indexes])
+    for i, row in enumerate(rows):
+        h = int(row[1], 16)
+        best, best_d = None, NEAR_DUP_BITS + 1
+        for s in seeds:
+            d = bin(h ^ s[0]).count("1")
+            if d < best_d:
+                best, best_d = s, d
+        if best is None:
+            seeds.append((h, [i]))
+        else:
+            best[1].append(i)
+    # One template often yields several seeds (members drift past the threshold
+    # from any single seed). Groups that are each internally near-identical AND
+    # share a URL shape are the same template: report them as one line.
+    by_shape: dict = {}
+    for _, idxs in seeds:
+        if len(idxs) < MIN_CLUSTER:
+            continue
+        shape = _url_shape([rows[i][0] for i in idxs])
+        by_shape.setdefault(shape, []).extend(idxs)
+    clusters = []
+    for shape, idxs in by_shape.items():
+        urls = sorted(rows[i][0] for i in idxs)
+        words = [rows[i][2] for i in idxs]
+        clusters.append(
+            {
+                "urls": urls,
+                "size": len(urls),
+                "avg_words": round(sum(words) / len(words)),
+                "shape": shape,
+            }
+        )
+    clusters.sort(key=lambda c: -c["size"])
+    return clusters
+
+
+# Topics that typically turn up as third-party "parasite" sections
+_REPUTATION_RE = re.compile(
+    r"(?:^|[/_-])(coupons?|promo-?codes?|discount-?codes?|vouchers?|casinos?|pokies|"
+    r"betting|gambling|slots|payday|loans?|cbd|vapes?|essay|dating|crypto|"
+    r"best-[a-z-]+-(?:reviews?|of-20\d\d)|sponsored|partners?-content)(?:$|[/_-])",
+    re.IGNORECASE,
+)
+
+
+def reputation_sections(con, min_pages: int = 3) -> list:
+    """First-path-segment sections whose URLs look like off-topic third-party
+    content (coupons, casino, loans, CBD, 'best X' reviews)."""
+    from urllib.parse import urlparse
+
+    hits: Counter = Counter()
+    for (url,) in con.execute("SELECT url FROM pages WHERE indexable=1"):
+        path = urlparse(url).path
+        if _REPUTATION_RE.search(path):
+            seg = path.strip("/").split("/")[0]
+            hits["/" + seg + "/"] += 1
+    return [(s, c) for s, c in hits.most_common() if c >= min_pages]
+
+
+# --------------------------------------------------------------------------- #
+# Search Console cross-reference: real clicks decide keep / improve / prune
+# --------------------------------------------------------------------------- #
+KEEP_CLICKS = 1  # any real clicks in the export window = the page earns its place
+
+
+def url_key(url: str) -> str:
+    """Scheme-, www- and trailing-slash-insensitive key so GSC and crawl URLs meet."""
+    from urllib.parse import urlparse
+
+    u = urlparse(url.strip())
+    host = u.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host + (u.path.rstrip("/") or "/") + (("?" + u.query) if u.query else "")
+
+
+def load_gsc_pages(path: str) -> dict:
+    """GSC Performance export (page dimension, or query+page) → {url_key: totals}.
+
+    Accepts every shape gsc.py accepts. Rows are summed per page, so a
+    query+page export works too; position is impression-weighted.
+    """
+    from gsc import load_rows
+
+    with open(path, encoding="utf-8") as fh:
+        rows = load_rows(json.load(fh))
+    pages: dict = {}
+    for r in rows:
+        page = r.get("page") or ""
+        if not page and str(r.get("query", "")).startswith("http"):
+            page = r["query"]  # page-only export: the single key is the URL
+        if not page:
+            continue
+        agg = pages.setdefault(
+            url_key(page), {"clicks": 0.0, "impressions": 0.0, "_pos": 0.0}
+        )
+        agg["clicks"] += r["clicks"]
+        agg["impressions"] += r["impressions"]
+        if r.get("position") is not None:
+            agg["_pos"] += r["position"] * r["impressions"]
+    for agg in pages.values():
+        imp = agg["impressions"]
+        agg["position"] = round(agg.pop("_pos") / imp, 1) if imp else None
+    return pages
+
+
+def triage(urls: list, gsc: dict) -> dict:
+    """Split URLs by what Search Console says they earn."""
+    keep, improve, prune = [], [], []
+    for u in urls:
+        g = gsc.get(url_key(u))
+        if g and g["clicks"] >= KEEP_CLICKS:
+            keep.append((u, g["clicks"]))
+        elif g and g["impressions"] > 0:
+            improve.append((u, g["impressions"]))
+        else:
+            prune.append((u, 0))
+    keep.sort(key=lambda x: -x[1])
+    improve.sort(key=lambda x: -x[1])
+    return {
+        "keep": [u for u, _ in keep],
+        "improve": [u for u, _ in improve],
+        "prune": [u for u, _ in prune],
+        "clicks": sum(c for _, c in keep),
+    }
+
+
+def gsc_checks(con, gsc: dict) -> list:
+    """Site-level findings that only exist once GSC data is joined to the crawl."""
+    findings = []
+    idx = [u for (u,) in con.execute("SELECT url FROM pages WHERE indexable=1")]
+    dead = [u for u in idx if not (gsc.get(url_key(u)) or {}).get("impressions")]
+    if idx and dead:
+        share = round(len(dead) / len(idx) * 100)
+        findings.append(
+            {
+                "priority": "P1" if share >= 40 and len(dead) >= 50 else "P2",
+                "title": "Indexable pages with no search impressions",
+                "description": f"{len(dead)} of {len(idx)} crawled indexable pages "
+                f"({share}%) got zero impressions in the Search Console export. "
+                "Pages Google won't show for anything are dead weight in the "
+                "site-wide quality assessment. Examples: "
+                + "; ".join(dead[:SAMPLE_LIMIT]),
+                "fix": "Merge, 301 or noindex the ones that can't be made genuinely "
+                "useful; improve and internally link the rest. (Check the export "
+                "covered all pages: use the page dimension and a high row limit.)",
+                "effort": "high",
+                "module": MODULE,
+                "count": len(dead),
+                "key": "gsc_zero_impressions",
+            }
+        )
+    return findings
+
+
+def guideline_checks(con, gsc: dict = None) -> list:
+    """Spam-policy / guideline patterns that need the whole crawl to see."""
+    findings = []
+    cols = _columns(con)
+    indexable = con.execute("SELECT COUNT(*) FROM pages WHERE indexable=1").fetchone()[0]
+
+    clusters = near_duplicate_clusters(con)
+    if clusters:
+        in_clusters = sum(c["size"] for c in clusters)
+        if gsc:
+            for c in clusters:
+                c["triage"] = triage(c["urls"], gsc)
+
+        def _label(c):
+            label = f"{c['shape']} ({c['size']} pages, ~{c['avg_words']} words each"
+            t = c.get("triage")
+            if t:
+                label += (
+                    f"; GSC: keep {len(t['keep'])}, improve {len(t['improve'])}, "
+                    f"prune {len(t['prune'])}, {int(t['clicks'])} clicks total"
+                )
+            return label + ")"
+
+        top = "; ".join(_label(c) for c in clusters[:SAMPLE_LIMIT])
+        findings.append(
+            {
+                "priority": "P1" if in_clusters >= 10 else "P2",
+                "title": "Templated near-duplicate pages (doorway page risk)",
+                "description": f"{in_clusters} indexable pages fall into {len(clusters)} "
+                "groups whose main content is almost identical (only a place or service "
+                "name swapped). Google's spam policies name exactly this as doorway "
+                "abuse: many similar pages targeting city or region variations that "
+                "funnel to the same thing. Core and spam updates since March 2024 have "
+                f"hit this pattern hard. Groups: {top}",
+                "fix": "Keep a location/service page only where you can add genuinely "
+                "local substance (local clients, case studies, photos, staff, pricing, "
+                "FAQs that differ). Merge or 301 the rest into one strong hub page, or "
+                "noindex them while you rewrite.",
+                "effort": "high",
+                "module": MODULE,
+                "count": in_clusters,
+                "key": "doorway_templates",
+                "clusters": [
+                    {k: c[k] for k in ("shape", "size", "avg_words", "triage") if k in c}
+                    for c in clusters
+                ],
+            }
+        )
+        if gsc:
+            findings[-1]["fix"] = (
+                "Use the GSC triage per group: KEEP pages that earn clicks and make "
+                "them genuinely local; IMPROVE pages with impressions but no clicks "
+                "(title/meta, then content); PRUNE pages with no impressions by "
+                "merging/301ing into the hub or noindexing. The full keep/improve/"
+                "prune URL lists are in the JSON output (clusters[].triage)."
+            )
+        if indexable and in_clusters / indexable >= SCALED_SHARE and in_clusters >= 20:
+            share = round(in_clusters / indexable * 100)
+            findings.append(
+                {
+                    "priority": "P1",
+                    "title": "Large share of site is templated pages (scaled content risk)",
+                    "description": f"{share}% of indexable pages ({in_clusters} of "
+                    f"{indexable}) are templated near-duplicates. Google's helpfulness "
+                    "signals have been site-wide since March 2024: a big block of "
+                    "low-value pages can drag down the pages that are good. That's the "
+                    "usual shape of a core-update drop.",
+                    "fix": "Prune: consolidate, noindex or delete the weakest templated "
+                    "pages first, then rebuild the survivors with unique content. Watch "
+                    "Search Console for recovery after the next core update.",
+                    "effort": "high",
+                    "module": MODULE,
+                    "count": in_clusters,
+                    "key": "scaled_content_share",
+                }
+            )
+
+    sections = reputation_sections(con)
+    if sections:
+        n = sum(c for _, c in sections)
+        findings.append(
+            {
+                "priority": "P2",
+                "title": "Possible site reputation abuse sections (verify)",
+                "description": f"{n} indexable pages sit in sections whose URLs look like "
+                "the third-party content Google's site reputation abuse policy targets "
+                "(coupons, gambling, loans, CBD, 'best X' reviews): "
+                + ", ".join(f"{s} ({c} pages)" for s, c in sections[:SAMPLE_LIMIT])
+                + ". It only applies if the content is published mainly to exploit "
+                "your site's ranking signals with little first-party oversight. Since "
+                "30 Aug 2026 Google no longer demotes these via manual action in the "
+                "EEA but still does elsewhere, including Australia.",
+                "fix": "If it's third-party or off-topic, move it off the domain or "
+                "noindex it. If it's genuinely yours, make the first-party ownership "
+                "and editorial oversight obvious.",
+                "effort": "medium",
+                "module": MODULE,
+                "count": n,
+                "key": "site_reputation_sections",
+            }
+        )
+
+    stuffed = [
+        (u, t)
+        for u, t in con.execute(
+            "SELECT url, title FROM pages WHERE indexable=1 AND title IS NOT NULL"
+        )
+        if title_is_stuffed(t)
+    ]
+    if stuffed:
+        findings.append(
+            {
+                "priority": "P2",
+                "title": "Keyword-stuffed titles across pages",
+                "description": f"{len(stuffed)} affected. Titles that repeat terms or "
+                "string keyword fragments together are rewritten by Google and read as "
+                "keyword stuffing. Examples: "
+                + "; ".join(f"{t[:80]} ({u})" for u, t in stuffed[:SAMPLE_LIMIT]),
+                "fix": "One clear title per page: primary topic, one qualifier, brand.",
+                "effort": "medium",
+                "module": MODULE,
+                "count": len(stuffed),
+                "key": "title_stuffing",
+            }
+        )
+
+    if "schema_types" in cols:
+        retired = Counter()
+        for (types,) in con.execute(
+            "SELECT schema_types FROM pages WHERE indexable=1 AND schema_types IS NOT NULL"
+        ):
+            for t in types.split(","):
+                if t in RETIRED_RICH_RESULTS:
+                    retired[t] += 1
+        if retired:
+            total = sum(retired.values())
+            findings.append(
+                {
+                    "priority": "P3",
+                    "title": "Markup for retired rich results across the site",
+                    "description": f"{total} page-level uses of structured data Google no "
+                    "longer shows as rich results: "
+                    + ", ".join(f"{t} on {c} pages" for t, c in retired.most_common())
+                    + ". Harmless, but it won't earn SERP features.",
+                    "fix": "Stop generating it for new pages. Put schema effort into "
+                    "types that still produce results.",
+                    "effort": "low",
+                    "module": MODULE,
+                    "count": total,
+                    "key": "retired_rich_results",
+                }
+            )
+    if gsc:
+        findings.extend(gsc_checks(con, gsc))
     return findings
 
 
@@ -328,6 +778,11 @@ def main():
     ap.add_argument("--db", required=True, help="path to sitecrawl.py site.db")
     ap.add_argument("--json", action="store_true", help="emit punchlist-ready JSON")
     ap.add_argument("--query", help="run a capped SELECT against the crawl DB")
+    ap.add_argument(
+        "--gsc",
+        help="GSC Performance export JSON (page dimension) to triage templated "
+        "pages by real clicks and flag zero-impression pages",
+    )
     args = ap.parse_args()
 
     con = sqlite3.connect(args.db)
@@ -340,7 +795,8 @@ def main():
                 return 1
             return 0
 
-        findings = run_checks(con)
+        gsc = load_gsc_pages(args.gsc) if args.gsc else None
+        findings = run_checks(con, gsc)
         stats = crawl_stats(con)
         if args.json:
             print(json.dumps(as_scores_shape(findings, stats), indent=2))

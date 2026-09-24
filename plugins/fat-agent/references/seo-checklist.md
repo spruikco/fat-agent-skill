@@ -15,7 +15,7 @@ this file covers the extended checks for deeper audits.
 
 ### Meta Description
 - ✅ Exists
-- ✅ 150-160 characters
+- ✅ About 120-160 characters (Google sets no limit but truncates on display; see `google-guidelines.md`)
 - ✅ Contains a call-to-action or compelling hook
 - ✅ Unique per page
 - ✅ **Present on error/fallback paths** — Dynamic routes (product not found, invalid category) must still include a description in their metadata, not just a title. Search engines crawl stale URLs.

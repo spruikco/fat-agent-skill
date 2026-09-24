@@ -780,6 +780,112 @@ and a bot **spending most of its budget on 4xx/5xx** (P2 — fix or redirect the
 URLs it requests). Pairs with 1.24: logs show whether bots *fetch*; the
 citation check shows whether fetching *turns into citations*.
 
+### 1.27 — Google guidelines compliance (module: `google_guidelines`, always-on + site-wide)
+
+Checks the page against Google's spam policies and current Search guidance as
+they stand after the 2024-2026 core and spam updates. Use it (with the
+site-wide half below) whenever a site has **dropped** or the client asks "are
+we doing anything Google doesn't like?". Full policy map, update timeline and
+report wording rules: `references/google-guidelines.md`.
+
+**Page-level (`google_guidelines`, runs on every audit):**
+- **Spam policies:** unedited AI output / unfilled `[City]` placeholders (P1),
+  conditional JS redirects (P1), **back button hijacking** via popstate
+  redirects (P1, policy enforced since 15 Jun 2026), hidden text (P2, verify),
+  location-list stuffing (P2), keyword repetition (P3/P2), affiliate links
+  without `rel="sponsored"` (P2), generic filler phrasing (P2).
+- **Indexing:** `noindex` robots meta inside `<body>` (P0, honoured since Mar
+  2026), HTML over Googlebot's 2MB indexing limit (P1).
+- **Titles and snippets:** keyword-stuffed title or meta description (P2),
+  title truncation (P3), meta description too short or truncated (P3),
+  `nosnippet`/`max-snippet:0` that also removes the page from AI Overviews (P3).
+- **SERP presentation:** markup for retired rich results, including
+  **FAQPage (retired 7 May 2026)**, HowTo and SearchAction (P3, informational),
+  missing or SVG-only favicon (P3), no WebSite site-name markup on the
+  homepage (P3), future-dated or inverted structured-data dates.
+
+**Site-level (`sitewide.py`, needs a crawl, see Site-Wide Crawl Audit):**
+- **Templated near-duplicate pages (doorway risk)**: simhash clusters of
+  main content (nav/header/footer excluded), reported as URL shapes like
+  `/local/seo-agency-in-{*}/ (240 pages)`. P1 at 10+ pages.
+- **Large share of site is templated (scaled content risk)**: P1 when 30%+
+  of indexable pages sit in those clusters. Helpfulness is scored site-wide,
+  so this is the usual shape of a core-update drop.
+- Trailing-slash duplicates (P1), keyword-stuffed titles, possible site
+  reputation abuse sections (P2, verify), retired rich-result markup at scale,
+  plus missing titles, H1s and meta descriptions and length problems.
+
+**Diagnosing a drop:** get the drop date (GSC, or SEMrush
+`domain_rank_history`) and line it up against the update table in
+`references/google-guidelines.md` **before** diagnosing anything. A drop in a
+core update window points at site-wide quality (the templated-page findings).
+A drop in a spam update window points at the spam-policy findings. "Keywords
+up, traffic down" is the scaled-content signature: lots of new low-position
+rankings from templated URLs while head terms slide. Word it as "consistent
+with the pattern Google describes", never "Google penalised you" unless GSC
+shows a Manual Action.
+
+**Search Console cross-reference (make the doorway findings actionable):**
+pass a GSC Performance export with the page dimension (fetch it via the GSC
+MCP or API with a high row limit) to `sitewide.py --gsc gsc_pages.json`. Every
+templated group is then triaged by real data: **keep** (earns clicks),
+**improve** (impressions, no clicks), **prune** (no impressions). The full URL
+lists are in the JSON output (`clusters[].triage`). It also adds "Indexable
+pages with no search impressions", the dead weight in the site-wide quality
+assessment.
+
+### 1.28 — Update impact (script: `update_impact.py`)
+
+Measures traffic before vs after every Google update window, worst first,
+and emits findings for drops of 20% or more (P1 at 40% or more):
+
+```bash
+# GSC clicks by date (date dimension), via the GSC MCP or API
+python scripts/update_impact.py --data gsc_by_date.json
+# or SEMrush domain_rank_history (monthly, coarse but works with no GSC access)
+python scripts/update_impact.py --data semrush_history.csv --since 2025-01-01
+```
+
+The update list lives in the script (`GOOGLE_UPDATES`). Add new updates from
+the Search Status Dashboard as they're announced. Always word the result as
+"consistent with", and check seasonality and site changes in the same window.
+
+### 1.29 — Query fan-out coverage (script: `fanout.py`)
+
+AI Mode and AI Overviews break a question into many related sub-queries
+("query fan-out") and cite pages that answer them. Pages ranking for fan-out
+sub-queries are far more likely to be cited (Surfer: +161%). This checks
+whether the site answers the fan-out, not just the head term:
+
+```bash
+python scripts/fanout.py --db ./.fat-work/crawl/site.db \
+    --seed "seo agency melbourne" --entity "Acme" --location Melbourne
+# seeds from the site's own top non-branded GSC queries, plus live Autocomplete:
+python scripts/fanout.py --db site.db --seeds-from-gsc gsc_queries.json --top 5 \
+    --entity "Acme" --autocomplete --export-queries ./.fat-work/fanout_queries.txt --json
+```
+
+Each sub-query is typed (definition, process, cost, comparison, evaluation,
+trust, local, recency, branded) and scored **PAGE** (title/H1), **SECT**
+(an H2/H3), **mention** or **gap** against the crawl. Findings: low coverage
+per seed (P2 under 40%, P3 under 60%), naming the sub-query types with no
+coverage at all (usually cost and comparison).
+
+**Make it smarter in-session:** write a Qforia-style fan-out yourself
+(10 to 30 sub-queries as JSON `[{"query", "type"}]` covering equivalent,
+follow-up, generalisation, specification, comparison, entailment and
+clarification) and pass it with `--queries`. Then check the **off-site**
+side, meaning who actually gets cited for that fan-out, with
+`ai_visibility.py --queries ./.fat-work/fanout_queries.txt`. Branded
+sub-queries ("Acme reviews", "is Acme any good") are answered off-site, by
+reviews, directories, Reddit and YouTube, which is where the entity work
+happens.
+
+**Fixing gaps:** add genuinely useful sections to the money page (real
+pricing, process, comparisons, proof) or write one strong guide. **Never** spin
+up a thin page per sub-query. That turns a fan-out gap into the
+scaled-content problem from 1.27.
+
 ---
 
 ## Phase 2 — FIX
@@ -1106,7 +1212,12 @@ Checks that only exist at site level: **internal links to broken pages (P0)**,
 **5xx errors (P0)**, broken 4xx pages, fetch errors, **duplicate titles /
 meta descriptions / page content across URLs**, **orphan pages**, thin
 content at scale, slow responses, internal links resolving through redirects,
-and **sitemap hygiene** — sitemap entries that redirect or 404. Findings are
+and **sitemap hygiene** — sitemap entries that redirect or 404. Plus the
+**Google guideline patterns** from 1.27: templated near-duplicate (doorway)
+clusters, scaled-content share, trailing-slash duplicates, stuffed titles,
+possible site reputation abuse sections, retired rich-result markup, and
+missing titles/H1s/meta descriptions. (Crawl DBs from before v3.7.0 have no
+fingerprints: re-crawl to get the doorway checks.) Findings are
 standard FAT findings (module `sitewide`) — they merge into the punch list,
 auto-resolve on a clean re-crawl, and belong at the top of the report
 alongside the page-level results.
@@ -1405,6 +1516,7 @@ For extended check details, see:
 - `references/performance-budgets.md` — Performance budget configuration guide
 - `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
 - `references/semrush-integration.md` — Optional SEMrush enrichment (API key setup + field reference)
+- `references/google-guidelines.md` — Google update timeline (2024-2026), spam policies → FAT checks, retired rich results, drop diagnosis and report wording
 
 ### Scripts
 - `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)
@@ -1416,7 +1528,9 @@ For extended check details, see:
 - `scripts/punchlist.py` — Persistent punch list (read/write `./.fat-work/punchlist.json`; update/status/resolve/note — survives context compaction)
 - `scripts/crawl.py` — Multi-page BFS crawler with robots.txt support
 - `scripts/sitecrawl.py` — Site-wide concurrent crawler → SQLite (`pages` + `links` graph, sitemap seeding, SSRF guard, adaptive throttling)
-- `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans, sitemap hygiene) + capped SQL drill-down
+- `scripts/sitewide.py` — Site-level audit over the crawl DB (broken internal links, duplicate titles/content, orphans, sitemap hygiene, doorway/scaled-content clusters, Google guideline patterns; `--gsc` for keep/improve/prune triage) + capped SQL drill-down
+- `scripts/update_impact.py` — Traffic before/after every Google core/spam update window (GSC by date or SEMrush history), worst first
+- `scripts/fanout.py` — AI search query fan-out coverage per seed (templates + Autocomplete + agent-written), exports the set for `ai_visibility.py`
 - `scripts/link_opportunities.py` — Content→money-page internal-link gaps from the real link graph (+ GSC ranking & target suggestions)
 - `scripts/brandkit.py` — Harvest the client site's logo, imagery, palette & fonts → `brandkit.json`
 - `scripts/editorial_report.py` — Brand-pulled A4 editorial audit deck (single-file HTML, print-to-PDF; `--roadmap` adds the content-roadmap slide)

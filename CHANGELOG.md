@@ -1,5 +1,79 @@
 # Changelog
 
+## [3.7.0] - 2026-09-24
+
+### Added — Google guidelines compliance (spam policies, doorway detection, 2026 doc changes)
+
+Audits were passing sites that Google's 2024-2026 core and spam updates were
+demoting. The biggest gap: nothing looked across pages for the templated
+city/suburb/service pages that the doorway and scaled content abuse policies
+target, and several checks still reflected pre-2024 guidance.
+
+**New module `google_guidelines` (always-on, page-level):**
+- Spam policies: unedited AI output and unfilled `[City]`/`{{keyword}}`
+  placeholders (P1), conditional JS redirects (P1), **back button hijacking**
+  via popstate redirects (P1, policy added Apr 2026, enforced 15 Jun 2026),
+  hidden text (P2, verify), location-list stuffing (P2), keyword repetition
+  (P3 at 4-6%, P2 above 6%), affiliate links without `rel="sponsored"` (P2),
+  generic filler phrasing (P2).
+- Indexing: `noindex` robots meta in `<body>` (P0, honoured since Mar 2026),
+  HTML over Googlebot's 2MB indexing limit (P1).
+- Titles and snippets: stuffed titles/meta descriptions (P2), truncation and
+  too-short descriptions (P3), `nosnippet`/`max-snippet:0` also removing the
+  page from AI Overviews (P3).
+- SERP presentation: retired rich-result markup, including **FAQPage (retired
+  7 May 2026)**, HowTo, SearchAction and the June 2025 retirements (P3,
+  informational); missing or SVG-only favicon; no WebSite site-name markup
+  on the homepage; future-dated or inverted structured-data dates.
+
+**Site-wide (`sitewide.py`):**
+- **Templated near-duplicate pages (doorway risk)** — `sitecrawl.py` now
+  stores a 64-bit simhash of each page's main content (word bigrams, with
+  nav/header/footer/aside excluded) and `sitewide.py` clusters them, reporting
+  URL shapes like `/local/seo-agency-in-{*}/ (240 pages)`.
+- **Large share of site is templated (scaled content risk)** at 30%+ of
+  indexable pages.
+- Trailing-slash duplicates, keyword-stuffed titles, possible site reputation
+  abuse sections, retired rich-result markup at scale, and missing
+  titles/H1s/meta descriptions plus length problems.
+- Clustering is seed-based (every member within 8 bits of its seed), so
+  unrelated templates can't chain together; groups sharing a URL shape are
+  reported as one template.
+- Crawl DB gains `main_word_count`, `simhash`, `schema_types` and `headings`
+  columns.
+  Older DBs still work; re-crawl to get the doorway checks.
+
+**Search Console cross-reference:** `sitewide.py --gsc` joins a GSC page
+export to the crawl. Each templated group is triaged **keep / improve /
+prune** by real clicks and impressions, and indexable pages with zero
+impressions are flagged.
+
+**New — `scripts/update_impact.py`:** lines a GSC clicks-by-date series (or
+SEMrush `domain_rank_history`) up against every Google update window since
+Mar 2024 and reports the before/after change, worst first. Drops of 20% or
+more become findings.
+
+**New — `scripts/fanout.py` (AI search query fan-out):** builds typed
+sub-queries per seed (templates, optional live Google Autocomplete, optional
+agent-written Qforia-style set, or seeds from top non-branded GSC queries)
+and scores whether the site answers each with a page or section. Exports the
+set for `ai_visibility.py` so off-site citation share can be checked on the
+same fan-out. The crawler now stores H2/H3 headings for this.
+
+**New reference `references/google-guidelines.md`:** update timeline Mar
+2024 to Sep 2026 (incl. the Jun and Aug 2026 spam updates), spam policy →
+FAT check map, retired vs live rich results, drop-diagnosis playbook and
+report wording rules, plus AI search: what Google says vs what the
+studies show (fan-out, brand mentions, local sources). SKILL.md 1.27 to 1.29.
+
+### Changed
+- `suggest_schema.py` no longer emits `SearchAction` (sitelinks search box
+  removed Nov 2024) and ranks FAQPage P3 with an honest caveat.
+- `seo-checklist.md` meta description guidance: Google sets no limit, about
+  120-160 characters for display.
+
+Tests: 1066 passing (60 new).
+
 ## [3.6.0] - 2026-08-18
 
 ### Added — deeper AI-search intelligence + opt-in exposure probe

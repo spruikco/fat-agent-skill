@@ -471,15 +471,7 @@ def gen_website(sig):
         "name": sig["name"] or "REPLACE_site_name",
         "url": sig["base"],
     }
-    if sig["has_search"]:
-        site["potentialAction"] = {
-            "@type": "SearchAction",
-            "target": {
-                "@type": "EntryPoint",
-                "urlTemplate": f"{sig['base']}/?s={{search_term_string}}",
-            },
-            "query-input": "required name=search_term_string",
-        }
+    # No SearchAction: Google removed the sitelinks search box in Nov 2024.
     return site
 
 
@@ -653,7 +645,7 @@ def recommend(html, url=""):
             "WebSite",
             gen_website(sig),
             "P2",
-            "Enables sitelinks search box and clarifies the site entity.",
+            "Sets the site name Google shows in results and clarifies the site entity.",
         )
 
     if "home" not in labels and "breadcrumblist" not in have:
@@ -693,8 +685,10 @@ def recommend(html, url=""):
         add(
             "FAQPage",
             gen_faqpage(sig),
-            "P2",
-            "Eligible for FAQ rich results (expandable Q&A in SERP).",
+            "P3",
+            "No Google rich result since FAQ results were retired (May 2026); only "
+            "worth adding as structured Q&A for other consumers. Keep the visible "
+            "Q&A on the page, which is what actually helps.",
         )
 
     return {

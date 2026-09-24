@@ -80,6 +80,7 @@ def detect_modules(
     enabled.add("technical_seo")
     enabled.add("content_depth")
     enabled.add("crawlability")
+    enabled.add("google_guidelines")
 
     # auto-detect from html signals
     for module_id, patterns in DETECTION_SIGNALS.items():
@@ -146,4 +147,5 @@ from modules import (  # noqa: E402, F401
     content_depth,
     crawlability,
     video,
+    google_guidelines,
 )
