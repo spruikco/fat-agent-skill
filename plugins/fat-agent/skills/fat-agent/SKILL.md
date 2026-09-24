@@ -908,6 +908,23 @@ confidence), then turns the answers into findings.
 | `local` | Any Jev-wire-compatible server, e.g. OpenJev. Free, private | `--base-url http://localhost:8000` or `TYPESAFE_BASE_URL`. No key |
 | `agent` | Everyone else, zero install | Nothing. You (the agent) answer the batch; see below |
 
+**Choosing a judge (tell the user which one they're on).** Most users won't
+have a GPU. None of these needs one:
+
+| Option | Setup | Cost | Notes |
+|---|---|---|---|
+| **Agent mode** (default) | Nothing | Free | Claude judges a sample (5 pages per template). Works everywhere, slower on big sites |
+| **Hosted Jev** (TypeSafe) | Join the waitlist at console.typesafe.ai (approval is usually same or next day), then set `TYPESAFE_API_KEY` | About $0.0004 per decision; a 700-page site costs cents | Fastest and judges every page |
+| **Free hosted Jev-compatible API**, e.g. Codiv (hosted OpenJev) | Get a free key, then set `TYPESAFE_BASE_URL=https://api.codiv.ai`, `TYPESAFE_API_KEY=<their key>` and, if the host names models differently, `TYPESAFE_MODEL` | Free tier | Third-party community service: page text is sent to it. Fine for public pages, but check its terms |
+| **Google Colab** (free GPU) | Run OpenJev's Colab notebook with a tunnel, then set `TYPESAFE_BASE_URL` to the tunnel URL | Free | For power users |
+| **Local OpenJev** | See reference §6b. Needs an NVIDIA GPU (8GB is enough) | Free | Private, and judges every page |
+
+Setting the variables on Windows: `setx TYPESAFE_API_KEY "..."`. On
+macOS/Linux, add `export TYPESAFE_API_KEY=...` to your shell profile. Then
+restart the terminal. Check with `python scripts/jev.py ping`: it reports the
+backend in use and whether it actually tells local detail from generic copy
+(`"discriminates": true`).
+
 `--backend auto` (the default) uses a local server if `TYPESAFE_BASE_URL` is
 set and answering, then TypeSafe if a key is set, otherwise agent. A
 configured server that's down falls through rather than failing. **Never make

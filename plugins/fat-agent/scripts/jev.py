@@ -158,7 +158,9 @@ class JevClient:
 
     def _post(self, body) -> dict:
         data = json.dumps(body).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
+        # a real UA: Cloudflare-fronted hosts (e.g. Codiv) 403 the urllib default
+        headers = {"Content-Type": "application/json",
+                   "User-Agent": "FATAgent-jev/1.0 (+https://github.com/spruikco/fat-agent-skill)"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         delay = 1.0

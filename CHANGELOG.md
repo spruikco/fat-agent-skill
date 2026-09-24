@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.8.3] - 2026-09-24
+
+- The judge client sends a real User-Agent. Cloudflare-fronted Jev-compatible
+  hosts (e.g. Codiv's free hosted OpenJev) returned 403 to the urllib
+  default.
+- SKILL.md 1.30 gains a "choosing a judge" guide for users without a GPU:
+  agent mode (default, zero setup), hosted TypeSafe Jev, free hosted
+  Jev-compatible APIs, Google Colab, local OpenJev. README documents the
+  judge layer.
+
 ## [3.8.2] - 2026-09-24
 
 - Version bump so installed plugins pick up the 3.8.1 follow-up fixes (verifiable-fact question, unique-word keep rule, discriminating `ping`).
