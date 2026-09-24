@@ -19,6 +19,13 @@
 
 The plugin stays free and fully usable without HQ.
 
+### Fixed
+- `dns_infra` SSL check uses a verified TLS handshake (Python `ssl`) instead of
+  the `openssl` binary. Machines without openssl (most Windows installs,
+  slim containers) no longer report "SSL certificate invalid or missing" as a
+  P0 for every site; a connection that fails outright is "not assessed" rather
+  than a P0; wrong-hostname certificates are now caught.
+
 ## [3.9.0] - 2026-09-24
 
 Lessons from a real audit of vend16.com, a server-rendered Node marketing site

@@ -329,3 +329,39 @@ def test_analyse_no_url_returns_safe_defaults(monkeypatch):
     assert result["has_caa_record"] is False
     assert result["has_cdn"] is False
     assert result["http2_support"] is False
+
+
+def test_ssl_unreachable_is_not_a_p0():
+    """A failed connection means 'not assessed', not 'no certificate'."""
+    mod = DNSInfraModule()
+    result = mod.score({"ssl_valid": None, "ssl_checked": True, "ssl_days_remaining": 0,
+                        "has_dnssec": True, "has_caa_record": True, "has_cdn": True,
+                        "cdn_provider": "Cloudflare", "http2": True})
+    assert not any("SSL certificate invalid" in f["title"] for f in mod.findings)
+
+
+def test_check_ssl_classifies_failures(monkeypatch):
+    import socket
+    import ssl
+
+    def refuse(*a, **k):
+        raise ConnectionRefusedError()
+
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    assert DNSInfraModule._check_ssl("example.invalid")["valid"] is None
+
+    class FakeSock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class BadCtx:
+        def wrap_socket(self, sock, server_hostname=None):
+            raise ssl.SSLCertVerificationError("certificate has expired")
+
+    monkeypatch.setattr(socket, "create_connection", lambda *a, **k: FakeSock())
+    monkeypatch.setattr(ssl, "create_default_context", lambda: BadCtx())
+    r = DNSInfraModule._check_ssl("expired.example")
+    assert r["valid"] is False and r["reason"] == "expired"

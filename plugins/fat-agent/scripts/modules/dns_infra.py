@@ -47,6 +47,7 @@ class DNSInfraModule(AuditModule):
         return {
             "domain": domain,
             "ssl_valid": ssl_info.get("valid", False),
+            "ssl_checked": bool(domain),
             "ssl_days_remaining": ssl_info.get("days_remaining", 0),
             "has_dnssec": dnssec,
             "has_caa_record": caa,
@@ -78,7 +79,9 @@ class DNSInfraModule(AuditModule):
         )
 
         # findings
-        if not analysis.get("ssl_valid"):
+        if analysis.get("ssl_valid") is None and analysis.get("ssl_checked"):
+            pass  # could not connect on 443; not assessed rather than a P0
+        elif not analysis.get("ssl_valid"):
             self.add_finding(
                 priority="P0",
                 title="SSL certificate invalid or missing",
@@ -166,51 +169,33 @@ class DNSInfraModule(AuditModule):
 
     @staticmethod
     def _check_ssl(domain: str, timeout: int = 5) -> dict:
-        """Check SSL certificate validity and days until expiry via openssl s_client."""
+        """Check the certificate with a verified TLS handshake (Python's ssl module).
+
+        valid is True (chain verifies, hostname matches, not expired), False (the
+        handshake failed verification) or None (could not connect at all, so the
+        certificate was not assessed). A network failure must not read as a P0:
+        machines without the openssl binary, sandboxed runners and firewalled
+        networks used to report every site as having no certificate.
+        """
+        import socket
+        import ssl
+
+        ctx = ssl.create_default_context()
         try:
-            result = subprocess.run(
-                [
-                    "openssl",
-                    "s_client",
-                    "-connect",
-                    f"{domain}:443",
-                    "-servername",
-                    domain,
-                ],
-                input="",
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-            cert_text = result.stdout
-
-            # extract expiry date from the certificate
-            date_result = subprocess.run(
-                ["openssl", "x509", "-noout", "-enddate"],
-                input=cert_text,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-            if date_result.returncode != 0:
-                return {"valid": False, "days_remaining": 0}
-
-            match = re.search(r"notAfter=(.+)", date_result.stdout)
-            if not match:
-                return {"valid": False, "days_remaining": 0}
-
-            expiry_str = match.group(1).strip()
-            expiry = datetime.strptime(expiry_str, "%b %d %H:%M:%S %Y %Z")
-            expiry = expiry.replace(tzinfo=timezone.utc)
-            now = datetime.now(timezone.utc)
-            days_remaining = (expiry - now).days
-
-            return {
-                "valid": days_remaining > 0,
-                "days_remaining": max(days_remaining, 0),
-            }
-        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-            return {"valid": False, "days_remaining": 0}
+            with socket.create_connection((domain, 443), timeout=timeout) as sock:
+                with ctx.wrap_socket(sock, server_hostname=domain) as tls:
+                    cert = tls.getpeercert() or {}
+        except ssl.SSLCertVerificationError as e:
+            expired = "expired" in str(e).lower()
+            return {"valid": False, "days_remaining": 0, "reason": "expired" if expired else "verification_failed"}
+        except (OSError, ssl.SSLError, ValueError):
+            return {"valid": None, "days_remaining": 0, "reason": "unreachable"}
+        not_after = cert.get("notAfter")
+        if not not_after:
+            return {"valid": None, "days_remaining": 0, "reason": "no_expiry"}
+        expiry = datetime.fromtimestamp(ssl.cert_time_to_seconds(not_after), tz=timezone.utc)
+        days_remaining = (expiry - datetime.now(timezone.utc)).days
+        return {"valid": days_remaining > 0, "days_remaining": max(days_remaining, 0)}
 
     @staticmethod
     def _check_dnssec(domain: str, timeout: int = 5) -> bool:
