@@ -8,6 +8,7 @@ Scoring mirrors calculate-score.py's calculate_performance_score.
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 from modules import register_module
 from modules.base import AuditModule
@@ -79,6 +80,7 @@ class PerformanceModule(AuditModule):
         has_preload = bool(
             re.search(r'<link[^>]*rel=["\']preload["\']', html, re.IGNORECASE)
         )
+        third_party = _third_party_render_origins(html, url)
 
         return {
             "html_size_kb": html_size_kb,
@@ -92,6 +94,8 @@ class PerformanceModule(AuditModule):
             "inline_style_kb": inline_style_kb,
             "has_preconnect": has_preconnect,
             "has_preload": has_preload,
+            "third_party_render_origins": third_party,
+            "preconnect_needed": bool(third_party),
         }
 
     def score(self, analysis: dict) -> dict:
@@ -154,7 +158,12 @@ class PerformanceModule(AuditModule):
 
         # resource hints (15 points)
         hints = 0
-        if analysis.get("has_preconnect"):
+        # preconnect is only useful for third-party render-critical origins;
+        # an all-first-party page gets the points without needing a hint
+        if (
+            analysis.get("has_preconnect")
+            or analysis.get("preconnect_needed", True) is False
+        ):
             hints += 8
         if analysis.get("has_preload"):
             hints += 7
@@ -211,12 +220,20 @@ class PerformanceModule(AuditModule):
                 effort="low",
             )
 
-        if not analysis.get("has_preconnect") and not analysis.get("has_preload"):
+        if (
+            not analysis.get("has_preconnect")
+            and not analysis.get("has_preload")
+            and analysis.get("preconnect_needed", True)
+        ):
+            origins = analysis.get("third_party_render_origins") or []
+            where = f" ({', '.join(origins[:3])})" if origins else ""
             self.add_finding(
                 priority="P2",
                 title="No resource hints found",
-                description="No preconnect or preload hints detected.",
-                fix="Add <link rel='preconnect'> for critical origins and <link rel='preload'> for key assets.",
+                description="No preconnect or preload hints for third-party "
+                f"render-critical origins{where}.",
+                fix="Add <link rel='preconnect'> for those origins (or self-host "
+                "the assets) and <link rel='preload'> for key assets.",
                 effort="low",
             )
 
@@ -273,3 +290,44 @@ class PerformanceModule(AuditModule):
             "note": "Markup proxy — not measured CWV. Run Lighthouse/PageSpeed on the live "
             "public URL for real LCP/CLS/INP, and calibrate against ranking competitors.",
         }
+
+
+def _third_party_render_origins(html: str, url: str = "") -> list:
+    """Origins on another host that block rendering: stylesheets, preloaded
+    fonts/styles/scripts, and scripts without async/defer/module. Preconnect
+    hints only help when at least one of these exists."""
+    page_host = urlparse(url).netloc if url else ""
+    candidates = []
+    for tag in re.findall(r"<link\s[^>]*>", html, re.IGNORECASE):
+        rel = re.search(r'rel=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        rel = rel.group(1).lower() if rel else ""
+        as_attr = re.search(r'\bas=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        as_attr = as_attr.group(1).lower() if as_attr else ""
+        if rel == "stylesheet" or (
+            "preload" in rel and as_attr in ("font", "style", "script")
+        ):
+            href = re.search(r'href=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+            if href:
+                candidates.append(href.group(1))
+    for tag in re.findall(r"<script\s[^>]*>", html, re.IGNORECASE):
+        src = re.search(r'src=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+        if not src:
+            continue
+        if re.search(r"\b(async|defer)\b", tag, re.IGNORECASE) or re.search(
+            r'type=["\']module["\']', tag, re.IGNORECASE
+        ):
+            continue
+        candidates.append(src.group(1))
+    origins = []
+    for c in candidates:
+        if not c.startswith(("http://", "https://", "//")):
+            continue
+        host = urlparse("https:" + c if c.startswith("//") else c).netloc
+        if not host or host == page_host:
+            continue
+        for origin in ["https://" + host] + (
+            ["https://fonts.gstatic.com"] if host == "fonts.googleapis.com" else []
+        ):
+            if origin not in origins:
+                origins.append(origin)
+    return origins

@@ -122,6 +122,34 @@ def image_signals(html):
     }
 
 
+def noindex_canonical_conflict(html, url, x_robots=""):
+    """Describe a page that is noindex yet canonicalises to a different URL
+    (typical: login/signup/reset pages with a canonical to the homepage)."""
+    robots = ""
+    for tag in re.findall(r"<meta\s[^>]*>", html, re.IGNORECASE):
+        if re.search(r'name=["\'](?:robots|googlebot)["\']', tag, re.IGNORECASE):
+            m = re.search(r'content=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+            robots += " " + (m.group(1).lower() if m else "")
+    if "noindex" not in robots and "noindex" not in (x_robots or ""):
+        return None
+    m = re.search(
+        r'<link[^>]*rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']',
+        html,
+        re.IGNORECASE,
+    ) or re.search(
+        r'<link[^>]*href=["\']([^"\']+)["\'][^>]*rel=["\']canonical["\']',
+        html,
+        re.IGNORECASE,
+    )
+    if not m or not url:
+        return None
+    canon = urllib.parse.urljoin(url, m.group(1).strip())
+    cu, pu = urllib.parse.urlparse(canon), urllib.parse.urlparse(url)
+    if (cu.path.rstrip("/") or "/") == (pu.path.rstrip("/") or "/"):
+        return None
+    return f"This page is noindex but its canonical points to '{canon}'."
+
+
 @register_module
 class TechnicalSEOModule(AuditModule):
     MODULE_ID = "technical_seo"
@@ -137,6 +165,9 @@ class TechnicalSEOModule(AuditModule):
         return {
             "x_robots_tag": x_robots,
             "x_robots_noindex": "noindex" in x_robots,
+            "noindex_canonical_conflict": noindex_canonical_conflict(
+                html, url, x_robots
+            ),
             "canonical_host_issue": canonical_host_issue(html, url),
             "meta_refresh": bool(
                 re.search(
@@ -202,6 +233,19 @@ class TechnicalSEOModule(AuditModule):
                 fix="Make canonicals absolute and consistent on one host+scheme, and 301 the "
                 "other variants to it.",
                 effort="medium",
+            )
+        if a.get("noindex_canonical_conflict"):
+            self.add_finding(
+                priority="P2",
+                title="noindex page canonicalises to another URL",
+                description=a["noindex_canonical_conflict"]
+                + " noindex says 'drop this page' while the canonical says 'this "
+                "is a duplicate of that page': conflicting signals, and a "
+                "canonical to the homepage can leak the noindex intent onto it.",
+                fix="Keep noindex on account/utility pages (login, signup, "
+                "password reset) and remove the canonical, or make it "
+                "self-referencing.",
+                effort="low",
             )
         if a["meta_refresh"]:
             self.add_finding(

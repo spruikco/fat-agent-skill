@@ -30,6 +30,23 @@ class TestFollow(unittest.TestCase):
         self.assertEqual(r["final_status"], 200)
         self.assertEqual(r["issues"], [])
 
+    def test_http_blank_200_not_redirected_is_p1(self):
+        # Caddy with auto_https disable_redirects + catch-all :80 block
+        t = {"http://vend16.com/": (200, None, "")}
+        r = redirects.follow("http://vend16.com/", make_fetcher(t))
+        self.assertTrue(r["http_not_redirected"])
+        self.assertEqual(r["issues"][0]["priority"], "P1")
+        self.assertIn("EMPTY body", r["issues"][0]["issue"])
+
+    def test_http_redirecting_to_https_is_fine(self):
+        t = {
+            "http://vend16.com/": (301, "https://vend16.com/", ""),
+            "https://vend16.com/": (200, None, "Welcome"),
+        }
+        r = redirects.follow("http://vend16.com/", make_fetcher(t))
+        self.assertFalse(r["http_not_redirected"])
+        self.assertEqual(r["issues"], [])
+
     def test_chain_flagged(self):
         t = {
             "https://x/a": (301, "https://x/b", ""),

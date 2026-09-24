@@ -913,9 +913,18 @@ class TestPerformance(unittest.TestCase):
         self.assertTrue(r["performance"]["has_preload"])
 
     def test_missing_preconnect_flagged(self):
+        # BROKEN_HTML is all first-party, so no preconnect is recommended
         r = analyse_html(BROKEN_HTML)
         self.assertFalse(r["performance"]["has_preconnect"])
-        self.assertIn("No preconnect hints found", r["summary"]["low"])
+        self.assertFalse(any("preconnect" in i for i in r["summary"]["low"]))
+        # a third-party stylesheet without a preconnect is flagged
+        r = analyse_html(
+            BROKEN_HTML.replace(
+                "</head>",
+                '<link rel="stylesheet" href="https://cdn.example.net/a.css"></head>',
+            )
+        )
+        self.assertTrue(any("No preconnect hints" in i for i in r["summary"]["low"]))
 
     def test_html_size_measured(self):
         r = analyse_html(PERFECT_HTML)

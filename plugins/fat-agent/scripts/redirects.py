@@ -145,6 +145,24 @@ def _classify(start, chain, loop, meta_refresh, final_body):
         issues.append(
             {"priority": "P1", "issue": f"Chain ends in HTTP {final['status']}"}
         )
+    # Plain http:// answered directly instead of redirecting to https. A blank
+    # 200 (e.g. Caddy auto_https disable_redirects + a catch-all :80 block) is
+    # worse: it gets indexed as an empty duplicate of every page.
+    http_not_redirected = (
+        start.lower().startswith("http://")
+        and final["url"].lower().startswith("http://")
+        and 200 <= final["status"] < 300
+    )
+    if http_not_redirected:
+        empty = not final_body.strip()
+        issues.append(
+            {
+                "priority": "P1",
+                "issue": "Plain http:// returns HTTP 200"
+                + (" with an EMPTY body" if empty else "")
+                + " instead of a 301 to the canonical https:// origin",
+            }
+        )
     return {
         "start_url": start,
         "chain": chain,
@@ -153,6 +171,7 @@ def _classify(start, chain, loop, meta_refresh, final_body):
         "loop": loop,
         "meta_refresh": meta_refresh,
         "soft_404": soft_404,
+        "http_not_redirected": http_not_redirected,
         "issues": issues,
     }
 

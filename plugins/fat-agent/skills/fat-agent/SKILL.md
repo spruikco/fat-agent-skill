@@ -160,6 +160,15 @@ rather than vague open-ended ones.
 - Fetch the homepage — does it return 200?
 - Check response headers for caching, security headers, content-type
 - Check for redirect chains (www vs non-www, http vs https)
+- **Plain `http://` must 301 to the canonical `https://` origin.** Run
+  `python scripts/redirects.py --url http://example.com/`. An `http://` URL that
+  answers 200 itself (`http_not_redirected`) is **P1**, and a 200 with an
+  **empty body** is the worst case: every page gets indexed as a blank duplicate.
+  Typical cause: Caddy with `auto_https disable_redirects` plus a catch-all `:80`
+  block, or a proxy that terminates TLS but serves port 80 unredirected.
+- HEAD should behave like GET. `analyse-html.py --fetch` HEADs first and falls
+  back to GET; if HEAD errors (404/405) while GET is 200 it reports a P2, because
+  uptime checkers, link checkers and some crawlers probe with HEAD.
 - Measure approximate response time from fetch
 
 ### 1.2 — SEO Essentials
@@ -185,6 +194,13 @@ Fetch the HTML and check:
 - **IndexNow adoption**: Check if an IndexNow API key file exists at the site root (fetch `/{key}.txt` or look for IndexNow references in `robots.txt`). IndexNow notifies Bing/Yandex of content changes for faster indexing. If missing, flag as P2 and suggest adding a key file + robots.txt reference.
 - **Meta descriptions on error paths**: If the site uses dynamic routes (Next.js, Nuxt, etc.), check that fallback/error metadata (e.g., "Product Not Found" pages) still includes a `description` — not just a `title`. Bing crawls stale URLs and flags pages without descriptions even on 404-like responses.
 - **Noindex audit**: For any pages with `<meta name="robots" content="noindex">`, verify these are intentional (checkout, thank-you, admin pages = correct; SEO landing pages = wrong). Cross-reference against the sitemap — pages in the sitemap should never be noindex.
+- **Account pages** (login, signup, password reset, account settings) should be
+  `noindex` and carry **no canonical pointing at the homepage** (or any other
+  URL). noindex plus a canonical elsewhere is a conflicting signal; the
+  `technical_seo` module flags it (`noindex_canonical_conflict`, P2). Leave the
+  canonical off, or make it self-referencing.
+- **Sitemaps list HTML pages only.** `llms.txt`, `robots.txt`, feeds and JSON
+  files do not belong in the page sitemap (`sitemap` module, P3).
 - **Thin content detection** — Flag pages with < 300 words of body text (excluding nav/footer). Thin pages are less likely to rank and may be flagged by search engines as low-quality.
 - **Keyword in title/h1** — Track whether the `<title>` and `<h1>` share key terms. If they don't overlap at all, flag as P3 Low.
 - **Internal link audit** — Count internal vs external links. Flag pages with zero internal links as P3.
@@ -220,7 +236,9 @@ When an SPA is detected, several checks are downgraded:
 Additionally, the script cannot see HTTP response headers from static HTML files.
 Use `--fetch --url <url>` to make a live HTTP request and score security headers
 (HSTS, CSP, X-Content-Type-Options, etc.). Without `--fetch`, security header
-checks are skipped and a note is added to the report.
+checks are skipped and a note is added to the report. With `--fetch --url <url>`
+and no HTML file, the script GETs the page and analyses that body (an empty
+input is an error, never a silently "empty" page).
 
 **The render-gap check (do this for every SPA):**
 The single most important thing to verify on an SPA is whether the *server
@@ -274,8 +292,18 @@ From the HTML response, check:
 - Whether CSS is inlined or external (and count external stylesheets)
 - Inline **JavaScript** size (flag large blocking inline JS). **Inline critical CSS is a
   first-paint optimisation — don't flag moderate amounts**; only flag genuinely excessive inline CSS.
-- Check for `<link rel="preconnect">` or `<link rel="preload">` hints
-- Font loading: `font-display: swap` in inline styles, Google Fonts preconnect, font preloads
+- Check for `<link rel="preconnect">` or `<link rel="preload">` hints. Only
+  recommend preconnect when `performance.preconnect_needed` is true, i.e. the page
+  loads third-party render-critical origins (stylesheets, fonts, blocking
+  scripts; listed in `third_party_render_origins`). A fully first-party page
+  (self-hosted fonts) needs no preconnect.
+- Font loading: `font-display` in inline `@font-face` (swap/optional/fallback) or
+  `&display=swap` on the Google Fonts URL both count as satisfied; Google Fonts
+  preconnect, font preloads
+- **When Lighthouse's main-thread breakdown is mostly Style & Layout / Rendering
+  rather than Script**, see "Rendering-bound pages" in
+  `references/performance-budgets.md` (`content-visibility:auto`, self-hosted
+  fonts, `srcset`).
 
 > **⚠️ This is a markup *proxy*, not measured performance.** The `performance`
 > module reads HTML; it does **not** measure Core Web Vitals. Three rules so the
@@ -406,7 +434,10 @@ Check the HTML for:
 ### 1.8b — Analytics & Tracking
 Check the HTML for known analytics providers (detected automatically):
 - **Tier 1:** Google Analytics/GA4/GTM, Facebook Pixel, Hotjar, Plausible
-- **Privacy-focused:** Fathom Analytics, Umami, Matomo
+- **Privacy-focused:** Fathom Analytics, Umami, Matomo, Simple Analytics, Plausible
+  (also when self-hosted/first-party: Umami is recognised by `data-website-id`,
+  e.g. `<script src="/u/v.js" data-website-id=...>`; Cloudflare by `data-cf-beacon`;
+  Matomo by inline `_paq`)
 - **Product analytics:** Mixpanel, Heap, Segment, Amplitude, PostHog
 - **Platform-specific:** Vercel Analytics, Cloudflare Web Analytics, Adobe Analytics
 - **Ad pixels:** Snapchat Pixel, TikTok Pixel, LinkedIn Insight Tag, Pinterest Tag, Reddit Pixel
@@ -592,6 +623,19 @@ supply). It recommends, per page:
 - **ItemList** on PLPs (product-grid carousels).
 - **FAQPage** built from on-page `<details>`/Q&A content.
 
+Schema rules learned the hard way:
+- **Organization `logo` is a square mark** (at least 112x112, PNG or SVG), never
+  the 16:9 `og:image`/poster. `suggest_schema.py` uses the apple-touch-icon or a
+  large/SVG icon and flags an existing wide logo. Pair it with `sameAs` links to
+  the brand's official profiles.
+- **Subscriptions** (SaaS plans, memberships): the `Offer` on a Product or
+  SoftwareApplication should carry `priceSpecification` as a
+  `UnitPriceSpecification` with `billingDuration` (`P1M` monthly, `P1Y` yearly),
+  not just a bare price.
+- **Never recommend `aggregateRating`/`review` unless genuine reviews exist on
+  the page.** Fabricated or self-serving ratings are a manual-action risk; the
+  generator only adds a rating block when it finds real review signals.
+
 For PDPs it also returns a **`merchant_listing`** readiness checklist (price,
 currency, availability, image, rating, Product schema) so you can tell the user
 exactly what's blocking Merchant/rich-result eligibility.
@@ -623,7 +667,7 @@ sources. Uses `scripts/modules/ai_search.py`. Checks:
   Amazonbot, Applebot-Extended, etc. **A blanket `Disallow` is the #1 cause of
   AI-search invisibility** — flag blocked answer bots as P1 and make the posture a
   deliberate choice.
-- **`llms.txt`** manifest presence AND structural quality (H1 title, summary, >=3 curated Markdown links — presence alone isn't enough).
+- **`llms.txt`** manifest presence AND structural quality (H1 title, summary, >=3 curated Markdown links — presence alone isn't enough). Links must point at distinct URLs or anchors; a list that repeats the same file is flagged.
 - **Extraction-readiness** — concise lead answer/summary, Q&A, lists, tables, clear headings.
 - **Entity clarity** — Organization/Person + `sameAs` to Wikipedia/Wikidata, plus a **live Wikidata lookup** on the detected brand name (the strongest off-site grounding signal; absence is flagged, an errored/skipped lookup never produces a false negative).
 
@@ -1483,7 +1527,8 @@ python scripts/lighthouse.py --url https://example.com --output /tmp/lighthouse_
 - Results merged into the FAT report alongside HTML-level findings
 
 **Integration with the audit pipeline:**
-1. During Phase 1, check if `lighthouse` CLI is on PATH (`scripts/lighthouse.py: check_lighthouse_available()`)
+1. During Phase 1, check if `lighthouse` CLI is on PATH (`scripts/lighthouse.py: check_lighthouse_available()`).
+   When it isn't but `npx` is, `lighthouse.py` runs `npx -y lighthouse` automatically.
 2. If available, run Lighthouse against the URL
 3. Merge Lighthouse scores into the scored JSON — use Lighthouse data for Performance
    and CWV metrics, which are more accurate than HTML-only analysis

@@ -166,7 +166,12 @@ def calculate_seo_score(seo: dict, performance: dict, render_gap: dict = None) -
 
     # Mobile & Performance Signals (13 points)
     mobile_perf = 0
-    if performance.get("has_preconnect"):
+    # preconnect only matters when there are third-party render-critical
+    # origins; a page with everything first-party needs no hint
+    if (
+        performance.get("has_preconnect")
+        or performance.get("preconnect_needed") is False
+    ):
         mobile_perf += 2
     if performance.get("has_preload"):
         mobile_perf += 2
@@ -536,7 +541,10 @@ def calculate_performance_score(performance: dict) -> dict:
 
     # Resource hints (15 points)
     hints = 0
-    if performance.get("has_preconnect"):
+    if (
+        performance.get("has_preconnect")
+        or performance.get("preconnect_needed") is False
+    ):
         hints += 8
     if performance.get("has_preload"):
         hints += 7

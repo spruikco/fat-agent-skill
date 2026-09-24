@@ -104,7 +104,7 @@ def test_analyse_detects_tel():
 def test_analyse_checks_noopener_noreferrer():
     html = """<html><body>
     <a href="https://external.com" rel="noopener noreferrer">Safe</a>
-    <a href="https://unsafe.com">Unsafe</a>
+    <a href="https://unsafe.com" target="_blank">Unsafe</a>
     <a href="/internal">Internal</a>
     </body></html>"""
     mod = LinksModule()

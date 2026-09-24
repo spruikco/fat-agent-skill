@@ -15,6 +15,7 @@ from modules import register_module
 from modules.base import AuditModule
 
 _SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+_NON_HTML_EXTS = (".txt", ".md", ".json", ".xml", ".js", ".css", ".csv")
 
 
 @register_module
@@ -128,6 +129,14 @@ class SitemapModule(AuditModule):
         has_lastmod = lastmod_count > 0
         reasonable_size = len(urls) < 50_000
 
+        # a page sitemap should list HTML pages, not llms.txt/robots.txt/feeds
+        non_html_urls = []
+        if not is_index:
+            for u in urls:
+                path = urlparse(u).path.lower()
+                if path.endswith(_NON_HTML_EXTS):
+                    non_html_urls.append(u)
+
         referenced_in_robots = False
         if robots_content:
             robots_sitemaps = self._sitemaps_from_robots(robots_content)
@@ -150,6 +159,7 @@ class SitemapModule(AuditModule):
             "duplicate_count": duplicate_count,
             "reasonable_size": reasonable_size,
             "referenced_in_robots": referenced_in_robots,
+            "non_html_urls": non_html_urls[:10],
         }
 
     # ------------------------------------------------------------------
@@ -244,6 +254,20 @@ class SitemapModule(AuditModule):
                     "sitemap. Duplicates waste crawl budget and may confuse "
                     "search engines.",
                     fix="Remove duplicate entries from the sitemap.",
+                    effort="low",
+                )
+
+            if analysis.get("non_html_urls"):
+                listed = ", ".join(analysis["non_html_urls"][:3])
+                self.add_finding(
+                    priority="P3",
+                    title="Sitemap lists non-HTML files",
+                    description=f"The sitemap includes non-page files ({listed}). "
+                    "Sitemaps should list the canonical HTML pages you want "
+                    "indexed; files like llms.txt are discovered at their "
+                    "well-known path.",
+                    fix="Remove .txt/.md/.json/.xml entries from the page sitemap "
+                    "and list HTML pages only.",
                     effort="low",
                 )
 

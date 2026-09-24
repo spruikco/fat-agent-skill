@@ -187,13 +187,16 @@ def validate_llms_txt(content):
     has_summary = any(line.lstrip().startswith(">") for line in lines) or bool(
         re.search(r"^\s*[A-Za-z][^#>\n]{40,}", content, re.MULTILINE)
     )
-    link_count = len(re.findall(r"\[[^\]]+\]\([^)]+\)", content))
+    targets = [t.strip() for t in re.findall(r"\[[^\]]+\]\(([^)]+)\)", content)]
+    link_count = len(targets)
+    unique_link_count = len(set(targets))
     section_count = len(re.findall(r"^##\s+\S", content, re.MULTILINE))
     return {
         "present": True,
         "has_title": has_title,
         "has_summary": has_summary,
         "link_count": link_count,
+        "unique_link_count": unique_link_count,
         "section_count": section_count,
         "well_formed": has_title and link_count >= 3,
     }
@@ -402,6 +405,22 @@ class AISearchModule(AuditModule):
                 "most important pages.",
                 effort="low",
             )
+
+        # llms.txt whose links keep pointing at the same URL (often the file
+        # itself) gives AI engines no map of the site.
+        if llms_v.get("present") and llms_v.get("link_count", 0) >= 3:
+            uniq = llms_v.get("unique_link_count", llms_v["link_count"])
+            if uniq * 2 <= llms_v["link_count"]:
+                self.add_finding(
+                    priority="P3",
+                    title="llms.txt links repeat the same URLs",
+                    description=f"{llms_v['link_count']} links in llms.txt point at "
+                    f"only {uniq} distinct URL(s), so the curated list does not "
+                    "actually map the site.",
+                    fix="Point each llms.txt link at a distinct page or section "
+                    "anchor (e.g. /pricing, /docs#install), not the same file.",
+                    effort="low",
+                )
 
         # Wikidata presence — the strongest off-site entity signal for AI grounding.
         # Only fire when the lookup actually ran (True/False); None = unknown, skip.

@@ -115,9 +115,43 @@ These budgets map to Google's Core Web Vitals thresholds:
 - **Non-lazy images → CLS, LCP** — Eager-loaded off-screen images waste bandwidth
 - **External scripts → INP** — More scripts = more main-thread work = slower interactions
 
+## Rendering-bound pages (Style & Layout, not script)
+
+Not every slow page is a JavaScript problem. Check Lighthouse's
+`mainthread-work-breakdown` audit: when most of the time is **Style & Layout**
+or **Rendering** rather than Script Evaluation, cutting JS will not move TBT.
+A common cause is many elements using CSS `filter: url(#svg-filter)` (hand-drawn
+or "wobbly" borders, turbulence effects), which the browser must re-rasterise.
+
+Real case (vend16.com, server-rendered Node site): mobile performance went from
+**83 to 98** with three changes:
+
+1. **Skip rendering off-screen sections** until they scroll near the viewport:
+
+   ```css
+   /* every below-the-fold section, not the hero */
+   .section-below-fold {
+     content-visibility: auto;
+     contain-intrinsic-size: auto 1000px; /* reserves space, avoids CLS */
+   }
+   ```
+
+2. **Self-host the web fonts** instead of loading Google Fonts CSS from another
+   origin. On a far-away origin this took FCP from 3.4s to 1.1-1.3s, because the
+   extra DNS + TLS + CSS round trip before the font request disappears. Serve
+   WOFF2 from your own domain with `font-display: swap` and preload the one or
+   two above-the-fold faces.
+
+3. **Responsive images**: generate `srcset` width variants (e.g. 480/960/1600w)
+   with `sizes`, so phones stop downloading desktop-sized images.
+
+Recommend these when the breakdown is rendering-heavy; they are low effort and
+do not require a framework change.
+
 ## PageSpeed Insights Integration
 
-FAT Agent can fetch live CWV data from the PageSpeed Insights API (no key required):
+FAT Agent can fetch live CWV data from the PageSpeed Insights API (no key required
+for light use; pass `--api-key` or set `PAGESPEED_API_KEY` for higher quota):
 
 ```
 https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url={URL}&strategy=mobile

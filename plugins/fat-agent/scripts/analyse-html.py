@@ -305,6 +305,9 @@ class FATHTMLAnalyser(HTMLParser):
         self.table_has_th = False
         self.in_table = False
         self.table_nesting = 0
+        # per-table header tracking: one bool per open <table> (innermost last)
+        self.table_th_stack = []
+        self.tables_without_th_count = 0
 
         # --- NEW: Accessibility — SVG accessibility ---
         self.svg_total = 0
@@ -313,7 +316,11 @@ class FATHTMLAnalyser(HTMLParser):
         self.svg_depth = 0
         self.svg_has_title = False
         self.svg_has_aria = False
+        self.svg_nesting = 0
 
+        # Third-party render-critical origins (stylesheets, fonts, blocking
+        # scripts). Preconnect is only worth recommending when these exist.
+        self.third_party_render_origins = []
         # --- NEW: Accessibility — iframe titles ---
         self.iframes_total = 0
         self.iframes_without_title = 0
@@ -329,11 +336,39 @@ class FATHTMLAnalyser(HTMLParser):
 
         # HTTP response headers (populated when --fetch is used)
         self.response_headers = {}
+        # HEAD/GET status codes from --fetch (see fetch_page)
+        self.fetch_info = {}
 
     def _check_mixed_content(self, url):
         """Flag http:// URLs when page is served over HTTPS."""
         if self.is_https and url.startswith("http://"):
             self.mixed_content_urls.append(url)
+
+    def _add_analytics(self, provider):
+        self.has_analytics = True
+        if provider not in self.analytics_providers:
+            self.analytics_providers.append(provider)
+
+    def _note_third_party(self, url):
+        """Record the origin of a render-critical resource on another host."""
+        if not url or not url.startswith(("http://", "https://", "//")):
+            return
+        from urllib.parse import urlparse
+
+        try:
+            host = urlparse("https:" + url if url.startswith("//") else url).netloc
+            page_host = urlparse(self.page_url).netloc if self.page_url else ""
+        except Exception:
+            return
+        if not host or host == page_host:
+            return
+        origins = ["https://" + host]
+        # Google Fonts CSS pulls the font files from fonts.gstatic.com
+        if host == "fonts.googleapis.com":
+            origins.append("https://fonts.gstatic.com")
+        for origin in origins:
+            if origin not in self.third_party_render_origins:
+                self.third_party_render_origins.append(origin)
 
     def _is_internal_link(self, href):
         """Check if a link is internal (relative or same domain)."""
@@ -511,7 +546,9 @@ class FATHTMLAnalyser(HTMLParser):
         if tag == "body":
             self.in_body = True
 
-        if tag == "title":
+        # <title> inside inline <svg> is the graphic's accessible name, not the
+        # document title, so it must not count as a duplicate or be read as it.
+        if tag == "title" and not self.in_svg:
             self.in_title = True
             self.title_text = ""
             self.title_count += 1
@@ -588,22 +625,34 @@ class FATHTMLAnalyser(HTMLParser):
             self.tables_total += 1
             self.in_table = True
             self.table_nesting += 1
-            self.table_has_th = False
+            self.table_th_stack.append(False)
         if tag == "th" and self.in_table:
             self.table_has_th = True
+            if self.table_th_stack:
+                self.table_th_stack[-1] = True
 
         # --- NEW: SVG accessibility ---
         if tag == "svg":
+            self.svg_nesting += 1
+        if tag == "svg" and self.svg_nesting == 1:
             self.svg_total += 1
             self.in_svg = True
             self.svg_depth = len(self.tag_stack)
             self.svg_has_title = False
-            # aria-hidden="true" means intentionally decorative — counts as accessible
+            # aria-hidden="true" (on the svg or any ancestor, tracked via
+            # hidden_open_depths) or role=presentation/none means intentionally
+            # decorative, which counts as accessible
             is_aria_hidden = attrs_dict.get("aria-hidden", "").lower() == "true"
+            is_presentational = attrs_dict.get("role", "").lower().strip() in (
+                "presentation",
+                "none",
+            )
             self.svg_has_aria = (
                 "aria-label" in attrs_dict
                 or "aria-labelledby" in attrs_dict
                 or is_aria_hidden
+                or is_presentational
+                or bool(self.hidden_open_depths)
             )
             if attrs_dict.get("role") == "img" and self.svg_has_aria:
                 pass  # Will check for title child too
@@ -669,6 +718,12 @@ class FATHTMLAnalyser(HTMLParser):
             if rel == "stylesheet":
                 self.external_stylesheets += 1
                 self._check_mixed_content(href)
+                self._note_third_party(href)
+            # Google Fonts CSS with &display=swap already sets font-display
+            if "fonts.googleapis.com" in href and re.search(
+                r"[?&]display=(swap|optional|fallback)\b", href
+            ):
+                self.has_font_display_swap = True
             # Canonical count + URL tracking
             if "canonical" in rel:
                 self.canonical_count += 1
@@ -685,6 +740,8 @@ class FATHTMLAnalyser(HTMLParser):
             # Font preload
             if "preload" in rel and as_attr == "font":
                 self.font_preloads += 1
+            if "preload" in rel and as_attr in ("font", "style", "script"):
+                self._note_third_party(href)
             # Google Fonts preconnect
             if "preconnect" in rel and "fonts.googleapis.com" in href:
                 self.has_google_fonts_preconnect = True
@@ -714,9 +771,24 @@ class FATHTMLAnalyser(HTMLParser):
             if script_type == "module":
                 self.module_script_count += 1
 
+            # Privacy-first analytics are often self-hosted/first-party, so
+            # recognise them by their tag attributes, not just the src host
+            if "data-website-id" in attrs_dict:
+                self._add_analytics("Umami")
+            if "data-cf-beacon" in attrs_dict:
+                self._add_analytics("Cloudflare Web Analytics")
+            if "data-site" in attrs_dict and "fathom" in src.lower():
+                self._add_analytics("Fathom Analytics")
+
             if src:
                 self.external_scripts += 1
                 self._check_mixed_content(src)
+                if (
+                    "async" not in attrs_dict
+                    and "defer" not in attrs_dict
+                    and script_type != "module"
+                ):
+                    self._note_third_party(src)
                 if (
                     self.in_head
                     and "async" not in attrs_dict
@@ -760,9 +832,13 @@ class FATHTMLAnalyser(HTMLParser):
                 if "usefathom.com" in src_lower or "cdn.usefathom.com" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Fathom Analytics")
-                if "umami.is" in src_lower or "analytics.umami" in src_lower:
+                if "umami" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Umami")
+                if "fathom" in src_lower:
+                    self._add_analytics("Fathom Analytics")
+                if "simpleanalytics" in src_lower:
+                    self._add_analytics("Simple Analytics")
                 if "mixpanel.com" in src_lower or "mxpnl.com" in src_lower:
                     self.has_analytics = True
                     self.analytics_providers.append("Mixpanel")
@@ -884,9 +960,10 @@ class FATHTMLAnalyser(HTMLParser):
                 self.anchor_hrefs.append(href[1:])
 
             # External link noopener check
-            if target == "_blank" and href.startswith("http"):
+            if target.lower() == "_blank" and href.startswith("http"):
                 self.external_links_total += 1
-                if "noopener" not in rel:
+                # rel=noreferrer implies noopener
+                if "noopener" not in rel and "noreferrer" not in rel:
                     self.external_links_without_noopener += 1
 
             # --- NEW: Internal vs external link count ---
@@ -952,15 +1029,18 @@ class FATHTMLAnalyser(HTMLParser):
 
         # --- NEW: Table — track if table had th ---
         if tag == "table":
-            if self.in_table and not self.table_has_th and self.tables_total > 0:
-                pass  # Will count in compile_report from tables_without_th
+            if self.table_th_stack and not self.table_th_stack.pop():
+                self.tables_without_th_count += 1
             self.table_nesting -= 1
             if self.table_nesting <= 0:
                 self.in_table = False
                 self.table_nesting = 0
 
         # --- NEW: SVG — check accessibility on close ---
-        if tag == "svg" and self.in_svg:
+        if tag == "svg" and self.svg_nesting > 1:
+            self.svg_nesting -= 1
+        elif tag == "svg" and self.in_svg:
+            self.svg_nesting = 0
             if not self.svg_has_title and not self.svg_has_aria:
                 self.svg_without_accessible_name += 1
             self.in_svg = False
@@ -998,8 +1078,12 @@ class FATHTMLAnalyser(HTMLParser):
             self.inline_script_bytes += len(data.encode("utf-8"))
         if self.in_style:
             self.inline_style_bytes += len(data.encode("utf-8"))
-            # Font-display: swap detection in inline styles
-            if "font-display" in data and "swap" in data:
+            # font-display in inline @font-face (swap/optional/fallback all
+            # avoid invisible text) or an @import of Google Fonts with display=
+            if re.search(r"font-display\s*:\s*(swap|optional|fallback)", data) or (
+                "fonts.googleapis.com" in data
+                and re.search(r"[?&]display=(swap|optional|fallback)", data)
+            ):
                 self.has_font_display_swap = True
             # --- NEW: prefers-reduced-motion detection ---
             if "prefers-reduced-motion" in data:
@@ -1007,8 +1091,10 @@ class FATHTMLAnalyser(HTMLParser):
 
         # Check for JSON-LD
         if (
-            self.current_tag == "script"
+            self.in_script
+            and self.current_tag == "script"
             and self.current_attrs.get("type") == "application/ld+json"
+            and data.strip()
         ):
             try:
                 parsed = json.loads(data)
@@ -1054,6 +1140,8 @@ class FATHTMLAnalyser(HTMLParser):
                 self.has_analytics = True
                 if "Amplitude" not in self.analytics_providers:
                     self.analytics_providers.append("Amplitude")
+            if "_paq.push" in data or "_paq = " in data:
+                self._add_analytics("Matomo")
             if "posthog.init" in data:
                 self.has_analytics = True
                 if "PostHog" not in self.analytics_providers:
@@ -1250,11 +1338,7 @@ class FATHTMLAnalyser(HTMLParser):
                 "duplicate_og_tags": duplicate_og_tags,
                 "twitter_tags": self.twitter_tags,
                 "json_ld_count": len(self.json_ld_blocks),
-                "json_ld_types": [
-                    block.get("@type", "unknown")
-                    for block in self.json_ld_blocks
-                    if isinstance(block, dict)
-                ],
+                "json_ld_types": _jsonld_types(self.json_ld_blocks),
                 "has_favicon": any(
                     "icon" in link.get("rel", "") for link in self.link_tags
                 ),
@@ -1302,8 +1386,8 @@ class FATHTMLAnalyser(HTMLParser):
                 "deprecated_aria_roles": self.deprecated_aria_roles,
                 "link_as_button_count": self.link_as_button_count,
                 "tables_total": self.tables_total,
-                "tables_without_th": self.tables_total
-                - (1 if self.table_has_th and self.tables_total > 0 else 0),
+                "tables_without_th": self.tables_without_th_count
+                + sum(1 for has_th in self.table_th_stack if not has_th),
                 "svg_total": self.svg_total,
                 "svg_without_accessible_name": self.svg_without_accessible_name,
                 "iframes_total": self.iframes_total,
@@ -1335,6 +1419,8 @@ class FATHTMLAnalyser(HTMLParser):
                 "font_preloads": self.font_preloads,
                 "has_font_display_swap": self.has_font_display_swap,
                 "has_google_fonts_preconnect": self.has_google_fonts_preconnect,
+                "third_party_render_origins": self.third_party_render_origins,
+                "preconnect_needed": bool(self.third_party_render_origins),
                 "budget_violations": budget_violations,
             },
             "security": {
@@ -1423,6 +1509,19 @@ class FATHTMLAnalyser(HTMLParser):
             issues["low"].append(
                 "Response headers not available — run with --fetch --url <url> to check security headers"
             )
+        # HEAD broken while GET works: Googlebot uses GET, but uptime checkers,
+        # link checkers and some crawlers/CDNs probe with HEAD first
+        head_status = self.fetch_info.get("head_status")
+        get_status = self.fetch_info.get("get_status")
+        if head_status and head_status >= 400 and get_status and get_status < 300:
+            report["fetch"] = dict(self.fetch_info)
+            issues["medium"].append(
+                f"HEAD request returns {head_status} but GET returns {get_status}"
+                " (uptime checkers, link checkers and some crawlers use HEAD;"
+                " the server should answer HEAD like GET, minus the body)"
+            )
+        elif self.fetch_info:
+            report["fetch"] = dict(self.fetch_info)
         # --- NEW: Zoom disabled is P0 Critical ---
         if report["accessibility"]["zoom_disabled"]:
             issues["critical"].append(
@@ -1597,8 +1696,14 @@ class FATHTMLAnalyser(HTMLParser):
             issues["low"].append("No Twitter Card tags")
         if not report["analytics"]["has_analytics"]:
             issues["low"].append("No analytics tracking detected")
-        if not report["performance"]["has_preconnect"]:
-            issues["low"].append("No preconnect hints found")
+        if (
+            not report["performance"]["has_preconnect"]
+            and report["performance"]["preconnect_needed"]
+        ):
+            origins = ", ".join(report["performance"]["third_party_render_origins"][:3])
+            issues["low"].append(
+                f"No preconnect hints for third-party render-critical origins ({origins})"
+            )
         if report["security"]["external_links_without_noopener"] > 0:
             issues["low"].append(
                 f"{report['security']['external_links_without_noopener']} external link(s) with target=\"_blank\" missing rel=\"noopener\""
@@ -1767,15 +1872,99 @@ def compute_render_gap(server_report: dict, rendered_report: dict) -> dict:
     }
 
 
+def _jsonld_types(blocks) -> list:
+    """Flatten @type values across JSON-LD blocks, walking top-level arrays and
+    @graph containers so a single {"@context", "@graph": [...]} script reports
+    every node's type rather than "unknown"."""
+    types = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+        if "@graph" in node:
+            walk(node["@graph"])
+            if "@type" not in node:
+                return
+        t = node.get("@type", "unknown")
+        types.extend(t if isinstance(t, list) else [t])
+
+    for block in blocks:
+        walk(block)
+    return types
+
+
+def fetch_page(page_url, want_body=False, timeout=10, opener=None):
+    """HEAD the URL, falling back to GET when HEAD errors or is not 2xx/3xx
+    (some servers answer HEAD with 404/405). GET is also used when the body is
+    wanted. Returns {headers, body, head_status, get_status, error}."""
+    open_url = opener or urllib.request.urlopen
+    result = {
+        "headers": {},
+        "body": None,
+        "head_status": None,
+        "get_status": None,
+        "error": None,
+    }
+
+    def _do(method):
+        req = urllib.request.Request(page_url, method=method)
+        req.add_header("User-Agent", "FAT-Agent/1.0 (+https://github.com/spruikco)")
+        try:
+            with open_url(req, timeout=timeout) as resp:
+                status = getattr(resp, "status", None) or resp.getcode()
+                headers = {k.lower(): v for k, v in resp.getheaders()}
+                body = resp.read() if method == "GET" else b""
+                return status, headers, body
+        except urllib.error.HTTPError as e:
+            headers = {k.lower(): v for k, v in (e.headers or {}).items()}
+            return e.code, headers, b""
+
+    try:
+        head_status, head_headers, _ = _do("HEAD")
+        result["head_status"] = head_status
+        if head_status < 400:
+            result["headers"] = head_headers
+    except Exception as e:
+        result["error"] = f"HEAD failed: {e}"
+        head_status = None
+
+    if want_body or head_status is None or head_status >= 400:
+        try:
+            get_status, get_headers, body = _do("GET")
+            result["get_status"] = get_status
+            if get_status < 400 or not result["headers"]:
+                result["headers"] = get_headers
+            charset = "utf-8"
+            ctype = get_headers.get("content-type", "")
+            m = re.search(r"charset=([\w-]+)", ctype, re.IGNORECASE)
+            if m:
+                charset = m.group(1)
+            try:
+                result["body"] = body.decode(charset, errors="replace")
+            except LookupError:
+                result["body"] = body.decode("utf-8", errors="replace")
+        except Exception as e:
+            result["error"] = (result["error"] + "; " if result["error"] else "") + (
+                f"GET failed: {e}"
+            )
+    return result
+
+
 def analyse_html(
     html_content: str,
     page_url: str = "",
     budget: dict = None,
     response_headers: dict = None,
+    fetch_info: dict = None,
 ) -> dict:
     """Analyse HTML content and return a FAT report."""
     analyser = FATHTMLAnalyser(page_url=page_url, budget=budget)
     analyser.response_headers = response_headers or {}
+    analyser.fetch_info = fetch_info or {}
     analyser.feed(html_content)
     return analyser.compile_report(len(html_content.encode("utf-8")))
 
@@ -1831,27 +2020,45 @@ def main():
     if filepath:
         with open(filepath, "r", encoding="utf-8") as f:
             html_content = f.read()
+    elif fetch_headers and page_url and sys.stdin.isatty():
+        html_content = ""  # nothing piped; the page body is fetched below
     else:
         html_content = sys.stdin.read()
 
     response_headers = {}
+    fetch_info = {}
     if fetch_headers and page_url:
-        try:
-            req = urllib.request.Request(page_url, method="HEAD")
-            req.add_header("User-Agent", "FAT-Agent/1.0")
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                response_headers = {k.lower(): v for k, v in resp.getheaders()}
-        except Exception as e:
+        # With no HTML file and nothing on stdin, GET the page and analyse that
+        # rather than silently scoring an empty document.
+        need_body = not html_content.strip()
+        fetched = fetch_page(page_url, want_body=need_body)
+        response_headers = fetched["headers"]
+        fetch_info = {
+            "head_status": fetched["head_status"],
+            "get_status": fetched["get_status"],
+        }
+        if fetched["error"]:
             print(
-                f"Warning: Could not fetch headers from '{page_url}': {e}",
+                f"Warning: fetching '{page_url}': {fetched['error']}",
                 file=sys.stderr,
             )
+        if need_body:
+            html_content = fetched["body"] or ""
+
+    if not html_content.strip():
+        print(
+            "Error: no HTML to analyse. Pass an HTML file, pipe HTML on stdin, or"
+            " use --fetch --url <url> to fetch the page.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     report = analyse_html(
         html_content,
         page_url=page_url,
         budget=budget,
         response_headers=response_headers,
+        fetch_info=fetch_info,
     )
 
     # Render-gap check: compare the raw server response (--served) against the

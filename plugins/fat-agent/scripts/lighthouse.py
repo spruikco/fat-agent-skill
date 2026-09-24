@@ -38,6 +38,17 @@ def check_lighthouse_available():
     return shutil.which("lighthouse") is not None
 
 
+def lighthouse_command():
+    """the command prefix to run lighthouse: the global CLI when installed,
+    otherwise `npx -y lighthouse` (downloads on first use), else None."""
+    if check_lighthouse_available():
+        return ["lighthouse"]
+    npx = shutil.which("npx")
+    if npx:
+        return [npx, "-y", "lighthouse"]
+    return None
+
+
 def parse_lighthouse_results(json_path):
     """extract scores and core web vitals from a lighthouse JSON report."""
     if not os.path.isfile(json_path):
@@ -86,11 +97,14 @@ def parse_lighthouse_results(json_path):
 
 def run_lighthouse(url, output_path):
     """run lighthouse CLI against a url and return parsed results."""
-    if not check_lighthouse_available():
-        return _empty_result(error="lighthouse CLI not found")
+    base = lighthouse_command()
+    if base is None:
+        return _empty_result(
+            error="lighthouse CLI not found and npx is unavailable: install "
+            "Node.js (for npx) or run `npm i -g lighthouse`, or use pagespeed.py"
+        )
 
-    cmd = [
-        "lighthouse",
+    cmd = base + [
         url,
         "--output",
         "json",
@@ -101,6 +115,9 @@ def run_lighthouse(url, output_path):
 
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or "").strip().splitlines()[-3:]
+        return _empty_result(error=f"{exc}; {' | '.join(detail)}".rstrip("; "))
     except Exception as exc:
         return _empty_result(error=str(exc))
 

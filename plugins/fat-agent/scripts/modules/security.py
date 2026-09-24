@@ -83,7 +83,9 @@ class SecurityModule(AuditModule):
         ext_without_noopener = 0
         for link in ext_links:
             rel_match = re.search(r'rel=["\']([^"\']*)["\']', link, re.IGNORECASE)
-            if not rel_match or "noopener" not in rel_match.group(1).lower():
+            rel_val = rel_match.group(1).lower() if rel_match else ""
+            # noreferrer implies noopener
+            if "noopener" not in rel_val and "noreferrer" not in rel_val:
                 ext_without_noopener += 1
 
         inline_event_handlers = len(
@@ -140,7 +142,9 @@ class SecurityModule(AuditModule):
         # --- depth: SRI on cross-origin scripts ---
         page_host = urllib.parse.urlparse(url).netloc.lower() if url else ""
         scripts_missing_sri = 0
-        for tag in re.findall(r"<script\s[^>]*src=[\"'][^\"']+[\"'][^>]*>", html, re.IGNORECASE):
+        for tag in re.findall(
+            r"<script\s[^>]*src=[\"'][^\"']+[\"'][^>]*>", html, re.IGNORECASE
+        ):
             src_m = re.search(r'src=["\']([^"\']+)["\']', tag, re.IGNORECASE)
             if not src_m:
                 continue
@@ -162,7 +166,11 @@ class SecurityModule(AuditModule):
                         "type": label,
                         "priority": priority,
                         # never echo the full credential back into reports
-                        "hint": token[:8] + "…" + token[-4:] if len(token) > 14 else token[:6] + "…",
+                        "hint": (
+                            token[:8] + "…" + token[-4:]
+                            if len(token) > 14
+                            else token[:6] + "…"
+                        ),
                     }
                 )
 
@@ -417,7 +425,7 @@ class SecurityModule(AuditModule):
                 % sri_missing,
                 description="Third-party scripts load without an integrity hash — if "
                 "the CDN or vendor is compromised, the page executes whatever it serves.",
-                fix="Add integrity=\"sha384-…\" + crossorigin=\"anonymous\" to static "
+                fix='Add integrity="sha384-…" + crossorigin="anonymous" to static '
                 "third-party scripts, or self-host them.",
                 effort="medium",
             )

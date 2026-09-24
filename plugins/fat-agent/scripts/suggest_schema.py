@@ -172,6 +172,84 @@ def _logo(html, base):
     return logo
 
 
+def _square_logo(html, base):
+    """A square brand mark for Organization.logo. Google wants a square-ish
+    logo of at least 112x112 (PNG/SVG); the og:image is usually a 16:9 social
+    card, so it is never used here. Prefers apple-touch-icon (180x180), then a
+    large or SVG icon link, then an <img> whose src/alt/class says logo."""
+    links = re.findall(r"<link\s[^>]*>", html, re.IGNORECASE)
+    found = None
+    for tag in links:
+        if re.search(r'rel=["\'][^"\']*apple-touch-icon', tag, re.IGNORECASE):
+            m = re.search(r'href=["\']([^"\']+)', tag, re.IGNORECASE)
+            if m:
+                found = m.group(1)
+                break
+    if not found:
+        for tag in links:
+            if not re.search(r'rel=["\'][^"\']*icon', tag, re.IGNORECASE):
+                continue
+            m = re.search(r'href=["\']([^"\']+)', tag, re.IGNORECASE)
+            size = re.search(r'sizes=["\'](\d+)x\d+', tag, re.IGNORECASE)
+            if m and (
+                m.group(1).lower().split("?")[0].endswith(".svg")
+                or (size and int(size.group(1)) >= 112)
+            ):
+                found = m.group(1)
+                break
+    if not found:
+        for tag in re.findall(r"<img\s[^>]*>", html, re.IGNORECASE):
+            if re.search(r"logo", tag, re.IGNORECASE):
+                m = re.search(r'src=["\']([^"\']+)', tag, re.IGNORECASE)
+                if m:
+                    found = m.group(1)
+                    break
+    if found and base:
+        return urllib.parse.urljoin(base, found)
+    return found
+
+
+_WIDE_IMAGE_HINT = re.compile(
+    r"(og[-_]?image|poster|banner|hero|social|share|cover|card|1200x630)",
+    re.IGNORECASE,
+)
+
+
+def _existing_org_logo_issue(html):
+    """Flag an Organization/LocalBusiness logo that is the og:image or looks
+    like a wide social/poster image rather than a square logo."""
+    og = _meta(html, prop="og:image") or ""
+    for d in parse_jsonld(html):
+        t = d.get("@type")
+        types = [x.lower() for x in (t if isinstance(t, list) else [t]) if x]
+        if not ({"organization", "localbusiness", "corporation"} & set(types)):
+            continue
+        logo = d.get("logo")
+        if isinstance(logo, dict):
+            logo = logo.get("url") or logo.get("contentUrl")
+        if not isinstance(logo, str) or not logo:
+            continue
+        if (og and logo.rstrip("/").endswith(og.rstrip("/").split("/")[-1])) or (
+            _WIDE_IMAGE_HINT.search(logo.split("/")[-1])
+        ):
+            return logo
+    return None
+
+
+def _billing_duration(html):
+    """ISO 8601 billing period when the page sells a subscription."""
+    text = re.sub(r"<[^>]+>", " ", html)
+    if re.search(r"(?:/\s*|per\s+)(?:month|mo)\b|\bmonthly\b", text, re.IGNORECASE):
+        return "P1M"
+    if re.search(
+        r"(?:/\s*|per\s+)(?:year|yr|annum)\b|\bannually\b|\byearly\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return "P1Y"
+    return None
+
+
 def _social_profiles(html):
     found = {}
     for href in _all_links(html):
@@ -431,8 +509,9 @@ def gen_organization(sig, local=False):
         "name": sig["name"] or "REPLACE_business_name",
         "url": sig["base"],
     }
+    # logo must be a square mark (>=112px PNG/SVG), never the 16:9 og:image
+    org["logo"] = sig.get("square_logo") or "REPLACE_square_logo_url_min_112px"
     if sig["logo"]:
-        org["logo"] = sig["logo"]
         org["image"] = sig["logo"]
     if sig["phone"]:
         org["telephone"] = sig["phone"]
@@ -522,6 +601,14 @@ def gen_product(sig):
         "availability": sig["availability"] or "https://schema.org/InStock",
         "itemCondition": "https://schema.org/NewCondition",
     }
+    if sig.get("billing_duration"):
+        # subscriptions: state the billing period, not just a bare price
+        offer["priceSpecification"] = {
+            "@type": "UnitPriceSpecification",
+            "price": offer["price"],
+            "priceCurrency": offer["priceCurrency"],
+            "billingDuration": sig["billing_duration"],
+        }
     product = {
         "@context": _CTX,
         "@type": "Product",
@@ -588,6 +675,9 @@ def gather_signals(html, url=""):
         "title": _title(html),
         "h1": _first_h1(html),
         "logo": _logo(html, base),
+        "square_logo": _square_logo(html, base),
+        "billing_duration": _billing_duration(html),
+        "existing_logo_issue": _existing_org_logo_issue(html),
         "phone": _phone(html),
         "email": _email(html),
         "address": _address_from_jsonld(html),
@@ -638,7 +728,14 @@ def recommend(html, url=""):
         gen_organization(sig, local=is_local),
         "P1",
         "Establishes the business/brand entity for Knowledge Panel and rich results"
-        + (" with NAP for local pack eligibility." if is_local else "."),
+        + (" with NAP for local pack eligibility." if is_local else ".")
+        + (
+            f" The existing logo ({sig['existing_logo_issue']}) looks like a wide"
+            " social/poster image: use a square logo (at least 112x112 PNG or"
+            " SVG) and add sameAs links to official profiles."
+            if sig["existing_logo_issue"]
+            else ""
+        ),
     )
     if "website" not in have:
         add(

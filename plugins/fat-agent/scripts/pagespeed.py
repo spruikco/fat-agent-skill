@@ -7,6 +7,7 @@ Uses only stdlib (urllib.request + json) - no external dependencies.
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -53,6 +54,12 @@ def fetch_pagespeed(url, strategy="mobile", api_key=None, timeout=60):
             "error": f"Invalid strategy '{strategy}'. Must be one of {VALID_STRATEGIES}"
         }
 
+    if not url or not url.startswith(("http://", "https://")):
+        return {
+            "error": f"Invalid URL '{url}': pass the full public URL including "
+            "the scheme, e.g. --url https://example.com/"
+        }
+
     params = {"url": url, "strategy": strategy}
     if api_key:
         params["key"] = api_key
@@ -71,11 +78,51 @@ def fetch_pagespeed(url, strategy="mobile", api_key=None, timeout=60):
             body = exc.read().decode("utf-8", errors="replace")
         except Exception:
             pass
-        return {"error": f"HTTP {exc.code}: {body[:500]}"}
+        return {"error": _explain_http_error(exc.code, body, url, api_key)}
     except urllib.error.URLError as exc:
         return {"error": f"Network error: {exc.reason}"}
     except Exception as exc:
         return {"error": f"Unexpected error: {exc}"}
+
+
+def _explain_http_error(code, body, url, api_key):
+    """Turn a PageSpeed API HTTP error into an actionable message instead of
+    a raw Google HTML/JSON dump."""
+    detail = ""
+    try:
+        detail = json.loads(body).get("error", {}).get("message", "")
+    except (ValueError, AttributeError):
+        pass  # Google sometimes answers with an HTML error page
+    if code in (429, 403):
+        hint = (
+            "quota exhausted or key rejected. Pass --api-key (or set "
+            "PAGESPEED_API_KEY) with a key that has the PageSpeed Insights API "
+            "enabled, or retry later"
+        )
+        if api_key:
+            hint = (
+                "the API key was rejected or is over quota. Check the key has "
+                "the PageSpeed Insights API enabled in Google Cloud"
+            )
+    elif code == 404:
+        hint = (
+            "the API endpoint or page was not found. Use the full public URL "
+            f"with scheme (got '{url}'), make sure it is reachable without "
+            "auth, and add --api-key if unauthenticated calls keep failing"
+        )
+    elif code == 400:
+        hint = (
+            "Lighthouse could not load the page. Check the URL is public, "
+            "returns 200 to a normal browser and is not blocked by a firewall"
+        )
+    elif code >= 500:
+        hint = "Google-side error or the page timed out; retry, or use lighthouse.py"
+    else:
+        hint = "unexpected response from the PageSpeed Insights API"
+    msg = f"HTTP {code}: {hint}"
+    if detail:
+        msg += f" (API said: {detail[:200]})"
+    return msg
 
 
 def parse_pagespeed_results(data):
@@ -184,8 +231,8 @@ def build_parser():
     )
     parser.add_argument(
         "--api-key",
-        default=None,
-        help="Optional PageSpeed Insights API key",
+        default=os.environ.get("PAGESPEED_API_KEY"),
+        help="Optional PageSpeed Insights API key (default: $PAGESPEED_API_KEY)",
     )
     parser.add_argument(
         "--output",

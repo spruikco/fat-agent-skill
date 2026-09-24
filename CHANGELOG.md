@@ -1,5 +1,64 @@
 # Changelog
 
+## [3.9.0] - 2026-09-24
+
+Lessons from a real audit of vend16.com, a server-rendered Node marketing site
+behind Caddy.
+
+### Fixed: false positives
+- `analyse-html.py` tracks `<th>` per table. A page with several tables that all
+  have header cells (including `<th scope="row">`) is no longer flagged.
+- `<title>` inside inline `<svg>` is the graphic's accessible name. It is no
+  longer counted as a duplicate document title or read as the page title.
+- JSON-LD types walk `@graph` and top-level arrays, so a single
+  `{"@context", "@graph": [...]}` script reports every type instead of
+  `unknown`. Stray whitespace after a JSON-LD script no longer produces a false
+  "Invalid JSON-LD" block.
+- `--fetch` falls back to GET when HEAD fails or returns 4xx/5xx, so security
+  headers are still read on servers that answer HEAD with 404/405.
+- `--fetch --url` with no HTML file now GETs and analyses the page. Empty input
+  is an error instead of a report full of "missing title, no h1, no lang".
+- Preconnect is only recommended when the page loads third-party
+  render-critical origins (stylesheets, fonts, blocking scripts). New fields
+  `third_party_render_origins` and `preconnect_needed`; scoring no longer
+  penalises fully first-party pages. Same rule in the `performance` module.
+- `&display=swap` on a Google Fonts URL, and `font-display: swap|optional|fallback`
+  in inline `@font-face`, count as font-display handled.
+- Analytics detection recognises self-hosted Umami (`data-website-id`), Plausible,
+  Fathom, Simple Analytics, Matomo (`_paq`), PostHog and Cloudflare Web
+  Analytics (`data-cf-beacon`).
+- The `links` module only counts `target="_blank"` links as missing noopener, and
+  `rel="noreferrer"` counts as noopener everywhere.
+- SVGs inside an `aria-hidden="true"` ancestor, or with `role="presentation"`/`none`,
+  are treated as decorative. Nested `<svg>` counts once.
+- `lighthouse.py` falls back to `npx -y lighthouse` when the CLI is not installed.
+- `pagespeed.py` explains HTTP errors (API key, quota, URL form) instead of
+  dumping Google's raw HTML, rejects URLs without a scheme, and reads
+  `PAGESPEED_API_KEY`.
+
+### Added: checks
+- `redirects.py`: plain `http://` answering 200 instead of a 301 to https is P1
+  (`http_not_redirected`), with the empty-body case called out.
+- `analyse-html.py --fetch`: HEAD erroring while GET returns 200 is a P2 finding.
+- `technical_seo`: a noindex page whose canonical points at another URL
+  (login/signup pages canonicalised to the homepage) is flagged as conflicting.
+- `sitemap`: non-HTML entries such as `llms.txt` are flagged.
+- `ai_search`: an `llms.txt` whose links repeat the same URL is flagged.
+- `suggest_schema.py`: Organization `logo` uses a square mark (apple-touch-icon or
+  a large/SVG icon), never the 16:9 `og:image`, and an existing wide logo is
+  called out. Subscription offers get a `UnitPriceSpecification` with
+  `billingDuration` (`P1M`/`P1Y`).
+
+### Guidance
+- SKILL.md: http must 301 to https, HEAD should mirror GET, account pages are
+  noindex with no homepage canonical, sitemaps list HTML only, square logo plus
+  `sameAs`, subscription pricing, and never recommend ratings without genuine
+  reviews.
+- `references/performance-budgets.md`: new "Rendering-bound pages" section. When
+  the main-thread breakdown is mostly Style & Layout, `content-visibility:auto`
+  on below-the-fold sections, self-hosted fonts and `srcset` took a real page
+  from mobile 83 to 98 (FCP 3.4s to 1.1-1.3s).
+
 ## [3.8.5] - 2026-09-24
 
 ### Changed: model judges are advisory until proven (evaluation-driven)

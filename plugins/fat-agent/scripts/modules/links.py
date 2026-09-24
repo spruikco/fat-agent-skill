@@ -104,8 +104,16 @@ class LinksModule(AuditModule):
                 external_count += 1
                 rel_m = _REL_RE.search(tag)
                 rel_val = rel_m.group(1).lower() if rel_m else ""
-                # noopener alone is sufficient (modern browsers); noreferrer optional
-                if "noopener" not in rel_val:
+                # only target=_blank links expose window.opener; noopener alone
+                # is sufficient and noreferrer implies it
+                opens_new_tab = re.search(
+                    r"target\s*=\s*[\"']?_blank", tag, re.IGNORECASE
+                )
+                if (
+                    opens_new_tab
+                    and "noopener" not in rel_val
+                    and "noreferrer" not in rel_val
+                ):
                     external_missing_noopener += 1
             else:
                 internal_count += 1
@@ -187,10 +195,10 @@ class LinksModule(AuditModule):
             self.add_finding(
                 priority="P2",
                 title="External links missing rel noopener noreferrer",
-                description=f"{external_missing} external link(s) lack "
-                'rel="noopener noreferrer". This is a security risk as '
-                "the target page can access window.opener.",
-                fix='Add rel="noopener noreferrer" to all external links.',
+                description=f'{external_missing} external target="_blank" '
+                'link(s) lack rel="noopener noreferrer". This is a security '
+                "risk as the target page can access window.opener.",
+                fix='Add rel="noopener noreferrer" to target="_blank" links.',
                 effort="low",
             )
 
