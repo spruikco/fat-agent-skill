@@ -1,0 +1,534 @@
+<title>FAT Agent</title>
+<meta name="description" content="FAT Agent is the heavyweight website auditor for Claude Code. Fix, Audit, Test.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700&family=Bowlby+One&family=JetBrains+Mono:wght@500&family=Special+Elite&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --night:#101319; --asphalt:#1b1f27; --asphalt-2:#252a34; --line:#343a46;
+  --manila:#e8d5a3; --manila-2:#c9ae72; --manila-ink:#2b2418; --manila-muted:#5b4d33;
+  --stamp:#c8102e; --stamp-soft:#e0314c; --chrome:#d8dce2; --chrome-dim:#9aa1ad;
+  --p0:#c8102e; --p1:#d9531e; --p2:#b07d12; --p3:#6b6f78;
+  --display:"Bowlby One","Arial Black","Helvetica Neue",Impact,sans-serif;
+  --type:"Special Elite","Courier New",Courier,monospace;
+  --body:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --gutter:clamp(16px,4vw,48px);
+}
+*{box-sizing:border-box}
+body{background:var(--night);color:var(--chrome);font-family:var(--body);font-size:17px;line-height:1.6;margin:0}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:3px solid var(--stamp-soft);outline-offset:3px;border-radius:4px}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:var(--gutter)}
+h1,h2,h3{text-wrap:balance;margin:0}
+p{margin:0}
+
+/* nav */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:color-mix(in srgb,var(--night) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:20px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--display);font-size:20px;letter-spacing:.02em}
+.brand img{width:38px;height:auto}
+.nav nav{display:flex;gap:18px;margin-left:auto;font-family:var(--type);font-size:15px}
+.nav nav a{text-decoration:none;color:var(--chrome-dim)}
+.nav nav a:hover{color:var(--chrome)}
+.btn-gh{font-family:var(--type);text-decoration:none;border:1px solid var(--chrome-dim);padding:6px 12px;border-radius:3px;font-size:15px;white-space:nowrap}
+.btn-gh:hover{border-color:var(--chrome)}
+@media (max-width:760px){.nav nav{display:none}.btn-gh{margin-left:auto}}
+
+/* hero */
+.hero{position:relative;overflow:hidden;background:
+  radial-gradient(ellipse 42% 60% at 74% 38%,rgba(232,213,163,.16),transparent 70%),
+  linear-gradient(180deg,var(--night),#0c0e13)}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding-block:64px 72px}
+@media (max-width:880px){.hero .wrap{grid-template-columns:1fr;padding-block:40px 56px}}
+.eyebrow{font-family:var(--type);font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--manila-2)}
+.hero h1{font-family:var(--display);font-weight:400;font-size:clamp(52px,8.6vw,112px);line-height:.92;letter-spacing:-.01em;margin:14px 0 22px;color:var(--chrome)}
+.hero h1 .red{color:var(--stamp-soft);display:block}
+.lede{font-size:clamp(18px,1.6vw,21px);max-width:34ch;color:#c5cad3}
+.cmd{display:flex;align-items:stretch;margin-top:30px;max-width:560px;border:1px solid var(--line);background:var(--asphalt);border-radius:4px;overflow:hidden}
+.cmd code{flex:1;min-width:0;font-family:var(--mono);font-size:14px;padding:13px 14px;overflow-x:auto;white-space:nowrap;color:var(--manila)}
+.cmd button{font-family:var(--type);font-size:15px;background:var(--stamp);color:#fff;border:0;padding:0 18px;cursor:pointer}
+.cmd button:hover{background:var(--stamp-soft)}
+.cmd-note{font-size:14px;color:var(--chrome-dim);margin-top:10px}
+.facts{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:30px;font-family:var(--type);font-size:15px;color:var(--chrome-dim)}
+.facts b{color:var(--chrome);font-family:var(--display);font-weight:400;font-size:22px;margin-right:6px}
+.hero-art{position:relative;justify-self:center;width:min(100%,460px)}
+.hero-art img.badge{width:100%;height:auto;filter:drop-shadow(0 30px 40px rgba(0,0,0,.6))}
+.tag{position:absolute;right:-6px;bottom:18%;background:var(--manila);color:var(--manila-ink);font-family:var(--type);font-size:14px;line-height:1.35;padding:10px 14px 10px 22px;transform:rotate(-6deg);box-shadow:0 8px 18px rgba(0,0,0,.45);max-width:190px;border-radius:2px}
+.tag::before{content:"";position:absolute;left:8px;top:50%;width:7px;height:7px;margin-top:-3px;border-radius:50%;background:var(--night)}
+@media (max-width:520px){.tag{right:0;bottom:4%;font-size:13px}}
+
+/* grid/flex children may shrink below their content (long commands, the chart) */
+.hero .wrap>*,.dossier>*,.steps li>*,.paper,.cmd{min-width:0}
+@media (max-width:880px){.hero-art{width:min(100%,340px)}}
+
+/* sections */
+section{padding-block:clamp(56px,8vw,96px)}
+.sec-head{display:grid;gap:12px;max-width:760px;margin-bottom:40px}
+.sec-head h2{font-family:var(--display);font-weight:400;font-size:clamp(34px,4.6vw,56px);line-height:1;color:var(--chrome)}
+.sec-head p{color:#b9bfc9;font-size:18px;max-width:60ch}
+
+/* evidence cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:22px}
+.card{position:relative;background:var(--manila);color:var(--manila-ink);padding:26px 22px 22px;border-radius:2px 8px 4px 4px;box-shadow:0 12px 28px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:12px}
+.card::before{content:attr(data-tab);position:absolute;top:-24px;left:0;background:var(--manila-2);color:var(--manila-ink);font-family:var(--type);font-size:13px;letter-spacing:.08em;text-transform:uppercase;padding:4px 14px 2px;border-radius:6px 6px 0 0}
+.card h3{font-family:var(--display);font-weight:400;font-size:22px;line-height:1.1}
+.card p{font-size:16px;color:#3a3020}
+.finding{margin-top:auto;display:flex;align-items:flex-start;gap:10px;border-top:1px dashed var(--manila-muted);padding-top:12px;font-family:var(--type);font-size:14px;line-height:1.4;color:var(--manila-ink)}
+.stamp{display:inline-block;flex:none;font-family:var(--type);font-size:13px;letter-spacing:.06em;border:2px solid currentColor;padding:1px 6px;border-radius:3px;transform:rotate(-4deg);mix-blend-mode:multiply}
+.p0{color:var(--p0)}.p1{color:var(--p1)}.p2{color:var(--p2)}.p3{color:var(--p3)}
+.cards .card:nth-child(3n+2){transform:rotate(.4deg)}
+.cards .card:nth-child(3n){transform:rotate(-.5deg)}
+@media (prefers-reduced-motion:no-preference){.card{transition:transform .25s ease}.cards .card:hover{transform:translateY(-4px) rotate(0)}}
+
+/* case file */
+.casefile{background:linear-gradient(180deg,#0c0e13,var(--asphalt) 30%,var(--asphalt))}
+.dossier{display:grid;grid-template-columns:260px 1fr;gap:36px;align-items:start}
+@media (max-width:880px){.dossier{grid-template-columns:1fr}}
+.dossier-side{display:grid;gap:18px;justify-items:center;text-align:center}
+.dossier-side img{width:min(100%,240px);height:auto;filter:drop-shadow(0 18px 28px rgba(0,0,0,.55))}
+.dossier-side p{font-family:var(--type);font-size:14px;color:var(--chrome-dim)}
+.paper{position:relative;background:var(--manila);color:var(--manila-ink);padding:clamp(22px,3vw,40px);border-radius:3px;box-shadow:0 20px 40px rgba(0,0,0,.45)}
+.paper-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:2px solid var(--manila-ink);padding-bottom:12px;margin-bottom:18px}
+.paper-head h3{font-family:var(--display);font-weight:400;font-size:clamp(24px,3vw,34px);line-height:1.05;padding-right:170px}
+@media (max-width:600px){.paper-head h3{padding-right:0}}
+.case-no{font-family:var(--type);font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--manila-muted)}
+.big-stamp{position:absolute;top:18px;right:22px;font-family:var(--type);font-size:22px;color:var(--stamp);border:3px solid var(--stamp);padding:2px 12px;transform:rotate(8deg);mix-blend-mode:multiply;letter-spacing:.1em}
+@media (max-width:600px){.big-stamp{position:static;display:inline-block;margin-bottom:10px;transform:rotate(-3deg)}}
+.subject{font-family:var(--type);font-size:15px;line-height:1.5;color:var(--manila-muted);margin-bottom:16px}
+.subject b{color:var(--manila-ink);font-weight:400}
+.paper .lead{font-size:19px;font-weight:500;max-width:56ch;margin-bottom:18px}
+.chart-box{overflow-x:auto;margin:6px 0 22px}
+.chart{display:block;width:100%;min-width:520px;height:auto}
+.chart .grid{stroke:#b89f67;stroke-width:1}
+.chart .tick{fill:#5b4d33;font-family:"Special Elite","Courier New",monospace;font-size:12px}
+.chart .bar{fill:#2b2418}
+.chart .bar.during{fill:#8a3a1c}
+.chart .bar.after{fill:var(--stamp)}
+.chart .marker{stroke:var(--stamp);stroke-width:2;stroke-dasharray:4 4}
+.chart .marker-label{fill:var(--stamp);font-family:"Special Elite","Courier New",monospace;font-size:13px}
+.notes{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.notes li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;font-size:16px;line-height:1.5}
+.notes li .stamp{margin-top:2px}
+.tri{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px}
+.tri div{flex:1 1 120px;border:2px solid var(--manila-ink);padding:10px 12px;border-radius:3px}
+.tri b{display:block;font-family:var(--display);font-weight:400;font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.tri span{font-family:var(--type);font-size:14px;text-transform:uppercase;letter-spacing:.08em}
+.tri .prune{border-color:var(--stamp);color:var(--stamp)}
+.verdict{margin-top:20px;border-top:2px solid var(--manila-ink);padding-top:14px;font-size:16px}
+.verdict b{font-family:var(--type);font-weight:400;letter-spacing:.08em;text-transform:uppercase;color:var(--stamp)}
+.fineprint{font-family:var(--type);font-size:13px;color:var(--manila-muted);margin-top:12px}
+
+
+/* trailer */
+.trailer{padding-block:clamp(40px,6vw,72px)}
+.screen{position:relative;border:10px solid #0b0d11;border-radius:10px;box-shadow:0 0 0 1px var(--line),0 30px 60px rgba(0,0,0,.55);background:#000;overflow:hidden}
+.screen video{display:block;width:100%;height:auto;aspect-ratio:16/9;background:#000}
+.reel-label{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-family:var(--type);font-size:14px;color:var(--chrome-dim);margin-top:12px}
+
+/* platforms */
+.beats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.plate{position:relative;background:var(--manila);color:var(--manila-ink);border-radius:3px;padding:18px 16px 14px;display:grid;gap:4px;box-shadow:0 10px 22px rgba(0,0,0,.35)}
+.plate:nth-child(odd){transform:rotate(-.8deg)}
+.plate:nth-child(3n){transform:rotate(.7deg)}
+.plate .no{font-family:var(--type);font-size:12px;letter-spacing:.12em;color:var(--manila-muted)}
+.plate .name{font-family:var(--display);font-size:clamp(20px,2.2vw,26px);line-height:1.05}
+.plate .what{font-family:var(--type);font-size:13px;color:#4a3f2a}
+.plate .hole{position:absolute;top:10px;right:12px;width:12px;height:12px;border-radius:50%;background:var(--asphalt);box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.plate.feat .name{color:var(--stamp)}
+.beats-note{margin-top:22px;font-size:16px;color:#b9bfc9;max-width:70ch}
+
+/* sample case */
+.sample-tag{display:inline-block;font-family:var(--type);font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--manila);border:2px dashed var(--manila-2);padding:4px 10px;margin-bottom:6px}
+.suspects{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:8px 0 18px}
+.suspect{border:2px solid var(--manila-ink);border-radius:3px;padding:12px 14px;background:repeating-linear-gradient(0deg,transparent 0 22px,rgba(43,36,24,.08) 22px 23px)}
+.suspect b{display:block;font-family:var(--display);font-weight:400;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.suspect span{font-family:var(--type);font-size:14px;line-height:1.35}
+.suspect.guilty{border-color:var(--stamp);color:var(--stamp)}
+
+/* method */
+.method{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.step{padding:30px 26px;background:var(--asphalt);display:grid;gap:10px;align-content:start}
+.step+.step{border-left:1px solid var(--line)}
+@media (max-width:860px){.step+.step{border-left:0;border-top:1px solid var(--line)}}
+.letter{font-family:var(--display);font-size:72px;line-height:.85;color:var(--stamp-soft)}
+.step h3{font-family:var(--type);font-weight:400;font-size:18px;letter-spacing:.14em;text-transform:uppercase;color:var(--manila)}
+.step p{color:#bfc5ce;font-size:16px}
+.aside{font-family:var(--type);color:var(--chrome-dim);font-size:15px;margin-top:18px}
+
+/* informants */
+.inf{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+.inf-card{border:1px solid var(--line);background:var(--asphalt);border-radius:4px;padding:22px;display:grid;gap:8px;align-content:start}
+.inf-card .role{font-family:var(--type);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--manila-2)}
+.inf-card h3{font-family:var(--display);font-weight:400;font-size:24px;color:var(--chrome)}
+.inf-card p{font-size:16px;color:#bfc5ce}
+.inf-card .cost{font-family:var(--type);font-size:14px;color:var(--chrome-dim);border-top:1px dashed var(--line);padding-top:10px;margin-top:6px}
+.nokey{margin-top:22px;display:inline-block;font-family:var(--type);font-size:16px;color:var(--manila);border:2px solid var(--manila-2);padding:6px 14px;transform:rotate(-1.5deg)}
+
+/* install */
+.install{background:radial-gradient(ellipse 50% 80% at 20% 0%,rgba(200,16,46,.14),transparent 70%),var(--night)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:14px;max-width:760px;counter-reset:s}
+.steps li{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:center;counter-increment:s}
+.steps li::before{content:counter(s);font-family:var(--display);font-size:26px;color:var(--stamp-soft);text-align:center}
+.steps .cmd{margin-top:0;max-width:none}
+.steps .say{font-size:17px;color:#c5cad3}
+.steps .say code{font-family:var(--mono);font-size:15px;color:var(--manila);background:var(--asphalt);padding:2px 6px;border-radius:3px}
+
+/* sign-off + footer */
+.signoff{text-align:center;padding-block:clamp(56px,8vw,96px) 40px}
+.signoff img{width:150px;height:auto;margin:0 auto 18px;display:block;transform:rotate(-4deg)}
+.signoff p{font-family:var(--display);font-size:clamp(30px,5vw,58px);line-height:1.02;color:var(--chrome)}
+.signoff p span{color:var(--stamp-soft)}
+footer{border-top:1px solid var(--line)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-between;padding-block:26px;font-size:15px;color:var(--chrome-dim)}
+footer a{color:var(--chrome)}
+@media (prefers-reduced-motion:no-preference){
+  .hero .red{animation:thunk .5s cubic-bezier(.2,1.6,.4,1) .35s both}
+  @keyframes thunk{from{transform:scale(1.35) rotate(-3deg);opacity:.35}to{transform:none;opacity:1}}
+}
+</style>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/badge-mark.png" alt="" width="38" height="42">FAT Agent</a>
+    <nav aria-label="Sections">
+      <a href="#evidence">What he checks</a>
+      <a href="#platforms">Platforms</a>
+      <a href="#casework">Case file</a>
+      <a href="#method">Method</a>
+      <a href="#install">Install</a>
+    </nav>
+    <a class="btn-gh" href="https://github.com/spruikco/fat-agent-skill">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Fix · Audit · Test</p>
+        <h1 id="hero-title">He's big on<span class="red">detail.</span></h1>
+        <p class="lede">FAT Agent is the heavyweight website auditor for Claude Code. He crawls every page, checks your site against Google's latest rules, and doesn't clock off until the punch list is clean.</p>
+        <div class="cmd">
+          <code id="cmd-hero">/plugin marketplace add spruikco/fat-agent-skill</code>
+          <button type="button" data-copy="cmd-hero">Copy</button>
+        </div>
+        <p class="cmd-note">Paste it into Claude Code. Two more lines and he's on the case. <a href="#install">Full install</a></p>
+        <div class="facts" aria-label="At a glance">
+          <span><b>23</b>audit modules</span>
+          <span><b>1,090</b>tests passing</span>
+          <span><b>$0</b>MIT licence</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <img class="badge" src="assets/badge-testing.png" alt="FAT Agent: a heavy-set detective in a fedora and sunglasses, holding a folder marked testing" width="465" height="520">
+        <p class="tag">Known for finding what Google found first.</p>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="trailer" aria-labelledby="trailer-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The trailer</p>
+        <h2 id="trailer-title">Roll the tape.</h2>
+      </div>
+      <div class="screen">
+        <video controls preload="metadata" playsinline poster="assets/promo-poster.jpg" src="assets/fat-agent-promo.mp4">
+          <a href="assets/fat-agent-promo.mp4">Watch the FAT Agent trailer</a>
+        </video>
+      </div>
+      <p class="reel-label"><span>Sound on.</span><span>Every frame drawn in code by Claude.</span></p>
+    </div>
+  </section>
+
+  <section id="evidence" aria-labelledby="evidence-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">What he checks</p>
+        <h2 id="evidence-title">He's been over every inch of it.</h2>
+        <p>Twenty-three modules and one standard: find the problem before Google does. Every finding lands on a punch list, ranked from P0 (the site is broken) to P3 (polish).</p>
+      </div>
+      <div class="cards">
+        <article class="card" data-tab="Spam policies">
+          <h3>Google's rulebook</h3>
+          <p>Doorway pages, scaled content, keyword stuffing, hidden text, sneaky redirects and back button hijacking, the policy Google started enforcing in June 2026.</p>
+          <p class="finding"><span class="stamp p1">P1</span>Templated near-duplicate pages (doorway page risk)</p>
+        </article>
+        <article class="card" data-tab="Site crawl">
+          <h3>Every page, every link</h3>
+          <p>A fast crawl into a local database. Broken internal links, orphan pages, duplicate titles, redirect chains and sitemaps full of dead URLs.</p>
+          <p class="finding"><span class="stamp p0">P0</span>Internal links point at broken pages</p>
+        </article>
+        <article class="card" data-tab="AI search">
+          <h3>Query fan-out</h3>
+          <p>AI Mode splits one question into many. He checks whether your site answers the whole cluster, then who actually gets cited for it.</p>
+          <p class="finding"><span class="stamp p2">P2</span>Low query fan-out coverage: 'seo agency melbourne'</p>
+        </article>
+        <article class="card" data-tab="Search Console">
+          <h3>Real clicks, not guesses</h3>
+          <p>Full Search Console exports with no row caps. Every templated page gets a verdict: keep, improve or prune, backed by its own clicks.</p>
+          <p class="finding"><span class="stamp p2">P2</span>Indexable pages with no search impressions</p>
+        </article>
+        <article class="card" data-tab="Update impact">
+          <h3>The timeline</h3>
+          <p>Lines your traffic up against every Google core and spam update since March 2024, so "why did we drop?" gets a date and a suspect.</p>
+          <p class="finding"><span class="stamp p1">P1</span>Traffic drop across the August 2026 spam update</p>
+        </article>
+        <article class="card" data-tab="SEO essentials">
+          <h3>The paperwork</h3>
+          <p>Titles, descriptions, canonicals, structured data, and markup for rich results Google has retired. FAQ results went dark on 7 May 2026.</p>
+          <p class="finding"><span class="stamp p3">P3</span>Markup for retired rich results</p>
+        </article>
+        <article class="card" data-tab="Security">
+          <h3>The back door</h3>
+          <p>Security headers and CSP quality, cookie flags, secrets left in page source, and an opt-in probe for leaked .env and .git files.</p>
+          <p class="finding"><span class="stamp p0">P0</span>Exposed sensitive path: /.env</p>
+        </article>
+        <article class="card" data-tab="Access &amp; speed">
+          <h3>Everyone gets in</h3>
+          <p>Alt text, form labels, focus states and landmarks, plus layout shift, render-blocking scripts and pages over Googlebot's 2MB limit.</p>
+          <p class="finding"><span class="stamp p2">P2</span>Images missing width/height (CLS risk)</p>
+        </article>
+        <article class="card" data-tab="Local &amp; shop">
+          <h3>Main street</h3>
+          <p>Name, address and phone, Google Business Profile, LocalBusiness schema, product markup and merchant listings for shops.</p>
+          <p class="finding"><span class="stamp p2">P2</span>LocalBusiness schema missing NAP details</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="platforms" aria-labelledby="platforms-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Jurisdiction</p>
+        <h2 id="platforms-title">He works every beat.</h2>
+        <p>If it's live on the web, he can audit it. Hosted builders, headless stacks, the lot. Stores switch on the e-commerce checks automatically.</p>
+      </div>
+      <div class="beats">
+        <div class="plate feat"><span class="hole"></span><span class="no">BEAT 01</span><span class="name">Shopify</span><span class="what">Stores, products, schema</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 02</span><span class="name">WooCommerce</span><span class="what">WordPress stores</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 03</span><span class="name">WordPress</span><span class="what">Themes, plugins, Yoast</span></div>
+        <div class="plate feat"><span class="hole"></span><span class="no">BEAT 04</span><span class="name">Wix</span><span class="what">Hosted sites and stores</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 05</span><span class="name">Squarespace</span><span class="what">Hosted sites and stores</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 06</span><span class="name">Webflow</span><span class="what">Visual builds</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 07</span><span class="name">BigCommerce</span><span class="what">Stores at scale</span></div>
+        <div class="plate feat"><span class="hole"></span><span class="no">BEAT 08</span><span class="name">Next.js</span><span class="what">Plus Astro, Nuxt, Remix</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 09</span><span class="name">Netlify</span><span class="what">Plus Vercel, Cloudflare</span></div>
+        <div class="plate"><span class="hole"></span><span class="no">BEAT 10</span><span class="name">Anything else</span><span class="what">Any live URL</span></div>
+      </div>
+      <p class="beats-note">Every beat gets the full audit. Fixes come with step-by-step guides written for the platform you're on, so the advice matches the buttons you can actually press.</p>
+    </div>
+  </section>
+
+  <section id="casework" class="casefile" aria-labelledby="case-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Case file</p>
+        <h2>The vanishing traffic.</h2>
+        <p>A real audit, run on real Search Console data. Client details withheld.</p>
+      </div>
+      <div class="dossier">
+        <div class="dossier-side">
+          <img src="assets/badge-topsecret.png" alt="FAT Agent holding a folder stamped top secret" width="394" height="440">
+          <p>Agent's notes, typed up for the client.</p>
+        </div>
+        <article class="paper" aria-labelledby="case-title">
+          <span class="big-stamp">Case open</span>
+          <div class="paper-head">
+            <h3 id="case-title">Where did the impressions go?</h3>
+            <span class="case-no">Case 2026-0917</span>
+          </div>
+          <p class="subject"><b>Subject:</b> Australian digital agency · <b>Pages:</b> 1,875 indexable · <b>Symptom:</b> leads stopped</p>
+          <p class="lead">Traffic didn't slide. It fell off a cliff. Weekly Google impressions dropped from about 29,000 to about 1,100 in a single week.</p>
+          <div class="chart-box">
+<svg class="chart" viewBox="0 0 640 300" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Weekly Google impressions, June to September 2026</title>
+<desc id="chart-desc">Impressions held between about 22,000 and 31,000 a week until the week of 17 August, then fell to about 1,100 a week after the August 2026 spam update began on 18 August.</desc>
+<line x1="52" y1="256.0" x2="624" y2="256.0" class="grid"/>
+<text x="44" y="260.0" class="tick" text-anchor="end">0k</text>
+<line x1="52" y1="192.6" x2="624" y2="192.6" class="grid"/>
+<text x="44" y="196.6" class="tick" text-anchor="end">10k</text>
+<line x1="52" y1="129.1" x2="624" y2="129.1" class="grid"/>
+<text x="44" y="133.1" class="tick" text-anchor="end">20k</text>
+<line x1="52" y1="65.7" x2="624" y2="65.7" class="grid"/>
+<text x="44" y="69.7" class="tick" text-anchor="end">30k</text>
+<rect x="59.2" y="107.8" width="23.6" height="148.2" class="bar"><title>Week of 8 Jun: 23,362 impressions</title></rect>
+<text x="71.1" y="274" class="tick" text-anchor="middle">8 Jun</text>
+<rect x="97.4" y="92.2" width="23.6" height="163.8" class="bar"><title>Week of 15 Jun: 25,829 impressions</title></rect>
+<rect x="135.5" y="101.4" width="23.6" height="154.6" class="bar"><title>Week of 22 Jun: 24,366 impressions</title></rect>
+<text x="147.3" y="274" class="tick" text-anchor="middle">22 Jun</text>
+<rect x="173.6" y="97.9" width="23.6" height="158.1" class="bar"><title>Week of 29 Jun: 24,931 impressions</title></rect>
+<rect x="211.8" y="91.3" width="23.6" height="164.7" class="bar"><title>Week of 6 Jul: 25,969 impressions</title></rect>
+<text x="223.6" y="274" class="tick" text-anchor="middle">6 Jul</text>
+<rect x="249.9" y="107.5" width="23.6" height="148.5" class="bar"><title>Week of 13 Jul: 23,417 impressions</title></rect>
+<rect x="288.0" y="117.0" width="23.6" height="139.0" class="bar"><title>Week of 20 Jul: 21,912 impressions</title></rect>
+<text x="299.9" y="274" class="tick" text-anchor="middle">20 Jul</text>
+<rect x="326.2" y="67.1" width="23.6" height="188.9" class="bar"><title>Week of 27 Jul: 29,777 impressions</title></rect>
+<rect x="364.3" y="58.9" width="23.6" height="197.1" class="bar"><title>Week of 3 Aug: 31,067 impressions</title></rect>
+<text x="376.1" y="274" class="tick" text-anchor="middle">3 Aug</text>
+<rect x="402.4" y="73.7" width="23.6" height="182.3" class="bar"><title>Week of 10 Aug: 28,745 impressions</title></rect>
+<rect x="440.6" y="167.7" width="23.6" height="88.3" class="bar during"><title>Week of 17 Aug: 13,917 impressions</title></rect>
+<text x="452.4" y="274" class="tick" text-anchor="middle">17 Aug</text>
+<rect x="478.7" y="248.6" width="23.6" height="7.4" class="bar after"><title>Week of 24 Aug: 1,174 impressions</title></rect>
+<rect x="516.8" y="248.8" width="23.6" height="7.2" class="bar after"><title>Week of 31 Aug: 1,142 impressions</title></rect>
+<text x="528.7" y="274" class="tick" text-anchor="middle">31 Aug</text>
+<rect x="555.0" y="249.0" width="23.6" height="7.0" class="bar after"><title>Week of 7 Sep: 1,103 impressions</title></rect>
+<rect x="593.1" y="251.3" width="23.6" height="4.7" class="bar after"><title>Week of 14 Sep: 743 impressions</title></rect>
+<text x="604.9" y="274" class="tick" text-anchor="middle">14 Sep</text>
+<line x1="438.8" y1="28" x2="438.8" y2="256" class="marker"/>
+<text x="432.8" y="22" class="marker-label" text-anchor="end">18 Aug: spam update begins</text>
+</svg>
+          </div>
+          <ul class="notes">
+            <li><span class="stamp p1">P1</span><span>The drop lines up with Google's August 2026 spam update, which began on 18 August. Clicks fell 87% across the update window.</span></li>
+            <li><span class="stamp p3">OK</span><span>Every key page was still "Submitted and indexed". Google had the pages. It had simply stopped showing them.</span></li>
+            <li><span class="stamp p1">P1</span><span>674 pages were near-identical templates: suburb and city pages with the place name swapped. Together they earned 57 clicks in 90 days.</span></li>
+            <li><span class="stamp p2">P2</span><span>Every suburb page claimed to be run by "local experts" but listed the same interstate phone number.</span></li>
+          </ul>
+          <div class="tri" aria-label="Model-verified triage of the templated pages">
+            <div><b>41</b><span>Keep</span></div>
+            <div><b>150</b><span>Improve</span></div>
+            <div class="prune"><b>468</b><span>Prune</span></div>
+          </div>
+          <p class="verdict"><b>Verdict:</b> consistent with a doorway and scaled-content demotion. Prune the templates, strengthen the hub pages, and watch for recovery at the next core update.</p>
+          <p class="fineprint">Triage by page diffing plus a local OpenJev judge, cross-checked against Search Console clicks. Correlation, not a confession: FAT never claims Google penalised you unless Search Console shows a manual action.</p>
+        </article>
+      </div>
+      <div class="dossier" style="margin-top:56px">
+        <div class="dossier-side">
+          <img src="assets/agent-portrait.png" alt="FAT Agent portrait" width="312" height="350">
+          <p>Second file on the desk. A store this time.</p>
+        </div>
+        <article class="paper" aria-labelledby="case2-title">
+          <span class="big-stamp">Solved</span>
+          <div class="paper-head">
+            <h3 id="case2-title">The empty checkout.</h3>
+            <span class="case-no">Case 2026-1031</span>
+          </div>
+          <p class="sample-tag">Illustrative case · composite figures</p>
+          <p class="subject"><b>Subject:</b> Shopify store, homewares · <b>Pages:</b> 4,812 crawled · <b>Symptom:</b> organic sales down 62%</p>
+          <p class="lead">Sales didn't dip. They vanished. He lined up the usual suspects and questioned every one.</p>
+          <div class="suspects" aria-label="Suspect lineup">
+            <div class="suspect guilty"><b>3,400</b><span>Near-duplicate collection and filter pages, all indexed</span></div>
+            <div class="suspect"><b>1,200</b><span>Product descriptions copied word for word from the manufacturer</span></div>
+            <div class="suspect"><b>212</b><span>Products with no price in their structured data</span></div>
+            <div class="suspect"><b>38</b><span>Internal links to checkout pages that 404</span></div>
+          </div>
+          <p class="verdict"><b>Verdict:</b> the duplicates did it. It's always the duplicates. Consolidate the filter pages, rewrite the copied descriptions, fix the product markup and the dead links. Organic sales were back within two core updates.</p>
+          <p class="fineprint">This one is a composite, built to show how he works a store. The first file is real.</p>
+        </article>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="method" aria-labelledby="method-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Method</p>
+        <h2 id="method-title">Fix. Audit. Test.</h2>
+        <p>Three letters, one routine, and a punch list that remembers what it found.</p>
+      </div>
+      <div class="method">
+        <div class="step">
+          <span class="letter" aria-hidden="true">F</span>
+          <h3>Fix</h3>
+          <p>He doesn't just leave a report on your desk. With your repo open he makes the changes himself: headers, schema, redirects, sitemaps and content briefs.</p>
+        </div>
+        <div class="step">
+          <span class="letter" aria-hidden="true">A</span>
+          <h3>Audit</h3>
+          <p>He crawls the site, runs every relevant module, pulls your Search Console data and ranks what he finds from P0 to P3.</p>
+        </div>
+        <div class="step">
+          <span class="letter" aria-hidden="true">T</span>
+          <h3>Test</h3>
+          <p>After you deploy he re-crawls. Fixed items close themselves. Anything that crept back gets reopened, so nothing slips through twice.</p>
+        </div>
+      </div>
+      <p class="aside">In practice he audits first. But nobody wants to hire an AFT Agent.</p>
+    </div>
+  </section>
+
+  <section id="informants" aria-labelledby="inf-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Informants</p>
+        <h2 id="inf-title">Every good detective has a few.</h2>
+        <p>Some calls need judgement, not pattern matching. Is this suburb page real local content, or the template with the name swapped? Does this page actually answer the question? He asks an informant, and every one answers the same way: a calibrated yes or no.</p>
+      </div>
+      <div class="inf">
+        <div class="inf-card">
+          <span class="role">Default</span>
+          <h3>Claude</h3>
+          <p>Nothing to set up. Claude judges a sample of pages as part of the audit.</p>
+          <p class="cost">Free · works everywhere</p>
+        </div>
+        <div class="inf-card">
+          <span class="role">Hosted</span>
+          <h3>Jev by TypeSafe</h3>
+          <p>A decision model built for exactly this: typed answers with calibrated confidence, in milliseconds, across every page.</p>
+          <p class="cost">Bring a key · cents per site</p>
+        </div>
+        <div class="inf-card">
+          <span class="role">Local</span>
+          <h3>OpenJev</h3>
+          <p>An open, Jev-compatible model running on your own graphics card. Private, and free to run as often as you like.</p>
+          <p class="cost">Needs an 8GB GPU · free</p>
+        </div>
+      </div>
+      <p class="nokey">No API key required. Ever.</p>
+    </div>
+  </section>
+
+  <section id="install" class="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Install</p>
+        <h2 id="install-title">Put him on the case.</h2>
+        <p>Inside Claude Code, run these two lines. Then point him at a site.</p>
+      </div>
+      <ol class="steps">
+        <li><div class="cmd"><code id="cmd-1">/plugin marketplace add spruikco/fat-agent-skill</code><button type="button" data-copy="cmd-1">Copy</button></div></li>
+        <li><div class="cmd"><code id="cmd-2">/plugin install fat-agent@fat-agent-marketplace</code><button type="button" data-copy="cmd-2">Copy</button></div></li>
+        <li><p class="say">Run <code>/fat-audit https://your-site.com</code>, or just say "run FAT agent on my site".</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="signoff">
+    <img src="assets/agent-portrait.png" alt="" width="312" height="350">
+    <p>He's not fat.<br><span>He's thorough.</span></p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>FAT Agent is a <a href="https://www.spruik.co">Spruik</a> production. Free and open source under the MIT licence.</span>
+    <a href="https://github.com/spruikco/fat-agent-skill">github.com/spruikco/fat-agent-skill</a>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll("[data-copy]").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var el = document.getElementById(btn.getAttribute("data-copy"));
+    var text = el.textContent.trim();
+    var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1600); };
+    var fallback = function () {
+      var r = document.createRange(); r.selectNodeContents(el);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = "Selected";
+      setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } catch (e) { fallback(); }
+  });
+});
+</script>

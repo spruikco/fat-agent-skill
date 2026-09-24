@@ -1,0 +1,37 @@
+<svg class="chart" viewBox="0 0 640 300" role="img" aria-labelledby="chart-title chart-desc">
+<title id="chart-title">Weekly Google impressions, June to September 2026</title>
+<desc id="chart-desc">Impressions held between about 22,000 and 31,000 a week until the week of 17 August, then fell to about 1,100 a week after the August 2026 spam update began on 18 August.</desc>
+<line x1="52" y1="256.0" x2="624" y2="256.0" class="grid"/>
+<text x="44" y="260.0" class="tick" text-anchor="end">0k</text>
+<line x1="52" y1="192.6" x2="624" y2="192.6" class="grid"/>
+<text x="44" y="196.6" class="tick" text-anchor="end">10k</text>
+<line x1="52" y1="129.1" x2="624" y2="129.1" class="grid"/>
+<text x="44" y="133.1" class="tick" text-anchor="end">20k</text>
+<line x1="52" y1="65.7" x2="624" y2="65.7" class="grid"/>
+<text x="44" y="69.7" class="tick" text-anchor="end">30k</text>
+<rect x="59.2" y="107.8" width="23.6" height="148.2" class="bar"><title>Week of 8 Jun: 23,362 impressions</title></rect>
+<text x="71.1" y="274" class="tick" text-anchor="middle">8 Jun</text>
+<rect x="97.4" y="92.2" width="23.6" height="163.8" class="bar"><title>Week of 15 Jun: 25,829 impressions</title></rect>
+<rect x="135.5" y="101.4" width="23.6" height="154.6" class="bar"><title>Week of 22 Jun: 24,366 impressions</title></rect>
+<text x="147.3" y="274" class="tick" text-anchor="middle">22 Jun</text>
+<rect x="173.6" y="97.9" width="23.6" height="158.1" class="bar"><title>Week of 29 Jun: 24,931 impressions</title></rect>
+<rect x="211.8" y="91.3" width="23.6" height="164.7" class="bar"><title>Week of 6 Jul: 25,969 impressions</title></rect>
+<text x="223.6" y="274" class="tick" text-anchor="middle">6 Jul</text>
+<rect x="249.9" y="107.5" width="23.6" height="148.5" class="bar"><title>Week of 13 Jul: 23,417 impressions</title></rect>
+<rect x="288.0" y="117.0" width="23.6" height="139.0" class="bar"><title>Week of 20 Jul: 21,912 impressions</title></rect>
+<text x="299.9" y="274" class="tick" text-anchor="middle">20 Jul</text>
+<rect x="326.2" y="67.1" width="23.6" height="188.9" class="bar"><title>Week of 27 Jul: 29,777 impressions</title></rect>
+<rect x="364.3" y="58.9" width="23.6" height="197.1" class="bar"><title>Week of 3 Aug: 31,067 impressions</title></rect>
+<text x="376.1" y="274" class="tick" text-anchor="middle">3 Aug</text>
+<rect x="402.4" y="73.7" width="23.6" height="182.3" class="bar"><title>Week of 10 Aug: 28,745 impressions</title></rect>
+<rect x="440.6" y="167.7" width="23.6" height="88.3" class="bar during"><title>Week of 17 Aug: 13,917 impressions</title></rect>
+<text x="452.4" y="274" class="tick" text-anchor="middle">17 Aug</text>
+<rect x="478.7" y="248.6" width="23.6" height="7.4" class="bar after"><title>Week of 24 Aug: 1,174 impressions</title></rect>
+<rect x="516.8" y="248.8" width="23.6" height="7.2" class="bar after"><title>Week of 31 Aug: 1,142 impressions</title></rect>
+<text x="528.7" y="274" class="tick" text-anchor="middle">31 Aug</text>
+<rect x="555.0" y="249.0" width="23.6" height="7.0" class="bar after"><title>Week of 7 Sep: 1,103 impressions</title></rect>
+<rect x="593.1" y="251.3" width="23.6" height="4.7" class="bar after"><title>Week of 14 Sep: 743 impressions</title></rect>
+<text x="604.9" y="274" class="tick" text-anchor="middle">14 Sep</text>
+<line x1="438.8" y1="28" x2="438.8" y2="256" class="marker"/>
+<text x="432.8" y="22" class="marker-label" text-anchor="end">18 Aug: spam update begins</text>
+</svg>

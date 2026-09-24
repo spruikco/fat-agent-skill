@@ -38,3 +38,11 @@ Desktop.ini
 *.log
 tmp/
 temp/
+
+# landing site build artefacts (videos are served from Netlify, not git)
+site/dist/
+site/**/*.mp4
+site/**/*.wav
+site/promo/*_preview.jpg
+site/promo/fonts/
+site/promo/__pycache__/

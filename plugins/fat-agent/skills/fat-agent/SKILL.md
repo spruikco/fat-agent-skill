@@ -1671,6 +1671,11 @@ Load the relevant file based on the hosting platform from Phase 0:
 - `references/platform-fixes/nginx.md` — Nginx config (server blocks, add_header)
 - `references/platform-fixes/wordpress.md` — WordPress config (wp-config.php, plugins)
 - `references/platform-fixes/aws.md` — AWS config (CloudFront, S3, Amplify)
+- `references/platform-fixes/shopify.md` — Shopify (robots.txt.liquid, URL redirects, theme.liquid, collection/filter canonicals)
+- `references/platform-fixes/wix.md` — Wix (SEO settings, Velo SEO API, Custom Code, URL Redirect Manager)
+- `references/platform-fixes/squarespace.md` — Squarespace (Code Injection, URL Mappings, page SEO, HSTS toggle)
+- `references/platform-fixes/webflow.md` — Webflow (page/CMS template SEO, 301 redirects, robots.txt, custom code)
+- `references/platform-fixes/bigcommerce.md` — BigCommerce (Stencil templates, 301 redirects, faceted search, Script Manager)
 
 ### Framework-Specific Fix References
 Load the relevant file based on the tech stack from Phase 0:

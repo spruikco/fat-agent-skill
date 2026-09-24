@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.8.4] - 2026-09-24
+
+### Added
+- Platform fix guides for **Shopify, Wix, Squarespace, Webflow and BigCommerce**
+  (`references/platform-fixes/`): titles and metas, canonicals and faceted
+  URLs, redirects, robots and sitemaps, structured data, images, security
+  headers (honest about what each platform can't set), performance, Search
+  Console, and a "what you can't fix here" table.
+- `site/`: the FAT Agent landing page (live at fatagent.netlify.app) and the
+  code-rendered trailer (`site/promo/promo2.py`).
+
 ## [3.8.3] - 2026-09-24
 
 - The judge client sends a real User-Agent. Cloudflare-fronted Jev-compatible
