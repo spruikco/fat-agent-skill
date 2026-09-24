@@ -233,13 +233,35 @@ on them):
 | Laya (Apache-2.0, 322 to 421M) | CPU-viable, about 0.2 to 0.5s per question. Reported accuracy 0.766 |
 | Kev-9B (Apache-2.0) | Reported accuracy 0.852 vs Jev 0.857. Needs a GPU or a 32GB Mac |
 
+**Tested setup** (24 Sep 2026: Windows, RTX 4060 8GB, transformers 5.17):
+
 ```bash
 git clone https://github.com/GitHub30/OpenJev.git && cd OpenJev
-uv venv && uv pip install -e ".[hf,server,dev]"
-openjev serve --model Qwen/Qwen2.5-1.5B-Instruct --port 8000
-# then, in the audit:
-python scripts/jev.py ping --backend local --base-url http://localhost:8000
+uv venv --system-site-packages .venv          # reuse an existing CUDA torch
+uv pip install --python .venv/Scripts/python.exe -e ".[hf,server]"
+uv pip uninstall --python .venv/Scripts/python.exe torch   # uv pulls a CPU torch that shadows CUDA
+openjev serve --model Qwen/Qwen2.5-3B-Instruct --host 127.0.0.1 --port 8000
+python scripts/jev.py ping --backend local --base-url http://127.0.0.1:8000
 ```
+
+What we learned getting it working:
+- **Use Qwen2.5-3B-Instruct, not the 1.5B default.** On control cases the
+  1.5B model answered yes to everything: 0.97 for generic copy and 0.98
+  for real local detail. It's unusable for this judgment.
+- **Keep the default bfloat16.** With `--dtype float16` Qwen overflows and
+  every answer collapses to 0.0.
+- **Question wording matters more than model size.** Abstract questions
+  ("is this genuinely location-specific substance?") fail on small models:
+  3B answered 0.0 to everything. Concrete, checkable questions work: "apart
+  from the place name X, does this text name a specific local business,
+  street address, landmark, person, price or project?", asked over plain-text
+  state. Scores were generic 0.00, place name only 0.00, real local detail
+  0.98.
+- **Diff in code first.** `jev.py` compares each templated page with a
+  sibling from the same template and sends only the sentences unique to that
+  page. Pages with none are decided in code with no model call. On
+  spruik.co that settled 47 of 78 sampled pages before any model ran.
+- About 16k input tokens and around 8 seconds for 31 judgments on the 4060.
 
 If none of these are available, `jev.py` falls back to agent mode, where the
 agent running the audit answers a sampled batch itself. The audit never

@@ -908,9 +908,16 @@ confidence), then turns the answers into findings.
 | `local` | Any Jev-wire-compatible server, e.g. OpenJev. Free, private | `--base-url http://localhost:8000` or `TYPESAFE_BASE_URL`. No key |
 | `agent` | Everyone else, zero install | Nothing. You (the agent) answer the batch; see below |
 
-`--backend auto` (the default) uses typesafe if a key is set, local if a
-base URL is set, otherwise agent. **Never make a key a requirement:** the
-audit must work in agent mode.
+`--backend auto` (the default) uses a local server if `TYPESAFE_BASE_URL` is
+set and answering, then TypeSafe if a key is set, otherwise agent. A
+configured server that's down falls through rather than failing. **Never make
+a key a requirement:** the audit must work in agent mode.
+
+`doorway` diffs each templated page against a sibling from the same template
+in code (place names masked) and sends only the unique sentences to the
+model. Pure-template pages are decided in code, with no model call. Keep
+questions concrete ("does this text name a local business, address,
+landmark…?"). Small open models fail on abstract wording.
 
 ```bash
 python scripts/jev.py ping                                   # which backend, is it up

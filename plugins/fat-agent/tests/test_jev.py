@@ -107,7 +107,12 @@ def test_resolve_backend(monkeypatch):
     monkeypatch.delenv("TYPESAFE_BASE_URL", raising=False)
     assert jev.resolve_backend("auto")[0] == "agent"
     assert jev.resolve_backend("auto", api_key="k") == ("typesafe", jev.DEFAULT_BASE, "k")
+    monkeypatch.setattr(jev, "server_up", lambda u, timeout=3.0: True)
     assert jev.resolve_backend("auto", base_url="http://h:1")[:2] == ("local", "http://h:1")
+    monkeypatch.setattr(jev, "server_up", lambda u, timeout=3.0: False)
+    # configured local server is down: fall back to the key, then to agent
+    assert jev.resolve_backend("auto", base_url="http://h:1", api_key="k")[0] == "typesafe"
+    assert jev.resolve_backend("auto", base_url="http://h:1")[0] == "agent"
     assert jev.resolve_backend("local")[1] == "http://localhost:8000"
     with pytest.raises(SystemExit):
         jev.resolve_backend("typesafe")
@@ -171,8 +176,12 @@ def test_doorway_end_to_end_with_gsc(server, tmp_path, capsys):
     assert verdicts == {"carlton": "keep", "fitzroy": "improve",
                         "richmond": "improve", "kew": "prune"}
     assert res["findings"][0]["module"] == "jev"
-    state = _Handler.calls[0]["body"]["state"]["page"]
-    assert state["location_hint"] and state["text_excerpt"]
+    # only the page with text its siblings lack reaches the model, as plain text,
+    # with the location written into the question
+    assert len(_Handler.calls) == 1
+    body = _Handler.calls[0]["body"]
+    assert "Lygon Street" in body["state"] and "Our Team" not in body["state"]
+    assert "Carlton" in body["questions"]["local_substance"]["instructions"]
 
 
 def test_agent_backend_roundtrip(tmp_path, monkeypatch, capsys):
@@ -182,7 +191,8 @@ def test_agent_backend_roundtrip(tmp_path, monkeypatch, capsys):
     batch = tmp_path / "batch.json"
     assert jev.main(["doorway", "--db", db, "--export", str(batch)]) == 0
     items = json.loads(batch.read_text())
-    assert len(items) == 4 and set(items[0]["questions"]) == {"local_substance",
+    # three pages are pure template (decided in code); only Carlton needs judging
+    assert len(items) == 1 and set(items[0]["questions"]) == {"local_substance",
                                                              "originality"}
     # the agent answers in the Jev shape
     answers = {it["id"]: {"local_substance": {"type": "noul", "noul": 0.05},
@@ -241,3 +251,22 @@ def test_hub_page_without_location_is_not_judged(tmp_path):
                  "urls": ["https://e.com/local/seo-in-carlton/", "https://e.com/local/"]}]
     ids = [i for i, _, _ in jev.doorway_items(con, clusters)]
     assert ids == ["https://e.com/local/seo-in-carlton/"]
+
+
+def test_server_up(server):
+    assert jev.server_up(server) is True
+    assert jev.server_up("http://127.0.0.1:9", timeout=0.5) is False
+
+
+def test_unique_sentences_masks_place_and_ignores_truncation():
+    a = "We help Carlton teams. Visit our Carlton office on Lygon Street. The pace was"
+    b = "We help Kew teams. The pace was genuinely different."
+    assert jev.unique_sentences(a, "carlton", b, "kew") == [
+        "Visit our Carlton office on Lygon Street."
+    ] or "Visit our Carlton office on Lygon Street." in jev.unique_sentences(
+        a, "carlton", b, "kew")
+
+
+def test_question_names_the_location():
+    q = jev.local_substance_question("Carlton")
+    assert "Carlton" in q["instructions"] and q["type"] == "noul"

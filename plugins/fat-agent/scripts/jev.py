@@ -46,6 +46,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import sys
 import threading
@@ -67,19 +68,25 @@ IMPROVE_MIN_IMPRESSIONS = 20
 # --------------------------------------------------------------------------- #
 # Questions (one narrow judgment each; ids are for code, meaning is in the text)
 # --------------------------------------------------------------------------- #
-DOORWAY_QUESTIONS = {
-    "local_substance": {
+# Question design note: small open models (OpenJev on Qwen 1.5B/3B) fail on
+# abstract questions ("is this genuinely location-specific?") -- 1.5B said yes
+# to everything, 3B no to everything. Concrete, checkable wording with the
+# location written in, over plain-text state, discriminates cleanly on 3B
+# (generic 0.0, place-name-only 0.0, real local detail 0.98) and suits Jev too.
+def local_substance_question(location: str) -> dict:
+    return {
         "type": "noul",
-        "instructions": "Does `page` contain genuinely location-specific substance "
-        "about `page.location_hint`, beyond inserting the place name into generic "
-        "copy? Substance means concrete local detail: named local clients or "
-        "projects, local staff or office, suburb-specific prices, regulations, "
-        "landmarks, travel or service-area specifics, or local results.",
-        "criteria": {
-            "true": "Has concrete facts that only apply to this location",
-            "false": "Generic template copy with the place name swapped in",
-        },
-    },
+        "instructions": f"Apart from the place name {location} itself, does this "
+        f"text name a specific local business, street address, landmark, person, "
+        f"price or project in or near {location}?",
+    }
+
+
+DOORWAY_QUESTIONS = {
+    # The page has already been diffed against a sibling from the same template in
+    # code; the model only judges the sentences that are unique to this page.
+    # "local_substance" is filled per page by local_substance_question().
+    "local_substance": local_substance_question("this location"),
     "originality": {
         "type": "score",
         "instructions": "How much original, useful information does `page` add "
@@ -214,17 +221,30 @@ class JevClient:
                 json.dump(self.cache, fh)
 
 
+def server_up(base_url, timeout=3.0) -> bool:
+    """Cheap reachability check for a local Jev-compatible server."""
+    for path in ("/healthz", "/v1/models"):
+        try:
+            with urllib.request.urlopen(base_url.rstrip("/") + path, timeout=timeout):
+                return True
+        except urllib.error.HTTPError:
+            return True  # it answered, even if with an error (e.g. 401 on /v1/models)
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return False
+
+
 def resolve_backend(backend, base_url=None, api_key=None):
     """→ (backend, base_url, api_key)."""
     api_key = api_key or os.environ.get("TYPESAFE_API_KEY")
     base_url = base_url or os.environ.get("TYPESAFE_BASE_URL")
     if backend == "auto":
-        if api_key and not base_url:
-            backend = "typesafe"
-        elif base_url:
+        if base_url and server_up(base_url):
             backend = "local"
+        elif api_key:
+            backend, base_url = "typesafe", None
         else:
-            backend = "agent"
+            backend, base_url = "agent", None  # configured server down: never block
     if backend == "typesafe":
         if not api_key:
             raise SystemExit(json.dumps({"error": "TYPESAFE_API_KEY not set (or use "
@@ -287,25 +307,80 @@ def _location_hint(url, shape):
     return ""
 
 
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\s{2,}|\s[|•·]\s")
+
+
+def unique_sentences(text, hint, sibling_text, sibling_hint):
+    """Sentences of ``text`` not on the sibling page once place names are masked."""
+    def norm(t, h):
+        t = " ".join((t or "").split())
+        for w in sorted({h, *h.split()}, key=len, reverse=True):
+            if len(w) > 2:
+                t = re.sub(re.escape(w), "{place}", t, flags=re.IGNORECASE)
+        return t
+
+    def sents(t):
+        return [x.strip(" ,") for x in _SENT_SPLIT.split(t) if len(x.split()) >= 4]
+
+    def toks(x):
+        return set(re.findall(r"[a-z0-9{}]+", x.lower()))
+
+    def trimmed(t, h):
+        ss = sents(norm(t, h))
+        # excerpts are cut at a fixed length: the last sentence is usually partial
+        return ss[:-1] if len(t or "") >= EXCERPT_CHARS - 10 and len(ss) > 1 else ss
+
+    sib = [toks(x) for x in trimmed(sibling_text, sibling_hint)]
+    out = []
+    for x in trimmed(text, hint):
+        t = toks(x)
+        # near-identical to any sibling sentence (Jaccard >= 0.8) = template, not unique
+        if any(len(t & o) / max(1, len(t | o)) >= 0.8 for o in sib):
+            continue
+        out.append(x.replace("{place}", hint.title()))
+    return out
+
+
+# decided in code, no model call: the page says nothing its sibling doesn't
+TEMPLATE_ONLY = {"type": "noul", "noul": 0.02, "decided_by": "template diff"}
+
+
 def doorway_items(con, clusters, per_cluster=0):
     cols = _cols(con)
     if "main_excerpt" not in cols:
         raise SystemExit(json.dumps({"error": "crawl DB has no main_excerpt; re-crawl "
                                      "with sitecrawl.py v3.8+"}))
+    def fetch(u):
+        return con.execute(
+            "SELECT url,title,h1,meta_desc,headings,main_excerpt FROM pages WHERE url=?",
+            (u,),
+        ).fetchone()
+
     items = []
     for c in clusters:
-        urls = c["urls"]
+        located = [u for u in c["urls"] if _location_hint(u, c["shape"])]
+        urls = located
         if per_cluster and len(urls) > per_cluster:
             step = len(urls) / per_cluster  # spread the sample across the cluster
             urls = [urls[int(i * step)] for i in range(per_cluster)]
         for url in urls:
-            row = con.execute(
-                "SELECT url,title,h1,meta_desc,headings,main_excerpt FROM pages WHERE url=?",
-                (url,),
-            ).fetchone()
+            row = fetch(url)
             hint = _location_hint(url, c["shape"])
-            if row and hint:  # no location in the URL = the hub itself, not a doorway
-                items.append((url, _page_state(row, hint), DOORWAY_QUESTIONS))
+            if not row or not hint:  # no location in the URL = the hub, not a doorway
+                continue
+            sib_url = next((u for u in located if u != url), None)
+            sib = fetch(sib_url) if sib_url else None
+            state = _page_state(row, hint)
+            qs = {**DOORWAY_QUESTIONS,
+                  "local_substance": local_substance_question(hint.title())}
+            if sib:
+                uniq = unique_sentences(row[5], hint, sib[5],
+                                        _location_hint(sib_url, c["shape"]))
+                if not uniq:
+                    items.append((url, None, qs))  # code decides: pure template
+                    continue
+                state = "\n".join(uniq[:25])  # plain text: judge only what's unique
+            items.append((url, state, qs))
     return items
 
 
@@ -444,9 +519,12 @@ def fanout_results(meta, answers, threshold=0.6):
 def _run(items, args):
     """Get answers for items from whichever backend is configured."""
     backend, base_url, api_key = resolve_backend(args.backend, args.base_url, args.api_key)
+    decided = {i: {"local_substance": dict(TEMPLATE_ONLY)} for i, st, _ in items if st is None}
+    items = [it for it in items if it[1] is not None]
     if backend == "agent":
         if args.answers:
-            return json.load(open(args.answers, encoding="utf-8")), backend, None
+            answers = json.load(open(args.answers, encoding="utf-8"))
+            return {**answers, **decided}, backend, None
         path = args.export or os.path.join(".fat-work", "jev_batch.json")
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
@@ -460,7 +538,7 @@ def _run(items, args):
         return None, backend, None
     client = JevClient(base_url, api_key, args.model, args.cache, workers=args.workers)
     answers = client.ask_many(items)
-    return answers, backend, client
+    return {**answers, **decided}, backend, client
 
 
 def main(argv=None):

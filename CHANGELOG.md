@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.8.1] - 2026-09-24
+
+### Changed — OpenJev tested end to end; judge design hardened
+
+Ran OpenJev locally (Qwen2.5 on an RTX 4060) against spruik.co and fixed
+what that exposed:
+- **Diff-first doorway judging.** Each templated page is compared with a
+  sibling from the same template (place names masked, fuzzy sentence
+  match, truncated tail ignored). Only the unique sentences go to the
+  model, and pure-template pages are decided in code. That was 47 of 78
+  sampled spruik.co pages, with no model call.
+- **Concrete question wording** with the location written in, over
+  plain-text state. The abstract wording made Qwen 1.5B say yes to
+  everything and 3B say no to everything. The concrete wording
+  discriminates on 3B: generic 0.00, place name only 0.00, real local
+  detail 0.98.
+- `--backend auto` checks that a configured local server is up and
+  otherwise falls back to TypeSafe, then agent. It never blocks.
+- Reference §6b documents the tested OpenJev setup: use 3B not 1.5B, keep
+  bfloat16 (float16 breaks Qwen), and uv's CPU torch shadowing CUDA.
+
+Tests: 1089 passing.
+
 ## [3.8.0] - 2026-09-24
 
 ### Added — model judgments via Jev, OpenJev or the agent (no key required)
