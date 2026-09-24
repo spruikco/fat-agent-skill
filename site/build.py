@@ -606,7 +606,8 @@ PRIVACY = """
         <h2>The details</h2>
         <p><b>What Google Analytics records:</b> pages viewed, rough location (country or city), device and browser type, and how you arrived. Google Analytics 4 does not store IP addresses.</p>
         <p><b>Your choice:</b> in the EU, UK and Switzerland analytics stays off until you accept. Everywhere else it is on until you decline. Change your mind any time by clearing this site's storage in your browser; the banner comes back.</p>
-        <p><b>The plugin itself:</b> FAT Agent runs inside your own Claude Code session. It sends nothing to us.</p>
+        <p><b>The plugin itself:</b> FAT Agent runs inside your own Claude Code session. It sends nothing to us unless you connect FAT HQ.</p>
+        <p><b>FAT HQ:</b> if you make an HQ account, the audits and Search Console numbers you send are covered by the <a href="https://fathq.prodimus.com.au/privacy">FAT HQ privacy policy</a>.</p>
         <p><b>Contact:</b> rye@spruik.co</p>
       </div>
     </div>
