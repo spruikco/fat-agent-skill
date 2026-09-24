@@ -133,6 +133,12 @@ DEFAULT_BUDGETS = {
 }
 
 
+PLACEHOLDER_RE = re.compile(
+    r"^\W*placeholder\W*$|\[\s*placeholder|\{\{?\s*placeholder|placeholder (?:copy|content|heading|title)"
+    r"|(?:insert|add|enter) (?:your )?(?:text|content|copy|heading|title) here|^(?:your )?(?:text|content|heading|title) here\W*$"
+)
+
+
 class FATHTMLAnalyser(HTMLParser):
     """Parses HTML and extracts audit signals."""
 
@@ -942,7 +948,10 @@ class FATHTMLAnalyser(HTMLParser):
         # Skip link detection
         if tag == "a" and len(self.tag_stack) < 5:
             href = attrs_dict.get("href", "")
-            if href.startswith("#main") or href.startswith("#content"):
+            cls = (attrs_dict.get("class") or "").lower()
+            if href.startswith("#main") or href.startswith("#content") or (
+                href.startswith("#") and len(href) > 1 and "skip" in cls
+            ):
                 self.has_skip_link = True
 
         # Anchor tag processing
@@ -1107,7 +1116,9 @@ class FATHTMLAnalyser(HTMLParser):
         if text:
             if "lorem ipsum" in text:
                 self.placeholder_text_found.append("Lorem ipsum text detected")
-            if "placeholder" in text and len(text) < 50:
+            # Real placeholder copy, not any sentence that mentions the word
+            # (an audit report listing "Placeholder text detected" is not one).
+            if len(text) < 60 and PLACEHOLDER_RE.search(text):
                 self.placeholder_text_found.append(
                     f"Possible placeholder: '{data.strip()[:50]}'"
                 )

@@ -8,8 +8,10 @@ Pages: /            (index.template.html + chart)
 The dossier is generated from the finding titles in plugins/fat-agent/scripts, so
 the site can never claim a check the code doesn't make.
 """
+import datetime
 import glob
 import html
+import json
 import os
 import re
 import shutil
@@ -166,7 +168,39 @@ CONSENT_CSS = """<style>
 </style>"""
 
 
+SITE = os.environ.get("FAT_SITE_URL", "https://fatagent.netlify.app").rstrip("/")
+
+ORG = {"@type": "Organization", "@id": "https://www.spruik.co/#org", "name": "Spruik",
+       "url": "https://www.spruik.co", "logo": SITE + "/assets/badge-mark.png",
+       "sameAs": ["https://github.com/spruikco"]}
+APP = {"@type": "SoftwareApplication", "@id": SITE + "/#app", "name": "FAT Agent",
+       "description": "Free, open-source website auditor for Claude Code: SEO, Google spam policies, security, accessibility and performance, with fixes and re-tests.",
+       "applicationCategory": "DeveloperApplication", "operatingSystem": "Windows, macOS, Linux (Claude Code)",
+       "url": SITE + "/", "downloadUrl": "https://github.com/spruikco/fat-agent-skill",
+       "license": "https://opensource.org/licenses/MIT", "publisher": {"@id": "https://www.spruik.co/#org"},
+       "offers": {"@type": "Offer", "price": "0", "priceCurrency": "AUD"}}
+VIDEO = {"@type": "VideoObject", "name": "FAT Agent trailer",
+         "description": "A 60-second noir trailer: FAT Agent investigates why an online shop's organic sales fell and finds the duplicates.",
+         "thumbnailUrl": SITE + "/assets/scenes/stakeout.jpg", "contentUrl": SITE + "/assets/fat-agent-promo.mp4",
+         "uploadDate": "2026-09-24", "duration": "PT1M1S", "publisher": {"@id": "https://www.spruik.co/#org"}}
+HQ_OFFERS = {"@type": "SoftwareApplication", "name": "FAT HQ", "applicationCategory": "BusinessApplication",
+             "operatingSystem": "Web", "url": "https://fathq.prodimus.com.au/",
+             "publisher": {"@id": "https://www.spruik.co/#org"},
+             "offers": [{"@type": "Offer", "name": n, "price": str(pr), "priceCurrency": "AUD"} for n, pr in (("Free", 0), ("Pro", 29), ("Agency", 99))]}
+
+
+def jsonld(active):
+    graph = [ORG, {"@type": "WebSite", "@id": SITE + "/#site", "url": SITE + "/", "name": "FAT Agent",
+                   "publisher": {"@id": "https://www.spruik.co/#org"}}]
+    if active == "home":
+        graph += [APP, VIDEO]
+    if active == "pricing":
+        graph += [APP, HQ_OFFERS]
+    return '<script type="application/ld+json">' + json.dumps({"@context": "https://schema.org", "@graph": graph}) + "</script>"
+
+
 def doc(title, desc, active, main):
+    path = "/" if active == "home" else f"/{active}/"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -177,7 +211,12 @@ def doc(title, desc, active, main):
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{html.escape(desc)}">
 <meta property="og:type" content="website">
-<meta property="og:image" content="/assets/og-card.png">
+<meta property="og:url" content="{SITE}{path}">
+<meta property="og:image" content="{SITE}/assets/og-card.png">
+<link rel="canonical" href="{SITE}{path}">
+<meta name="theme-color" content="#101319">
+<link rel="apple-touch-icon" href="/assets/badge-mark.png">
+{jsonld(active)}
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="/assets/badge-mark.png">
 {analytics_head()}
@@ -185,8 +224,9 @@ def doc(title, desc, active, main):
 {EXTRA_CSS}<style>{HQ_CSS}</style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 {nav(active)}
-<main id="top">
+<main id="main">
 {main}
 </main>
 {FOOTER}
@@ -229,6 +269,8 @@ HQ_SECTION = """
 """.replace("{hq}", HQ_URL)
 
 HQ_CSS = """
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skip{position:absolute;left:-9999px;top:8px;z-index:50;background:var(--manila);color:var(--manila-ink);padding:8px 14px;font-family:var(--type)}.skip:focus{left:8px}
 .hq-band{background:radial-gradient(ellipse 60% 70% at 80% 10%,rgba(200,16,46,.12),transparent 70%),var(--asphalt)}
 .hq-shot{background:var(--manila);color:var(--manila-ink);border-radius:4px;padding:22px;box-shadow:0 24px 50px rgba(0,0,0,.45);transform:rotate(1deg);display:grid;gap:14px}
 .hq-card{display:flex;align-items:center;gap:14px}.hq-card b{display:block;font-family:var(--display);font-size:18px}.hq-card small{font-size:13px;color:var(--manila-muted)}
@@ -261,8 +303,9 @@ PRICING = """
       </div>
     </div>
   </section>
-  <section aria-label="Plans" style="padding-top:12px">
+  <section aria-labelledby="plans-title" style="padding-top:12px">
     <div class="wrap">
+      <h2 id="plans-title" class="sr-only">Plans</h2>
       <div class="plans">
         <div class="plan"><p class="plan-tag">The plugin</p><h3>FAT Agent</h3><p class="price">Free</p><p class="fine">Forever. MIT licence.</p>
           <ul><li>All 222 checks, P0 to P3 punch list</li><li>Site-wide crawl, spam policy and doorway checks</li><li>Search Console, AI search and update impact</li><li>Fixes the code with you, then re-tests</li></ul>
@@ -272,10 +315,10 @@ PRICING = """
           <a class="cta" href="{hq}/signup">Start free</a></div>
         <div class="plan feat"><p class="plan-tag">HQ</p><h3>Pro</h3><p class="price">A$29<small> /month</small></p><p class="fine">US$19 outside Australia. GST included.</p>
           <ul><li>10 sites, full history</li><li>Weekly re-checks of up to 5 pages each</li><li>Email alerts: new P0s, regressions, score drops</li><li>Shareable client report links</li></ul>
-          <a class="cta" href="{hq}/signup?ref=pricing-pro">Start with Pro</a></div>
+          <a class="cta" href="{hq}/signup?plan=pro">Start with Pro</a></div>
         <div class="plan"><p class="plan-tag">HQ</p><h3>Agency</h3><p class="price">A$99<small> /month</small></p><p class="fine">US$69 outside Australia. GST included.</p>
           <ul><li>50 sites</li><li>Daily re-checks of up to 20 pages each</li><li>White-label reports: your name, logo and colour</li><li>Everything in Pro</li></ul>
-          <a class="cta" href="{hq}/signup?ref=pricing-agency">Start with Agency</a></div>
+          <a class="cta" href="{hq}/signup?plan=agency">Start with Agency</a></div>
       </div>
     </div>
   </section>
@@ -329,7 +372,8 @@ def build_home():
 """
     main = main.replace('  <section id="casework"', extra + '  <section id="casework"', 1)
     main = main.replace('  <section id="install"', HQ_SECTION + '  <section id="install"', 1)
-    return doc("FAT Agent", "The heavyweight website auditor for Claude Code. Fix. Audit. Test.",
+    return doc("FAT Agent: free SEO and security auditor for Claude Code",
+               "FAT Agent audits your website inside Claude Code: Google spam policies, SEO, security, accessibility and speed, then fixes what it finds. Free and open source.",
                "home", main)
 
 
@@ -454,8 +498,8 @@ SECURITY = """
 
 
 def build_security():
-    return doc("FAT Agent Security",
-               "FAT Agent's security checks: headers, leaked secrets, exposed files, cookies, TLS, DNS, email spoofing and consent.",
+    return doc("FAT Agent security checks: headers, keys and exposed files",
+               "FAT Agent tests your site like an attacker would: security headers graded on quality, leaked API keys, exposed .env and .git files, cookies and email spoofing.",
                "security", SECURITY + INSTALL)
 
 
@@ -579,6 +623,7 @@ def build_dossier():
   </section>
   <section aria-label="All findings" style="padding-top:8px">
     <div class="wrap">
+      <h2 class="sr-only">Checks by department</h2>
       <div class="dossier-grid">
 {chr(10).join(cards)}
       </div>
@@ -586,7 +631,8 @@ def build_dossier():
     </div>
   </section>
 """
-    return doc("FAT Agent Dossier", f"All {total} checks FAT Agent makes, grouped by department.",
+    return doc(f"FAT Agent dossier: all {total} website audit checks",
+               f"Every one of the {total} checks FAT Agent runs on a website, grouped by department, from Google spam policies and SEO to security, accessibility and speed.",
                "dossier", main + INSTALL), total
 
 
@@ -608,10 +654,61 @@ PRIVACY = """
         <p><b>Your choice:</b> in the EU, UK and Switzerland analytics stays off until you accept. Everywhere else it is on until you decline. Change your mind any time by clearing this site's storage in your browser; the banner comes back.</p>
         <p><b>The plugin itself:</b> FAT Agent runs inside your own Claude Code session. It sends nothing to us unless you connect FAT HQ.</p>
         <p><b>FAT HQ:</b> if you make an HQ account, the audits and Search Console numbers you send are covered by the <a href="https://fathq.prodimus.com.au/privacy">FAT HQ privacy policy</a>.</p>
-        <p><b>Contact:</b> rye@spruik.co</p>
+        <p><b>Stored in your browser:</b> one entry, your analytics choice (<code>fat-consent</code> in local storage). This site sets no cookies of its own; Google Analytics sets its cookies only when analytics is on.</p>
+        <p><b>Hosting and fonts:</b> the site is served by Netlify, which keeps standard request logs (IP address, page, time) for security and uptime. Fonts load from Google Fonts, so Google sees your IP address when the page loads them.</p>
+        <p><b>What we never do:</b> sell data, run advertising or remarketing, or use fingerprinting. There are no forms on this site; nothing you type here is sent anywhere.</p>
+        <p><b>Your rights:</b> under the Australian Privacy Principles you can ask what we hold about you and have it corrected or deleted. If you are unhappy with our answer you can contact the Office of the Australian Information Commissioner.</p>
+        <p><b>Contact:</b> hello@spruik.co</p>
       </div>
     </div>
   </section>
+"""
+
+
+PAGES = ("index.html", "security/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html")
+
+CSP = "; ".join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com",
+    "media-src 'self'",
+    "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "upgrade-insecure-requests",
+])
+
+NETLIFY_TOML = f"""[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "{CSP}"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+"""
+
+
+HEADERS_FILE = f"""/*
+  Content-Security-Policy: {CSP}
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+/assets/*
+  Cache-Control: public, max-age=604800
 """
 
 
@@ -624,9 +721,9 @@ def main():
     dossier, total = build_dossier()
     open(os.path.join(DIST, "dossier", "index.html"), "w", encoding="utf-8").write(dossier)
     open(os.path.join(DIST, "pricing", "index.html"), "w", encoding="utf-8").write(
-        doc("FAT Agent Pricing", "FAT Agent is free. FAT HQ adds case files, Search Console trends, scheduled re-checks, alerts and client reports.", "pricing", PRICING))
+        doc("FAT Agent pricing: free plugin, FAT HQ from A$0 a month", "The FAT Agent plugin is free and open source. FAT HQ adds case files, Search Console trends, scheduled re-checks, alerts and client reports, free for one site.", "pricing", PRICING))
     open(os.path.join(DIST, "privacy", "index.html"), "w", encoding="utf-8").write(
-        doc("FAT Agent Privacy", "How the FAT Agent website uses analytics.", "privacy", PRIVACY))
+        doc("FAT Agent privacy: what this website and FAT HQ collect", "What the FAT Agent website records with analytics, what the open-source plugin sends (nothing, unless you connect FAT HQ), and how to ask us to delete data.", "privacy", PRIVACY))
     shutil.copytree(os.path.join(HERE, "assets"), os.path.join(DIST, "assets"),
                     dirs_exist_ok=True)
     # leave out any illustration that hasn't been added yet, rather than ship a broken image
@@ -641,7 +738,45 @@ def main():
         txt = re.sub(r'<img class="sticker" src="(/?assets/scenes/[^"]+)"[^>]*>',
                      lambda m: m.group(0) if have(m.group(1)) else "", txt)
         open(path, "w", encoding="utf-8").write(txt)
-    for page in ("index.html", "security/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html"):
+    # WebP copies of the scene illustrations (the JPEGs stay for the video poster and old browsers)
+    try:
+        from PIL import Image
+        for png in ("badge-topsecret", "badge-testing", "agent-portrait", "badge-mark"):
+            src = os.path.join(DIST, "assets", png + ".png")
+            if os.path.exists(src):
+                Image.open(src).save(src[:-4] + ".webp", quality=85, method=6)
+        for jpg in glob.glob(os.path.join(DIST, "assets", "scenes", "*.jpg")):
+            webp = jpg[:-4] + ".webp"
+            if not os.path.exists(webp) or os.path.getmtime(webp) < os.path.getmtime(jpg):
+                Image.open(jpg).save(webp, quality=78, method=6)
+    except ImportError:
+        pass
+    for page in PAGES:
+        path = os.path.join(DIST, page)
+        txt = open(path, encoding="utf-8").read()
+        # one number everywhere: the dossier's real count of checks
+        txt = re.sub(r"(?<![\d,.])222(?= (?:things he checks|checks|things))", str(total), txt)
+        txt = txt.replace("<b>222</b>", f"<b>{total}</b>")
+        # below-the-fold images load lazily; the nav badge is the only eager one
+        txt = re.sub(r'<img (?![^>]*loading=)(?![^>]*class="brand-img")([^>]*?)(/?)>',
+                     lambda m: m.group(0) if 'badge-mark.png" alt="" width="38"' in m.group(0)
+                     else f'<img loading="lazy" decoding="async" {m.group(1)}{m.group(2)}>', txt)
+        for png in ("badge-topsecret", "badge-testing", "agent-portrait", "badge-mark"):
+            if os.path.exists(os.path.join(DIST, "assets", png + ".webp")):
+                txt = re.sub(r'(<img[^>]*src="/?assets/' + png + r')\.png', r"\1.webp", txt)
+        if os.path.exists(os.path.join(DIST, "assets", "scenes", "stakeout.webp")):
+            txt = re.sub(r'(<img[^>]*src="/?assets/scenes/[a-z-]+)\.jpg', r"\1.webp", txt)
+            txt = re.sub(r'url\((/?assets/scenes/[a-z-]+)\.jpg\)', r"url(\1.webp)", txt)
+        open(path, "w", encoding="utf-8").write(txt)
+    today = datetime.date.today().isoformat()
+    urls = ["/", "/security/", "/dossier/", "/pricing/", "/privacy/"]
+    open(os.path.join(DIST, "sitemap.xml"), "w", encoding="utf-8").write(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "".join(f"  <url><loc>{SITE}{u}</loc><lastmod>{today}</lastmod></url>\n" for u in urls) + "</urlset>\n")
+    open(os.path.join(DIST, "robots.txt"), "w", encoding="utf-8").write(f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n")
+    open(os.path.join(DIST, "netlify.toml"), "w", encoding="utf-8").write(NETLIFY_TOML)
+    open(os.path.join(DIST, "_headers"), "w", encoding="utf-8").write(HEADERS_FILE)
+    for page in PAGES:
         txt = open(os.path.join(DIST, page), encoding="utf-8").read()
         assert "—" not in txt and "–" not in txt, f"dash in {page}"
     print("built; dossier findings:", total)

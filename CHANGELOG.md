@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.10.2] - 2026-09-24
+
+Found by auditing FAT Agent's own website with FAT Agent.
+
+### Fixed
+- Skip links: any early in-page link with a `skip` class counts, not only
+  links to `#main` or `#content`.
+- Placeholder copy: flagged only for real placeholder patterns (`[placeholder]`,
+  "insert your text here", "your content here", Lorem ipsum), not any short
+  sentence containing the word "placeholder".
+
 ## [3.10.1] - 2026-09-24
 
 Found by running FAT Agent against FAT HQ's own pages.
