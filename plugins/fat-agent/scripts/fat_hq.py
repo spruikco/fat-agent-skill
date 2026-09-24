@@ -14,6 +14,8 @@ Commands:
                            If ./.fat-work/gsc_dates.json exists (gsc_fetch.py
                            --dimension date), its daily clicks and impressions go
                            too, so HQ can chart traffic against Google updates.
+                           Open punch list items (site-wide crawl findings and
+                           every module) go too, unless --no-punchlist.
   status                   Show the account, plan and sites HQ knows about.
   logout                   Forget the saved key.
 
@@ -87,12 +89,17 @@ def call(cfg: dict, method: str, path: str, body=None) -> dict:
         raise SystemExit("Could not reach FAT HQ at %s (%s)" % (cfg["base"], e.reason))
 
 
-def url_from_punchlist(path: str) -> str:
+def load_punchlist(path: str) -> dict:
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f).get("url", "") or ""
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
-        return ""
+        return {}
+
+
+def url_from_punchlist(path: str) -> str:
+    return load_punchlist(path).get("url", "") or ""
 
 
 def load_daily(path: str) -> list:
@@ -141,6 +148,13 @@ def cmd_upload(args) -> int:
     if not url:
         raise SystemExit("Which site is this? Pass --url https://example.com")
     payload = {"url": url, "scores": scores, "plugin_version": plugin_version()}
+    punch = load_punchlist(args.punchlist)
+    if punch.get("items") and not args.no_punchlist:
+        # Open items only, and only the fields HQ shows: site-wide and module
+        # findings that a single-page scores.json does not carry.
+        keep = ("module", "priority", "title", "description", "fix", "effort", "status")
+        payload["punchlist"] = {"items": [{k: it.get(k) for k in keep} for it in punch["items"]
+                                          if isinstance(it, dict) and it.get("status", "open") == "open"]}
     daily = [] if args.no_gsc else load_daily(args.gsc)
     if daily:
         payload["gsc_daily"] = daily
@@ -196,6 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("--url", help="site URL (defaults to the punch list's)")
     up.add_argument("--gsc", default=os.path.join(".fat-work", "gsc_dates.json"), help="Search Console date export to include")
     up.add_argument("--no-gsc", action="store_true", help="do not send Search Console data")
+    up.add_argument("--no-punchlist", action="store_true", help="send only scores.json, not the punch list's open items")
     up.add_argument("--json", action="store_true", help="print the raw response")
     sub.add_parser("status", help="show account and sites")
     sub.add_parser("logout", help="forget the saved key")

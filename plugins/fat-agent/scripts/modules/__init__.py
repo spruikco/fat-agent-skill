@@ -22,8 +22,10 @@ DETECTION_SIGNALS: dict[str, list[re.Pattern]] = {
         re.compile(r'"@type"\s*:\s*"Product"', re.IGNORECASE),
         re.compile(r"product-price", re.IGNORECASE),
         re.compile(r"data-product-id", re.IGNORECASE),
-        re.compile(r"shopify", re.IGNORECASE),
-        re.compile(r"woocommerce", re.IGNORECASE),
+        # platform fingerprints, not the words: an agency page that says
+        # "we build Shopify sites" is not a shop
+        re.compile(r"cdn\.shopify\.com|myshopify\.com|Shopify\.theme|shopify-section", re.IGNORECASE),
+        re.compile(r"/wp-content/plugins/woocommerce|woocommerce-(?:page|cart|checkout|product|js|no-js)|wc-block-", re.IGNORECASE),
     ],
     "i18n": [
         re.compile(r"hreflang=", re.IGNORECASE),

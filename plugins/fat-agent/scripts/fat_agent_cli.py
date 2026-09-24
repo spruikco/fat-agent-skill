@@ -82,14 +82,18 @@ def cmd_audit(args):
     # run analyse-html.py
     profile = args.profile or "full"
 
-    # build modules arg from profile
-    try:
-        from profiles import resolve_profile
-
-        modules = resolve_profile(profile)
-        modules_str = ",".join(modules)
-    except ImportError:
+    # build modules arg from profile; "auto" lets the page decide (shop modules
+    # only on shops, local SEO only on local businesses, and so on)
+    if profile == "auto":
         modules_str = "auto"
+    else:
+        try:
+            from profiles import resolve_profile
+
+            modules = resolve_profile(profile)
+            modules_str = ",".join(modules)
+        except ImportError:
+            modules_str = "auto"
 
     analyse_args = [
         html_path,
@@ -255,8 +259,8 @@ def build_parser():
     audit_p.add_argument(
         "--profile",
         default="full",
-        choices=["quick", "full", "seo", "security", "local", "ecommerce"],
-        help="Audit profile (default: full)",
+        choices=["quick", "full", "auto", "seo", "security", "local", "ecommerce"],
+        help="Audit profile (default: full; auto = detect which modules fit the site)",
     )
     audit_p.add_argument("--output-dir", help="Directory for output files")
     audit_p.add_argument(
@@ -286,8 +290,8 @@ def build_parser():
     bulk_p.add_argument(
         "--profile",
         default="full",
-        choices=["quick", "full", "seo", "security", "local", "ecommerce"],
-        help="Audit profile (default: full)",
+        choices=["quick", "full", "auto", "seo", "security", "local", "ecommerce"],
+        help="Audit profile (default: full; auto = detect which modules fit the site)",
     )
     bulk_p.add_argument("--output-dir", help="Directory for output files")
     bulk_p.set_defaults(func=cmd_bulk)

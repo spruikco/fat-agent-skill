@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.10.1] - 2026-09-24
+
+Found by running FAT Agent against FAT HQ's own pages.
+
+### Added
+- `fat_agent_cli.py audit --profile auto`: the page decides which modules run
+  (detection already existed behind `analyse-html.py --modules auto`). Adds the
+  Google guidelines, AI search, E-E-A-T, technical SEO, content depth and
+  crawlability modules, and only runs shop, local, PWA and i18n checks where the
+  page shows them. FAT HQ's scheduled checks use it.
+- `fat_hq.py upload` sends the punch list's open items (site-wide crawl and
+  every module), so HQ shows the whole case, not just one page. `--no-punchlist`
+  to skip.
+
+### Fixed
+- Shop detection used the words "shopify" and "woocommerce", so an agency page
+  saying "we build Shopify sites" got Product-schema P1s. It now matches platform
+  fingerprints (cdn.shopify.com, Shopify.theme, woocommerce plugin assets and
+  body classes, wc-block).
+
 ## [3.10.0] - 2026-09-24
 
 ### Added: FAT HQ (optional hosted dashboard)

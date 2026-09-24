@@ -125,3 +125,18 @@ def test_upload_includes_gsc_dates_when_present(hq, tmp_path, monkeypatch):
     assert RECEIVED[-1]["gsc_daily"] == [{"date": "2026-09-01", "clicks": 5, "impressions": 90}]
     assert fat_hq.main(["upload", "--no-gsc"]) == 0
     assert "gsc_daily" not in RECEIVED[-1]
+
+
+def test_upload_sends_open_punchlist_items(hq, tmp_path, monkeypatch):
+    monkeypatch.setenv("FAT_HQ_KEY", GOOD_KEY)
+    monkeypatch.setenv("FAT_HQ_URL", hq)
+    _work(tmp_path)
+    (tmp_path / ".fat-work" / "punchlist.json").write_text(json.dumps({"url": "https://e.com/", "items": [
+        {"id": "a", "module": "sitewide", "priority": "P1", "title": "Doorway pages", "status": "open", "notes": ["private"]},
+        {"id": "b", "module": "seo", "priority": "P2", "title": "Old", "status": "resolved"}]}))
+    assert fat_hq.main(["upload"]) == 0
+    items = RECEIVED[-1]["punchlist"]["items"]
+    assert [i["title"] for i in items] == ["Doorway pages"]
+    assert "notes" not in items[0]
+    assert fat_hq.main(["upload", "--no-punchlist"]) == 0
+    assert "punchlist" not in RECEIVED[-1]
