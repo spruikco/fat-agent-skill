@@ -87,6 +87,14 @@ _JSON_LD_RE = re.compile(
 )
 
 
+
+def _schema_types(s) -> list:
+    """@type may be a string or a list (e.g. ["LocalBusiness", "AutoDealer"])."""
+    t = s.get("@type", "") if isinstance(s, dict) else ""
+    if isinstance(t, list):
+        return [str(x).lower() for x in t]
+    return [str(t).lower()] if t else []
+
 @register_module
 class LocalSEOModule(AuditModule):
     MODULE_ID = "local_seo"
@@ -116,7 +124,7 @@ class LocalSEOModule(AuditModule):
 
         local_business_schema = any(
             isinstance(s, dict)
-            and s.get("@type", "").lower() in [t.lower() for t in _LOCAL_BUSINESS_TYPES]
+            and any(t in [x.lower() for x in _LOCAL_BUSINESS_TYPES] for t in _schema_types(s))
             for s in schemas
         )
 
@@ -342,7 +350,7 @@ class LocalSEOModule(AuditModule):
         """Check if any local business schema has name, address, and telephone."""
         types_lower = [t.lower() for t in _LOCAL_BUSINESS_TYPES]
         for s in schemas:
-            if s.get("@type", "").lower() in types_lower:
+            if any(t in types_lower for t in _schema_types(s)):
                 has_name = bool(s.get("name"))
                 has_phone = bool(s.get("telephone"))
                 has_address = bool(s.get("address"))
