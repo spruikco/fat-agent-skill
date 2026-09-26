@@ -163,7 +163,35 @@ class EmailDeliverabilityModule(AuditModule):
                     records.append(cleaned)
             return records
         except (FileNotFoundError, subprocess.TimeoutExpired):
+            # No dig on this machine (Windows, minimal containers). Fall back
+            # to DNS-over-HTTPS so SPF/DKIM/DMARC are not reported missing
+            # when they exist.
+            return EmailDeliverabilityModule._doh_txt(name, timeout)
+
+    @staticmethod
+    def _doh_txt(name: str, timeout: int = 5) -> list[str]:
+        """Resolve TXT records via Google's DNS-over-HTTPS JSON API."""
+        import json
+        import urllib.parse
+        import urllib.request
+
+        url = "https://dns.google/resolve?" + urllib.parse.urlencode({"name": name, "type": "TXT"})
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", "replace"))
+        except Exception:
             return []
+        records: list[str] = []
+        for ans in data.get("Answer", []) or []:
+            if ans.get("type") != 16:
+                continue
+            # Long TXT records come back as several quoted chunks: join them.
+            raw = ans.get("data", "")
+            cleaned = "".join(part.strip().strip('"') for part in raw.split('" "'))
+            cleaned = cleaned.strip().strip('"')
+            if cleaned:
+                records.append(cleaned)
+        return records
 
     def _check_spf(self, domain: str) -> dict:
         records = self._dig_txt(domain)
