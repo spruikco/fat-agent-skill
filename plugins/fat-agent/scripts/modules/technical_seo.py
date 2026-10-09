@@ -20,6 +20,7 @@ import urllib.parse
 
 from modules import register_module
 from modules.base import AuditModule
+from modules.seo import noindex_expected
 
 
 def _header(headers, name):
@@ -165,6 +166,7 @@ class TechnicalSEOModule(AuditModule):
         return {
             "x_robots_tag": x_robots,
             "x_robots_noindex": "noindex" in x_robots,
+            "noindex_expected": noindex_expected(url),
             "noindex_canonical_conflict": noindex_canonical_conflict(
                 html, url, x_robots
             ),
@@ -182,7 +184,8 @@ class TechnicalSEOModule(AuditModule):
         total = 0
         details = {}
 
-        indexability = 0 if analysis["x_robots_noindex"] else 30
+        blocked = analysis["x_robots_noindex"] and not analysis.get("noindex_expected")
+        indexability = 0 if blocked else 30
         details["indexability"] = {"score": indexability, "max": 30}
         total += indexability
 
@@ -214,7 +217,17 @@ class TechnicalSEOModule(AuditModule):
         return {"total": total, "max": 100, "details": details}
 
     def _findings(self, a: dict):
-        if a["x_robots_noindex"]:
+        if a["x_robots_noindex"] and a.get("noindex_expected"):
+            self.add_finding(
+                priority="P3",
+                title="X-Robots-Tag noindex on a checkout/cart/account page (expected)",
+                description="The HTTP response sends `X-Robots-Tag: noindex`. That is "
+                "correct for checkout, cart, account, login, register and order "
+                "confirmation pages.",
+                fix="No action needed.",
+                effort="low",
+            )
+        elif a["x_robots_noindex"]:
             self.add_finding(
                 priority="P0",
                 title="Header-level noindex (X-Robots-Tag)",

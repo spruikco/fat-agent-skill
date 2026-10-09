@@ -20,7 +20,14 @@ Commands:
            layer that otherwise evaporates with the conversation.
 
 Item identity is a stable hash of (module, title), so the same check on the
-same page maps to the same id across runs.
+same page maps to the same id across runs. Page-level scores files carry the
+audited page (`page_url`, or `update --page`); findings from a page other than
+the site URL also hash the page, and auto-resolution only touches items from
+the page that was re-scanned. Merging audits of several pages of one site
+therefore never resolves page A's findings because page B did not repeat them.
+Items written before page scoping (no `page` field) are adopted by the first
+page that reports them again, and are auto-resolved only by a rescan of the
+site URL itself.
 """
 
 import argparse
@@ -29,6 +36,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from urllib.parse import urlsplit, urlunsplit
 
 DEFAULT_PATH = os.path.join(".fat-work", "punchlist.json")
 
@@ -46,10 +54,36 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def finding_id(module: str, title: str) -> str:
-    """Stable short id for a finding: hash of module + title."""
+def finding_id(module: str, title: str, page: str = "") -> str:
+    """Stable short id for a finding: hash of module + title (+ page, when the
+    finding belongs to a page other than the site URL)."""
     raw = f"{module or 'core'}|{(title or '').strip()}"
+    if page:
+        raw += f"|{page}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
+
+
+def normalise_page(url: str) -> str:
+    """Comparable form of a page URL: lower-case scheme/host, no fragment, no
+    trailing slash (the root stays '/')."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    parts = urlsplit(url)
+    if not parts.scheme or not parts.netloc:
+        return url
+    path = parts.path.rstrip("/") or "/"
+    return urlunsplit(
+        (parts.scheme.lower(), parts.netloc.lower(), path, parts.query, "")
+    )
+
+
+def _item_key(item: dict) -> tuple:
+    return (
+        item.get("module") or "core",
+        (item.get("title") or "").strip(),
+        item.get("page") or "",
+    )
 
 
 def extract_findings(scores: dict) -> list:
@@ -145,28 +179,66 @@ def save_punchlist(path: str, punch: dict) -> None:
         f.write("\n")
 
 
-def update_punchlist(punch: dict, scores: dict, url: str = "", now: str = "") -> dict:
-    """Merge current findings into the punch list. Returns a stats dict."""
+def update_punchlist(
+    punch: dict, scores: dict, url: str = "", now: str = "", page: str = ""
+) -> dict:
+    """Merge current findings into the punch list. Returns a stats dict.
+
+    `page` (or the scores file's `page_url`) scopes the merge to one audited
+    page: only that page's items can auto-resolve.
+    """
     now = now or utc_now()
-    current = {f["id"]: f for f in extract_findings(scores)}
+    page = normalise_page(page or scores.get("page_url") or "")
+    site = normalise_page(url or punch.get("url") or "")
+    id_page = "" if (not page or page == site) else page
     scanned = scanned_modules(scores)
-    existing = {item["id"]: item for item in punch["items"]}
+
+    current = []
+    for f in extract_findings(scores):
+        f = dict(f)
+        f["id"] = finding_id(f["module"], f["title"], id_page)
+        if page:
+            f["page"] = page
+        current.append(f)
+
+    by_key = {}
+    by_id = {}
+    for item in punch["items"]:
+        by_key.setdefault(_item_key(item), item)
+        by_id.setdefault(item["id"], item)
+    matched = set()
 
     stats = {"new": 0, "still_open": 0, "resolved": 0, "reopened": 0, "skipped": 0}
 
-    for fid, f in current.items():
-        item = existing.get(fid)
+    for f in current:
+        key = _item_key(f)
+        item = by_key.get(key)
+        if item is None and page:
+            # adopt an item written before page scoping (no page recorded)
+            legacy = by_key.get((key[0], key[1], ""))
+            if legacy is not None and "page" not in legacy:
+                item = legacy
+                item["page"] = page
+                by_key.pop((key[0], key[1], ""), None)
+                by_key[key] = item
         if item is None:
-            f = dict(f)
+            item = by_id.get(f["id"])
+        if item is None:
             f.update({"status": OPEN, "first_seen": now, "last_seen": now, "notes": []})
             punch["items"].append(f)
+            by_key[key] = f
+            by_id.setdefault(f["id"], f)
+            matched.add(id(f))
             stats["new"] += 1
             continue
+        if id(item) in matched:
+            continue
+        matched.add(id(item))
         item["last_seen"] = now
         # refresh mutable fields — priorities/wording can be recalibrated upstream
-        for key in ("priority", "description", "fix", "effort"):
-            if f.get(key):
-                item[key] = f[key]
+        for k in ("priority", "description", "fix", "effort"):
+            if f.get(k):
+                item[k] = f[k]
         if item["status"] == RESOLVED:
             item["status"] = OPEN
             item.pop("resolved_at", None)
@@ -180,16 +252,23 @@ def update_punchlist(punch: dict, scores: dict, url: str = "", now: str = "") ->
         elif item["status"] == OPEN:
             stats["still_open"] += 1
 
-    for fid, item in existing.items():
-        if fid in current or item["status"] != OPEN:
+    for item in punch["items"]:
+        if id(item) in matched or item["status"] != OPEN:
             continue
-        if item.get("module", "core") in scanned:
+        item_page = item.get("page")
+        if page:
+            # legacy (unscoped) items only resolve on a rescan of the site URL
+            in_scope = item_page == page or (item_page is None and page == site)
+        else:
+            in_scope = not item_page
+        if in_scope and item.get("module", "core") in scanned:
             item["status"] = RESOLVED
             item["resolved_at"] = now
             item.setdefault("notes", []).append(
                 {
                     "at": now,
-                    "text": "Auto-resolved: absent from a rescan of its module.",
+                    "text": "Auto-resolved: absent from a rescan of its module"
+                    + (" on this page." if item_page else "."),
                 }
             )
             stats["resolved"] += 1
@@ -237,7 +316,10 @@ def format_status(punch: dict) -> str:
                 if i.get("notes")
                 else ""
             )
-            lines.append(f"  {i['id']}  {i['title']} ({i['module']}){effort}{notes}")
+            where = f" [{i['page']}]" if i.get("page") else ""
+            lines.append(
+                f"  {i['id']}  {i['title']} ({i['module']}){where}{effort}{notes}"
+            )
     other = [i for i in open_items if i.get("priority") not in ("P0", "P1", "P2", "P3")]
     for i in other:
         lines.append(f"  {i['id']}  {i['title']} ({i['module']})")
@@ -259,6 +341,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_update.add_argument("--scores", required=True, help="path to scores.json")
     p_update.add_argument(
         "--url", default="", help="audited URL (recorded in the file)"
+    )
+    p_update.add_argument(
+        "--page",
+        default="",
+        help="page this scores file covers (default: its page_url). Only that "
+        "page's items auto-resolve",
     )
 
     p_status = sub.add_parser("status", help="show the punch list")
@@ -285,7 +373,7 @@ def main() -> int:
     if args.command == "update":
         with open(args.scores, "r", encoding="utf-8") as f:
             scores = json.load(f)
-        stats = update_punchlist(punch, scores, url=args.url)
+        stats = update_punchlist(punch, scores, url=args.url, page=args.page)
         save_punchlist(args.file, punch)
         print(
             f"Punch list updated: {stats['new']} new, {stats['still_open']} still open, "

@@ -301,3 +301,98 @@ class TestLiveCrawl:
             timeout=60,
         )
         assert bad.returncode == 1
+
+
+class TestRobotsFetch:
+    """robots.txt is fetched with the crawl UA and read per RFC 9309."""
+
+    def _patch(self, monkeypatch, responses):
+        import sitecrawl
+
+        calls = []
+
+        def fake_fetch(url, opener, ua, timeout, retries=2, allow_private=False):
+            calls.append((url, ua))
+            return responses.pop(0)
+
+        monkeypatch.setattr(sitecrawl, "fetch", fake_fetch)
+        return sitecrawl, calls
+
+    def test_uses_crawl_user_agent(self, monkeypatch):
+        sitecrawl, calls = self._patch(
+            monkeypatch,
+            [{"status": 200, "raw": b"User-agent: *\nDisallow: /private\n"}],
+        )
+        rp, note = sitecrawl.load_robots("https://e.com/", None, "MyBot/2.0", 5)
+        assert calls == [("https://e.com/robots.txt", "MyBot/2.0")]
+        assert note is None
+        assert rp.can_fetch("MyBot/2.0", "https://e.com/page")
+        assert not rp.can_fetch("MyBot/2.0", "https://e.com/private/x")
+
+    def test_4xx_means_allow_all(self, monkeypatch):
+        # Cloudflare Browser Integrity Check answers unknown UAs with 403 (1010).
+        # RFC 9309: any 4xx means "no robots.txt", not "disallow everything".
+        sitecrawl, _ = self._patch(monkeypatch, [{"status": 403, "location": None}])
+        rp, note = sitecrawl.load_robots("https://e.com/", None, "ua", 5)
+        assert note is None
+        assert rp.can_fetch("ua", "https://e.com/anything")
+
+    def test_5xx_means_disallow_all_with_note(self, monkeypatch):
+        sitecrawl, _ = self._patch(monkeypatch, [{"status": 503, "location": None}])
+        rp, note = sitecrawl.load_robots("https://e.com/", None, "ua", 5)
+        assert not rp.can_fetch("ua", "https://e.com/")
+        assert "503" in note and "--ignore-robots" in note
+
+    def test_unreachable_means_disallow_all(self, monkeypatch):
+        sitecrawl, _ = self._patch(
+            monkeypatch, [{"status": None, "error": "timed out", "location": None}]
+        )
+        rp, note = sitecrawl.load_robots("https://e.com/", None, "ua", 5)
+        assert not rp.can_fetch("ua", "https://e.com/")
+        assert "timed out" in note
+
+    def test_redirect_followed(self, monkeypatch):
+        sitecrawl, calls = self._patch(
+            monkeypatch,
+            [
+                {"status": 301, "location": "https://www.e.com/robots.txt"},
+                {"status": 200, "raw": b"User-agent: *\nDisallow: /\n"},
+            ],
+        )
+        rp, _ = sitecrawl.load_robots("https://e.com/", None, "ua", 5)
+        assert calls[1][0] == "https://www.e.com/robots.txt"
+        assert not rp.can_fetch("ua", "https://e.com/x")
+
+
+class TestCloudflareCdnCgiLinks:
+    def test_is_cdn_internal(self):
+        from sitecrawl import is_cdn_internal
+
+        assert is_cdn_internal("https://e.com/cdn-cgi/l/email-protection")
+        assert not is_cdn_internal("https://e.com/contact")
+
+    def test_email_protection_links_not_crawled_or_recorded(self):
+        import argparse
+
+        from sitecrawl import Crawl, consume
+
+        args = argparse.Namespace(subdomains=False, max_urls=50)
+        ctx = Crawl(args, "e.com")
+        body = (
+            "<html><body><a href='/cdn-cgi/l/email-protection#abc'>Email</a>"
+            "<a href='/about'>About</a></body></html>"
+        )
+        r = {
+            "status": 200,
+            "headers": None,
+            "body": body,
+            "content_type": "text/html",
+            "ms": 1,
+            "size": len(body),
+            "location": None,
+            "error": None,
+        }
+        consume("https://e.com/", 0, r, ctx)
+        targets = [row[1] for row in ctx.link_rows]
+        assert targets == ["https://e.com/about"]
+        assert all("/cdn-cgi/" not in u for u, _ in ctx.frontier)

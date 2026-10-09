@@ -40,6 +40,14 @@ _HEAVY_LIBS: list[tuple[str, re.Pattern]] = [
 _WEBPACK_RE = re.compile(r"\.chunk\.js", re.IGNORECASE)
 _VITE_RE = re.compile(r"/assets/[^/]+-[A-Za-z0-9_-]{6,}\.js", re.IGNORECASE)
 _PARCEL_RE = re.compile(r"/[^/]+\.[a-f0-9]{8}\.js", re.IGNORECASE)
+# framework build output directories: these are always bundler-emitted, even
+# when chunks are named only by hash (Next.js Turbopack has no webpack marker)
+_FRAMEWORK_BUILD_RE: list[tuple[str, re.Pattern]] = [
+    ("nextjs", re.compile(r"/_next/static/", re.IGNORECASE)),
+    ("nuxt", re.compile(r"/_nuxt/", re.IGNORECASE)),
+    ("astro", re.compile(r"/_astro/", re.IGNORECASE)),
+    ("sveltekit", re.compile(r"/_app/immutable/", re.IGNORECASE)),
+]
 
 
 @register_module
@@ -104,6 +112,9 @@ class JSBundleModule(AuditModule):
             bundler_detected.append("vite")
         if parcel_found and not webpack_found and not vite_found:
             bundler_detected.append("parcel")
+        for name, pattern in _FRAMEWORK_BUILD_RE:
+            if any(pattern.search(s) for s in all_srcs):
+                bundler_detected.append(name)
 
         return {
             "external_script_count": external_script_count,

@@ -7,9 +7,28 @@ using the same weighting logic as calculate-score.py's calculate_seo_score.
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 from modules import register_module
 from modules.base import AuditModule
+
+# Transactional and account pages that should be noindex (cart, checkout,
+# account, login, register, thank-you/order confirmation). noindex there is
+# correct, so it must not be a P0 or cap the grade.
+_NOINDEX_EXPECTED_RE = re.compile(
+    r"/(?:checkout|cart|basket|account|my-account|login|log-in|signin|sign-in|"
+    r"register|signup|sign-up|thank-you|thankyou|order-confirmation|"
+    r"order-received)(?:/|$)",
+    re.IGNORECASE,
+)
+
+
+def noindex_expected(url: str) -> bool:
+    """True when the URL path is a page type that is correctly noindex."""
+    if not url:
+        return False
+    path = urlparse(url).path or "/"
+    return bool(_NOINDEX_EXPECTED_RE.search(path))
 
 
 @register_module
@@ -87,6 +106,7 @@ class SEOModule(AuditModule):
             "og_tags": og_tags,
             "has_robots_meta": has_robots_meta,
             "robots_content": robots_content,
+            "noindex_expected": noindex_expected(url),
             "json_ld_count": json_ld_count,
         }
 
@@ -155,7 +175,17 @@ class SEOModule(AuditModule):
         robots = 5
         if analysis.get("has_robots_meta"):
             content = analysis.get("robots_content", "")
-            if "noindex" in content.lower():
+            if "noindex" in content.lower() and analysis.get("noindex_expected"):
+                self.add_finding(
+                    priority="P3",
+                    title="noindex on a checkout/cart/account page (expected)",
+                    description="The robots meta tag contains noindex. That is correct "
+                    "for checkout, cart, account, login, register and order "
+                    "confirmation pages, which should stay out of search.",
+                    fix="No action needed. Keep these pages out of the sitemap too.",
+                    effort="low",
+                )
+            elif "noindex" in content.lower():
                 robots = 0
                 self.add_finding(
                     priority="P0",

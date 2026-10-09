@@ -237,3 +237,45 @@ def test_score_findings_generated_for_no_async_defer():
     mod.score(analysis)
     titles = [f["title"] for f in mod.findings]
     assert any("async" in t.lower() or "defer" in t.lower() for t in titles)
+
+
+# ---------------------------------------------------------------------------
+# regression: framework build output counts as bundled (txsports.com.au)
+# ---------------------------------------------------------------------------
+
+
+def _findings_for(srcs):
+    html = "".join(f'<script src="{s}" async></script>' for s in srcs)
+    mod = JSBundleModule()
+    analysis = mod.analyse(html)
+    mod.score(analysis)
+    return analysis, [f["title"] for f in mod.findings]
+
+
+def test_nextjs_turbopack_hash_chunks_are_bundled():
+    analysis, titles = _findings_for(
+        [
+            "/_next/static/chunks/0f1e2d3c4b5a6978.js",
+            "/_next/static/chunks/a1b2c3d4e5f60718.js",
+            "/_next/static/chunks/9e8d7c6b5a493827.js",
+        ]
+    )
+    assert "nextjs" in analysis["bundler_detected"]
+    assert "No bundler detected" not in titles
+
+
+def test_nuxt_astro_vite_build_output_are_bundled():
+    for srcs, name in (
+        (["/_nuxt/entry.abc123.js", "/_nuxt/page.def456.js"], "nuxt"),
+        (["/_astro/hoisted.a1b2c3.js", "/_astro/client.d4e5f6.js"], "astro"),
+        (["/assets/index-D3xAb_c1.js", "/assets/vendor-Q9wErT12.js"], "vite"),
+    ):
+        analysis, titles = _findings_for(srcs)
+        assert name in analysis["bundler_detected"], srcs
+        assert "No bundler detected" not in titles, srcs
+
+
+def test_plain_scripts_still_flag_no_bundler():
+    analysis, titles = _findings_for(["/js/menu.js", "/js/slider.js"])
+    assert analysis["bundler_detected"] == []
+    assert "No bundler detected" in titles

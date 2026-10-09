@@ -303,3 +303,44 @@ def test_module_id():
 
 def test_display_name():
     assert LocalSEOModule.DISPLAY_NAME == "Local SEO"
+
+
+# ---------------------------------------------------------------------------
+# regression: any LocalBusiness subtype counts (txsports.com.au)
+# ---------------------------------------------------------------------------
+
+
+def _jsonld(obj: str) -> str:
+    return (
+        '<html><head><script type="application/ld+json">'
+        + obj
+        + '</script></head><body><a href="tel:+61400000000">Call</a></body></html>'
+    )
+
+
+def test_sports_activity_location_counts_as_local_business():
+    html = _jsonld('{"@type": "SportsActivityLocation", "name": "TX Sports"}')
+    assert LocalSEOModule.detect(html) is True
+    assert LocalSEOModule().analyse(html)["local_business_schema"] is True
+
+
+def test_subtypes_in_graph_and_type_lists_count():
+    for obj in (
+        '{"@graph": [{"@type": "SportingGoodsStore", "name": "Shop"}]}',
+        '{"@type": ["Organization", "Store"], "name": "Shop"}',
+        '{"@type": "ProfessionalService", "name": "Agency"}',
+    ):
+        assert LocalSEOModule().analyse(_jsonld(obj))["local_business_schema"], obj
+
+
+def test_subtype_with_nap_satisfies_nap_check():
+    html = _jsonld(
+        '{"@type": "SportsActivityLocation", "name": "TX", '
+        '"telephone": "+61400000000", "address": {"streetAddress": "1 St"}}'
+    )
+    assert LocalSEOModule().analyse(html)["nap_in_schema"] is True
+
+
+def test_organization_alone_is_not_local_business():
+    html = _jsonld('{"@type": "Organization", "name": "Acme"}')
+    assert LocalSEOModule().analyse(html)["local_business_schema"] is False

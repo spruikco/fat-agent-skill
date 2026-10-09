@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import re
+from urllib.parse import urlparse
 
 from modules import register_module
 from modules.base import AuditModule
+from modules.seo import noindex_expected
 
 _PAYMENT_PATTERNS = [
     re.compile(r"visa", re.IGNORECASE),
@@ -53,6 +55,56 @@ _JSON_LD_RE = re.compile(
     r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
     re.DOTALL | re.IGNORECASE,
 )
+
+_OG_PRODUCT_RE = re.compile(
+    r'<meta[^>]+property=["\']og:type["\'][^>]+content=["\']product'
+    r'|<meta[^>]+content=["\']product[^"\']*["\'][^>]+property=["\']og:type["\']',
+    re.IGNORECASE,
+)
+_PRODUCT_PATH_RE = re.compile(r"/products?/[^/]+", re.IGNORECASE)
+_CART_CONTROL_RE = re.compile(r"<(?:button|input|a)\b[^>]*>[^<]{0,60}", re.IGNORECASE)
+_ADD_TO_CART_RE = re.compile(r"add[-_ ]to[-_ ]cart", re.IGNORECASE)
+# landing/content pages that may show prices and buttons but are not products
+_CONTENT_PATH_RE = re.compile(
+    r"/(?:blog|news|articles?|posts?|guides?)(?:/|$)", re.IGNORECASE
+)
+
+
+def _offers(product: dict) -> list:
+    offers = product.get("offers")
+    items = offers if isinstance(offers, list) else [offers]
+    out = []
+    for o in items:
+        if isinstance(o, dict):
+            out.append(o)
+            inner = o.get("offers")  # AggregateOffer.offers
+            for i in inner if isinstance(inner, list) else [inner]:
+                if isinstance(i, dict):
+                    out.append(i)
+    return out
+
+
+def merchant_listing_gaps(products: list, html: str) -> list:
+    """Fields Google's Merchant listings report asks for that no Product node
+    carries (identifiers are covered by the separate GTIN/MPN/SKU check).
+    Return and shipping policies set once on the Organization count too."""
+    if not products:
+        return []
+    gaps = []
+    if not any(p.get("image") for p in products):
+        gaps.append("image")
+    if not any(p.get("description") for p in products):
+        gaps.append("description")
+    offers = [o for p in products for o in _offers(p)]
+    if not any(o.get("hasMerchantReturnPolicy") for o in offers) and not re.search(
+        r'"hasMerchantReturnPolicy"', html
+    ):
+        gaps.append("offers.hasMerchantReturnPolicy")
+    if not any(o.get("shippingDetails") for o in offers) and not re.search(
+        r'"hasShippingService"', html
+    ):
+        gaps.append("offers.shippingDetails")
+    return gaps
 
 
 def _is_product_type(t):
@@ -131,6 +183,29 @@ class EcommerceModule(AuditModule):
         ssl_badge = any(p.search(html) for p in _SSL_PATTERNS)
 
         oos = bool(_OOS_RE.search(html))
+
+        # Is this a product page? Product markup is only expected there, not on
+        # the home page, landing pages, blog posts or checkout.
+        path = urlparse(url).path if url else ""
+        # one add-to-cart control reads as a product page; a grid of them is a
+        # listing (home, category, landing page)
+        cart_controls = sum(
+            1
+            for m in _CART_CONTROL_RE.finditer(html)
+            if _ADD_TO_CART_RE.search(m.group(0))
+        )
+        add_to_cart = 1 <= cart_controls <= 2
+        non_product_path = bool(url) and (
+            path in ("", "/")
+            or noindex_expected(url)
+            or bool(_CONTENT_PATH_RE.search(path))
+        )
+        product_page = (
+            product_schema
+            or bool(_OG_PRODUCT_RE.search(html))
+            or bool(_PRODUCT_PATH_RE.search(path))
+            or (add_to_cart and price and not non_product_path)
+        )
         return {
             "product_schema": product_schema,
             "schema_valid": schema_valid,
@@ -139,8 +214,9 @@ class EcommerceModule(AuditModule):
             "payment_badges": payment_badges,
             "breadcrumb": breadcrumb,
             "ssl_badge": ssl_badge,
-            "is_pdp": product_schema
-            or bool(re.search(r"add[- ]to[- ]cart", html, re.IGNORECASE)),
+            "product_page": product_page,
+            "is_pdp": product_page,
+            "merchant_gaps": merchant_listing_gaps(products, html),
             "gtin": bool(_GTIN_RE.search(html)),
             "shipping_policy": bool(_SHIPPING_RE.search(html)),
             "return_policy": bool(_RETURN_RE.search(html)),
@@ -176,7 +252,9 @@ class EcommerceModule(AuditModule):
         )
 
         # findings for missing signals
-        if not analysis.get("product_schema"):
+        # only product pages need Product markup (a missing key keeps the old
+        # behaviour for callers that pass a bare analysis dict)
+        if not analysis.get("product_schema") and analysis.get("product_page", True):
             self.add_finding(
                 priority="P1",
                 title="Missing Product structured data",
@@ -241,6 +319,21 @@ class EcommerceModule(AuditModule):
                 "security indicators builds buyer confidence.",
                 fix="Add a visible SSL/secure checkout badge near payment forms.",
                 effort="low",
+            )
+
+        if analysis.get("product_schema") and analysis.get("merchant_gaps"):
+            gaps = ", ".join(f"`{g}`" for g in analysis["merchant_gaps"])
+            self.add_finding(
+                priority="P2",
+                title="Merchant listing enhancements missing in Product schema",
+                description=f"The Product markup has no {gaps}. Search Console's "
+                "Merchant listings report flags these as missing fields; products "
+                "without them show fewer details in Shopping results and free "
+                "listings.",
+                fix="Add `image` and `description` to the Product, and "
+                "`hasMerchantReturnPolicy` and `shippingDetails` to each Offer (or "
+                "set return and shipping policies once on the Organization).",
+                effort="medium",
             )
 
         # --- deeper merchant/PDP checks (Hobo-parity) ---

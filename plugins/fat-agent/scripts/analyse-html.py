@@ -2109,6 +2109,11 @@ def main():
 
         report["modules"] = module_results
 
+    # Record which page this report is for, so punchlist.py can scope
+    # auto-resolution to the page that was actually re-scanned.
+    if page_url:
+        report["page_url"] = page_url
+
     print(json.dumps(report, indent=2))
 
 

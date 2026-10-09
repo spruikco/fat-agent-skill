@@ -212,7 +212,7 @@ Fetch the HTML and check:
 - **Self-referencing canonical validation** — Check if the canonical URL matches the page URL (it should be self-referencing unless intentionally different).
 - **Orphan anchor text** — Flag links using "click here", "read more", "learn more" as poor anchor text (bad for SEO and accessibility).
 - **rel=nofollow audit** — Count links with `nofollow`. Flag internal links with `nofollow` as a mistake (it wastes link equity).
-- **Core Web Vitals via PageSpeed Insights API** — Fetch `https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url={URL}&strategy=mobile` (no API key needed for basic usage). Extract LCP, CLS, INP/FID, FCP, TTFB, Speed Index. Flag any metric in "poor" range as P1, "needs improvement" as P2. Fetch `strategy=desktop` for comparison. Display as a CWV summary table.
+- **Core Web Vitals via PageSpeed Insights API** — Fetch `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={URL}&strategy=mobile` (no API key needed for basic usage). Extract LCP, CLS, INP/FID, FCP, TTFB, Speed Index. Flag any metric in "poor" range as P1, "needs improvement" as P2. Fetch `strategy=desktop` for comparison. Display as a CWV summary table.
 
 Ask the user:
 - "Does your mobile content match your desktop content? (Mobile-first indexing)"
@@ -1093,6 +1093,12 @@ findings that reappear are re-opened as regressions. Findings from modules that
 were *not* scanned this run are left untouched, so a quick-profile rescan never
 falsely "resolves" a full-profile finding.
 
+Auto-resolution is also scoped to the page. Each `scores.json` records the
+audited `page_url`, so when you merge audits of several pages of one site
+(same `--url`), a finding only resolves when *its own page* is rescanned
+without it. Page B not repeating page A's findings never closes them. For a
+scores file made without `--url`, pass `--page https://example.com/checkout`.
+
 When the user makes a decision about a finding (defer it, choose fix A over
 fix B, accept the risk), record it against the item so the reasoning survives
 the conversation:
@@ -1360,6 +1366,14 @@ orphan-page detection possible (an orphan, by definition, can't be reached by
 following links). It respects robots.txt, strips tracking parameters, records
 every internal/external link with anchor text, and backs off automatically if
 the site starts returning 403/429.
+
+robots.txt is fetched with the crawl's own `--user-agent` and read per RFC
+9309: any 4xx (including a bot filter's 403) means "no restrictions", only a
+5xx or an unreachable server means "disallow all". Cloudflare's injected
+`/cdn-cgi/` endpoints (e.g. Email Obfuscation's `/cdn-cgi/l/email-protection`,
+which 404s for bots) are not crawled or reported as broken links. If most
+pages canonicalise to a different host, `sitewide.py` says so in one finding
+instead of just reporting "0 indexable".
 
 ### Step 2 — Site-level audit
 

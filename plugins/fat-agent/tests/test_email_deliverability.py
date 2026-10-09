@@ -179,3 +179,67 @@ def test_module_id():
 
 def test_display_name():
     assert EmailDeliverabilityModule.DISPLAY_NAME != ""
+
+
+# ---------------------------------------------------------------------------
+# regression: unknown DKIM selectors are "not verifiable", not "missing"
+# ---------------------------------------------------------------------------
+
+
+def test_dkim_not_found_is_p3_unverifiable_with_provider_hint():
+    analysis = {
+        "contact_form": True,
+        "spf": {
+            "found": True,
+            "record": "v=spf1 include:amazonses.com include:spf.protection.outlook.com -all",
+        },
+        "dkim": {"found": False},
+        "dmarc": {"found": True, "policy": "reject"},
+    }
+    mod = EmailDeliverabilityModule()
+    mod.score(analysis)
+    dkim = [f for f in mod.findings if "DKIM" in f["title"]]
+    assert len(dkim) == 1
+    assert dkim[0]["priority"] == "P3"
+    assert dkim[0]["title"] == "DKIM not verifiable from DNS (selectors unknown)"
+    assert "Amazon SES" in dkim[0]["description"]
+    assert "Microsoft 365" in dkim[0]["description"]
+    assert not any(f["title"] == "Missing DKIM record" for f in mod.findings)
+
+
+def test_dkim_checks_common_provider_selectors(monkeypatch):
+    mod = EmailDeliverabilityModule()
+    asked = []
+
+    def fake_dig(name, timeout=5):
+        asked.append(name.split(".")[0])
+        if name.startswith("selector2."):
+            return ["v=DKIM1; k=rsa; p=MIIB"]
+        return []
+
+    monkeypatch.setattr(mod, "_dig_txt", fake_dig)
+    result = mod._check_dkim("example.com")
+    assert result["found"] is True and result["selector"] == "selector2"
+    mod2 = EmailDeliverabilityModule()
+    asked.clear()
+    monkeypatch.setattr(
+        mod2, "_dig_txt", lambda name, timeout=5: asked.append(name.split(".")[0]) or []
+    )
+    mod2._check_dkim("example.com")
+    for sel in (
+        "selector1",
+        "selector2",
+        "google",
+        "k1",
+        "s1",
+        "s2",
+        "default",
+        "dkim",
+        "mail",
+        "smtp",
+        "mandrill",
+        "everlytickey1",
+        "everlytickey2",
+        "mxvault",
+    ):
+        assert sel in asked, sel

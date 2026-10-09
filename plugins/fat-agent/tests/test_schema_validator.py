@@ -199,3 +199,95 @@ def test_score_weights():
     assert result["has_required_props"] == 0
     assert result["no_duplicate_types"] == 10
     assert result["total"] == 65
+
+
+# ---------------------------------------------------------------------------
+# regression: valid schema.org types flagged as unknown (txsports.com.au)
+# ---------------------------------------------------------------------------
+
+
+def test_sports_and_local_business_subtypes_are_known():
+    html = """<html><head>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[
+      {"@type":"SportsActivityLocation","name":"TX Sports"},
+      {"@type":"SportsTeam","name":"Corio FC"},
+      {"@type":"SportsOrganization","name":"League"},
+      {"@type":"SportingGoodsStore","name":"Shop"},
+      {"@type":["Store","ProfessionalService"],"name":"Both"},
+      {"@type":"https://schema.org/ClothingStore","name":"Prefixed"}
+    ]}
+    </script></head><body></body></html>"""
+    result = SchemaValidatorModule().analyse(html)
+    assert result["known_types"] is True
+
+
+def test_made_up_type_still_unknown():
+    html = """<html><head>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"SportsShopThing","name":"X"}
+    </script></head><body></body></html>"""
+    assert SchemaValidatorModule().analyse(html)["known_types"] is False
+
+
+# ---------------------------------------------------------------------------
+# BreadcrumbList: every ListItem except the last needs an item URL
+# ---------------------------------------------------------------------------
+
+
+def _crumbs(elements):
+    import json
+
+    data = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": elements,
+    }
+    html = (
+        '<html><head><script type="application/ld+json">'
+        + json.dumps(data)
+        + "</script></head><body></body></html>"
+    )
+    mod = SchemaValidatorModule()
+    analysis = mod.analyse(html)
+    mod.score(analysis)
+    return analysis, [f for f in mod.findings if "BreadcrumbList" in f["title"]]
+
+
+def test_breadcrumb_missing_item_flagged():
+    analysis, found = _crumbs(
+        [
+            {"@type": "ListItem", "position": 1, "name": "Home"},
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Jerseys",
+                "item": "https://e.com/jerseys",
+            },
+            {"@type": "ListItem", "position": 3, "name": "Corio FC Jersey"},
+        ]
+    )
+    assert analysis["breadcrumb_missing_item"] == ["Home"]
+    assert len(found) == 1 and found[0]["priority"] == "P2"
+
+
+def test_breadcrumb_last_item_may_omit_url():
+    analysis, found = _crumbs(
+        [
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Jerseys",
+                "item": {"@id": "https://e.com/jerseys"},
+            },
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://e.com/",
+            },
+            {"@type": "ListItem", "position": 3, "name": "Corio FC Jersey"},
+        ]
+    )
+    assert analysis["breadcrumb_missing_item"] == []
+    assert found == []

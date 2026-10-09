@@ -11,6 +11,7 @@ import json
 import re
 
 from modules import register_module
+from modules._schema_org_types import SCHEMA_ORG_TYPES_LOWER
 from modules.base import AuditModule
 
 _JSON_LD_RE = re.compile(
@@ -74,6 +75,16 @@ _KNOWN_TYPES_LOWER: dict[str, list[str]] = {
     k.lower(): v for k, v in _KNOWN_TYPES.items()
 }
 
+_TYPE_PREFIX_RE = re.compile(r"^(?:https?://schema\.org/|schema:)", re.IGNORECASE)
+
+
+def _is_known_type(name: str) -> bool:
+    """True for any schema.org type (bundled full list), incl. prefixed forms
+    such as "https://schema.org/SportsTeam" or "schema:Store"."""
+    key = _TYPE_PREFIX_RE.sub("", name).lower()
+    return key in _KNOWN_TYPES_LOWER or key in SCHEMA_ORG_TYPES_LOWER
+
+
 # types that legitimately appear multiple times in a single @graph
 _REPEATABLE_TYPES = {
     "imageobject",
@@ -91,6 +102,34 @@ _REPEATABLE_TYPES = {
     "sitenavigationelement",
     "place",
 }
+
+
+def _breadcrumb_items_missing_url(node: dict) -> list:
+    """Names/positions of BreadcrumbList entries, other than the last, that
+    have no `item` URL. Google reports these as "Missing field 'item'"."""
+    elements = node.get("itemListElement")
+    if isinstance(elements, dict):
+        elements = [elements]
+    if not isinstance(elements, list):
+        return []
+    elements = [e for e in elements if isinstance(e, dict)]
+
+    def _pos(e):
+        try:
+            return int(e.get("position"))
+        except (TypeError, ValueError):
+            return 0
+
+    if all(_pos(e) for e in elements):
+        elements = sorted(elements, key=_pos)
+    missing = []
+    for e in elements[:-1]:
+        item = e.get("item")
+        if isinstance(item, dict):
+            item = item.get("@id") or item.get("url")
+        if not (isinstance(item, str) and item.strip()):
+            missing.append(str(e.get("name") or e.get("position") or "?"))
+    return missing
 
 
 def _context_ok(ctx):
@@ -162,7 +201,7 @@ class SchemaValidatorModule(AuditModule):
                     continue
                 v = str(v)
                 types_found.append(v)
-                if v.lower() not in _KNOWN_TYPES_LOWER:
+                if not _is_known_type(v):
                     known_types = False
 
         if not types_found:
@@ -210,7 +249,15 @@ class SchemaValidatorModule(AuditModule):
                 self_serving_review = True
                 break
 
+        breadcrumb_missing_item: list[str] = []
+        for d in expanded:
+            t = d.get("@type", "")
+            tset = {str(x).lower() for x in (t if isinstance(t, list) else [t]) if x}
+            if "breadcrumblist" in tset:
+                breadcrumb_missing_item.extend(_breadcrumb_items_missing_url(d))
+
         return {
+            "breadcrumb_missing_item": breadcrumb_missing_item,
             "has_structured_data": has_structured_data,
             "valid_json": valid_json,
             "has_context": has_context,
@@ -309,6 +356,20 @@ class SchemaValidatorModule(AuditModule):
                 "types can confuse search engines about which is canonical.",
                 fix="Consolidate duplicate @type blocks into a single JSON-LD object "
                 "or ensure each serves a distinct purpose.",
+                effort="low",
+            )
+
+        if analysis.get("breadcrumb_missing_item"):
+            names = ", ".join(analysis["breadcrumb_missing_item"][:5])
+            self.add_finding(
+                priority="P2",
+                title="BreadcrumbList entry missing item URL",
+                description="Every breadcrumb ListItem except the last (the current "
+                f"page) needs an `item` URL. Missing on: {names}. Search Console "
+                "reports this as \"Missing field 'item'\" and the trail is not "
+                "eligible for breadcrumb rich results.",
+                fix="Give each ListItem before the last an `item` with the absolute "
+                "URL of that level.",
                 effort="low",
             )
 
