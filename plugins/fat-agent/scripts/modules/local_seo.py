@@ -88,6 +88,14 @@ _JSON_LD_RE = re.compile(
 )
 
 
+
+def _schema_types(s) -> list:
+    """@type may be a string or a list (e.g. ["LocalBusiness", "AutoDealer"])."""
+    t = s.get("@type", "") if isinstance(s, dict) else ""
+    if isinstance(t, list):
+        return [str(x).lower() for x in t]
+    return [str(t).lower()] if t else []
+
 @register_module
 class LocalSEOModule(AuditModule):
     MODULE_ID = "local_seo"
