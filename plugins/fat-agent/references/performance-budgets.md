@@ -154,8 +154,8 @@ FAT Agent can fetch live CWV data from the PageSpeed Insights API (no key requir
 for light use; pass `--api-key` or set `PAGESPEED_API_KEY` for higher quota):
 
 ```
-https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url={URL}&strategy=mobile
-https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url={URL}&strategy=desktop
+https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={URL}&strategy=mobile
+https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={URL}&strategy=desktop
 ```
 
 When available, CWV results are factored into the performance score:

@@ -95,6 +95,28 @@ class TestAnalyseHTMLSubprocess:
             assert key in seo, f"missing seo key: {key}"
 
 
+class TestPageUrlRecorded:
+    """the audited page travels into scores.json so punchlist.py can scope
+    auto-resolution to it."""
+
+    def test_page_url_in_report_and_scores(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                ANALYSE_SCRIPT,
+                "--url",
+                "https://example.com/checkout",
+                str(REALISTIC_HTML),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        report = json.loads(result.stdout)
+        assert report["page_url"] == "https://example.com/checkout"
+        assert calculate_scores(report)["page_url"] == "https://example.com/checkout"
+
+
 class TestCalculateScoreSubprocess:
     """run calculate-score.py on analyse-html.py output via subprocess."""
 

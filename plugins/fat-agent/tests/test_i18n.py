@@ -263,3 +263,46 @@ def test_module_id():
 
 def test_display_name():
     assert I18nModule.DISPLAY_NAME == "Internationalisation"
+
+
+# ---------------------------------------------------------------------------
+# regression: hreflang only expected on multilingual sites (txsports.com.au)
+# ---------------------------------------------------------------------------
+
+
+def _hreflang_finding(html, headers=None):
+    mod = _make_module()
+    analysis = mod.analyse(html, url="https://example.com/", headers=headers)
+    mod.score(analysis)
+    return analysis, [f for f in mod.findings if f["title"] == "No hreflang tags found"]
+
+
+def test_single_language_site_not_flagged_for_hreflang():
+    html = (
+        "<html lang='en-AU'><body><a href='/products/jersey'>Jersey</a>"
+        "<a href='/my-account'>Account</a></body></html>"
+    )
+    analysis, found = _hreflang_finding(html, {"Content-Language": "en-AU"})
+    assert analysis["multilingual"] is False
+    assert found == []
+
+
+def test_language_switcher_without_hreflang_flagged():
+    html = (
+        "<html lang='en'><body><div class='language-switcher'>"
+        "<a href='/fr/'>FR</a></div></body></html>"
+    )
+    analysis, found = _hreflang_finding(html)
+    assert analysis["multilingual"] is True
+    assert len(found) == 1
+
+
+def test_multiple_lang_attributes_or_locale_paths_flagged():
+    for html in (
+        "<html lang='en'><body><a lang='de' href='/x'>Deutsch</a></body></html>",
+        "<html lang='en'><body><a href='/en/about'>EN</a>"
+        "<a href='/fr/about'>FR</a></body></html>",
+    ):
+        analysis, found = _hreflang_finding(html)
+        assert analysis["multilingual"] is True, html
+        assert len(found) == 1, html

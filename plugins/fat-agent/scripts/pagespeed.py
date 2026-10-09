@@ -13,7 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-API_BASE = "https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest"
+API_BASE = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 VALID_STRATEGIES = ("mobile", "desktop")
 
 
@@ -93,11 +93,18 @@ def _explain_http_error(code, body, url, api_key):
         detail = json.loads(body).get("error", {}).get("message", "")
     except (ValueError, AttributeError):
         pass  # Google sometimes answers with an HTML error page
-    if code in (429, 403):
+    if code == 429 and not api_key:
+        hint = (
+            "rate limited: the keyless (shared) PageSpeed Insights quota is "
+            "exhausted. Pass --api-key (or set PAGESPEED_API_KEY) with a key "
+            "that has the PageSpeed Insights API enabled, or run lighthouse.py "
+            "locally instead"
+        )
+    elif code in (429, 403):
         hint = (
             "quota exhausted or key rejected. Pass --api-key (or set "
             "PAGESPEED_API_KEY) with a key that has the PageSpeed Insights API "
-            "enabled, or retry later"
+            "enabled, retry later, or run lighthouse.py locally"
         )
         if api_key:
             hint = (

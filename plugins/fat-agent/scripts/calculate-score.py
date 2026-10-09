@@ -778,6 +778,8 @@ def calculate_scores(report: dict, headers: dict | None = None) -> dict:
     result["findings"] = all_findings
     if render_gap is not None:
         result["render_gap"] = render_gap
+    if report.get("page_url"):
+        result["page_url"] = report["page_url"]
     return result
 
 

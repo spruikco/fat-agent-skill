@@ -43,6 +43,12 @@ class DNSInfraModule(AuditModule):
         caa = self._check_caa(domain) if domain else False
         cdn_provider = self._detect_cdn(headers)
         http2 = self._check_http2(headers)
+        alpn = ssl_info.get("alpn")
+        if not http2 and alpn:
+            http2 = alpn in ("h2", "h3")
+        # verified = we saw a header signal or completed a TLS handshake whose
+        # ALPN answer tells us yes or no. Otherwise it is unknown, not "no".
+        http2_verified = bool(http2) or bool(alpn)
 
         return {
             "domain": domain,
@@ -54,6 +60,7 @@ class DNSInfraModule(AuditModule):
             "has_cdn": cdn_provider is not None,
             "cdn_provider": cdn_provider,
             "http2_support": http2,
+            "http2_verified": http2_verified,
         }
 
     # ------------------------------------------------------------------
@@ -135,7 +142,21 @@ class DNSInfraModule(AuditModule):
                 effort="medium",
             )
 
-        if not analysis.get("http2_support"):
+        if not analysis.get("http2_support") and not analysis.get(
+            "http2_verified", True
+        ):
+            self.add_finding(
+                priority="P3",
+                title="HTTP/2 support unverified",
+                description="HTTP/2 could not be confirmed: the response carried no "
+                "protocol signal (alt-svc, CDN headers) and the TLS handshake did "
+                "not report a negotiated protocol. This is not evidence that "
+                "HTTP/2 is off.",
+                fix="Check in browser dev tools (Network tab, Protocol column) or "
+                "with `curl -sI --http2 https://<host>`.",
+                effort="low",
+            )
+        elif not analysis.get("http2_support"):
             self.add_finding(
                 priority="P3",
                 title="HTTP/2 not detected",
@@ -182,9 +203,19 @@ class DNSInfraModule(AuditModule):
 
         ctx = ssl.create_default_context()
         try:
+            # offer h2 so the same handshake tells us whether HTTP/2 is served
+            ctx.set_alpn_protocols(["h2", "http/1.1"])
+        except (AttributeError, NotImplementedError):
+            pass
+        alpn = None
+        try:
             with socket.create_connection((domain, 443), timeout=timeout) as sock:
                 with ctx.wrap_socket(sock, server_hostname=domain) as tls:
                     cert = tls.getpeercert() or {}
+                    try:
+                        alpn = tls.selected_alpn_protocol()
+                    except (AttributeError, NotImplementedError):
+                        alpn = None
         except ssl.SSLCertVerificationError as e:
             expired = "expired" in str(e).lower()
             return {"valid": False, "days_remaining": 0, "reason": "expired" if expired else "verification_failed"}
@@ -192,10 +223,19 @@ class DNSInfraModule(AuditModule):
             return {"valid": None, "days_remaining": 0, "reason": "unreachable"}
         not_after = cert.get("notAfter")
         if not not_after:
-            return {"valid": None, "days_remaining": 0, "reason": "no_expiry"}
+            return {
+                "valid": None,
+                "days_remaining": 0,
+                "reason": "no_expiry",
+                "alpn": alpn,
+            }
         expiry = datetime.fromtimestamp(ssl.cert_time_to_seconds(not_after), tz=timezone.utc)
         days_remaining = (expiry - datetime.now(timezone.utc)).days
-        return {"valid": days_remaining > 0, "days_remaining": max(days_remaining, 0)}
+        return {
+            "valid": days_remaining > 0,
+            "days_remaining": max(days_remaining, 0),
+            "alpn": alpn,
+        }
 
     @staticmethod
     def _check_dnssec(domain: str, timeout: int = 5) -> bool:
@@ -264,10 +304,16 @@ class DNSInfraModule(AuditModule):
         if not headers:
             return False
         lower_headers = {k.lower(): v for k, v in headers.items()}
-        if lower_headers.get("http-version", "").startswith("2"):
+        if lower_headers.get("http-version", "").startswith(("2", "3")):
             return True
         if "alt-svc" in lower_headers:
             alt_svc = lower_headers["alt-svc"].lower()
-            if "h2" in alt_svc:
+            # advertising h3 (or h2) means the edge speaks HTTP/2+
+            if re.search(r"\bh[23]\b", alt_svc):
                 return True
+        # Cloudflare serves HTTP/2 to every client that offers it
+        if "cf-ray" in lower_headers or "cloudflare" in str(
+            lower_headers.get("server", "")
+        ).lower():
+            return True
         return False

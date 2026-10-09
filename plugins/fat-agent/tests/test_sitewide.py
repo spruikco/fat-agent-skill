@@ -287,3 +287,45 @@ class TestQuery:
         con = _db()
         with pytest.raises(ValueError):
             run_query(con, "DELETE FROM pages")
+
+
+class TestCloudflareAndCanonicalHost:
+    def test_cdn_cgi_email_protection_not_broken_link(self):
+        # Cloudflare Email Obfuscation rewrites mailto: to this path; it 404s
+        # for bots and must not become a P0 broken-link finding.
+        con = _db()
+        _page(con, "https://e.com/")
+        _page(con, "https://e.com/cdn-cgi/l/email-protection", status=404, indexable=0)
+        _link(con, "https://e.com/", "https://e.com/cdn-cgi/l/email-protection")
+        keys = _keys(run_checks(con))
+        assert "broken_internal_links" not in keys
+        assert "broken_4xx" not in keys
+
+    def test_canonical_on_other_host_explained(self):
+        con = _db()
+        for path in ("/", "/a", "/b"):
+            _page(
+                con,
+                f"https://old.com{path}",
+                indexable=0,
+                canonical=f"https://new.com{path}",
+                canonical_self=0,
+            )
+        findings = {f["key"]: f for f in run_checks(con)}
+        f = findings["canonical_cross_host"]
+        assert f["priority"] == "P2"
+        assert "new.com" in f["description"]
+        assert f["count"] == 3
+
+    def test_self_canonical_site_not_flagged(self):
+        con = _db()
+        _page(con, "https://e.com/", canonical="https://e.com/")
+        _page(con, "https://e.com/a", canonical="https://e.com/a")
+        assert "canonical_cross_host" not in _keys(run_checks(con))
+
+    def test_minority_cross_host_not_flagged(self):
+        con = _db()
+        _page(con, "https://e.com/", canonical="https://e.com/")
+        _page(con, "https://e.com/a", canonical="https://e.com/a")
+        _page(con, "https://e.com/b", canonical="https://partner.com/b")
+        assert "canonical_cross_host" not in _keys(run_checks(con))

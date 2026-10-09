@@ -12,29 +12,30 @@ import json
 import re
 
 from modules import register_module
+from modules._schema_org_types import LOCAL_BUSINESS_TYPES, LOCAL_BUSINESS_TYPES_LOWER
 from modules.base import AuditModule
 
-_LOCAL_BUSINESS_TYPES = (
-    "LocalBusiness",
-    "Restaurant",
-    "Store",
-    "AutoRepair",
-    "Plumber",
-    "Dentist",
-    "Electrician",
-    "LegalService",
-    "MedicalBusiness",
-    "RealEstateAgent",
-    "FinancialService",
-    "AutomotiveBusiness",
-    "HomeAndConstructionBusiness",
-    "ProfessionalService",
-)
+# LocalBusiness and every schema.org subtype (Store, SportingGoodsStore,
+# SportsActivityLocation, ProfessionalService, Restaurant, Dentist, ...)
+_LOCAL_BUSINESS_TYPES = tuple(sorted(LOCAL_BUSINESS_TYPES))
 
 _LOCAL_BUSINESS_RE = re.compile(
-    r'"@type"\s*:\s*"(' + "|".join(_LOCAL_BUSINESS_TYPES) + r')"',
+    r'"@type"\s*:\s*\[?\s*"(?:https?://schema\.org/)?('
+    + "|".join(_LOCAL_BUSINESS_TYPES)
+    + r')"',
     re.IGNORECASE,
 )
+
+
+def _is_local_business(schema: dict) -> bool:
+    """True when @type (a string or a list) names LocalBusiness or a subtype."""
+    t = schema.get("@type", "")
+    for v in t if isinstance(t, list) else [t]:
+        name = str(v or "").rsplit("/", 1)[-1].lower()
+        if name in LOCAL_BUSINESS_TYPES_LOWER:
+            return True
+    return False
+
 
 _GOOGLE_MAPS_RE = re.compile(
     r"google\.com/maps/embed|maps\.googleapis\.com",
@@ -115,9 +116,7 @@ class LocalSEOModule(AuditModule):
         schemas = self._extract_schemas(html)
 
         local_business_schema = any(
-            isinstance(s, dict)
-            and s.get("@type", "").lower() in [t.lower() for t in _LOCAL_BUSINESS_TYPES]
-            for s in schemas
+            isinstance(s, dict) and _is_local_business(s) for s in schemas
         )
 
         nap_in_schema = self._check_nap(schemas)
@@ -335,14 +334,21 @@ class LocalSEOModule(AuditModule):
                 schemas.extend(d for d in data if isinstance(d, dict))
             elif isinstance(data, dict):
                 schemas.append(data)
-        return schemas
+        # flatten @graph so a LocalBusiness node inside a graph counts
+        flat: list[dict] = []
+        for d in schemas:
+            graph = d.get("@graph")
+            if isinstance(graph, list):
+                flat.extend(g for g in graph if isinstance(g, dict))
+            else:
+                flat.append(d)
+        return flat
 
     @staticmethod
     def _check_nap(schemas: list[dict]) -> bool:
         """Check if any local business schema has name, address, and telephone."""
-        types_lower = [t.lower() for t in _LOCAL_BUSINESS_TYPES]
         for s in schemas:
-            if s.get("@type", "").lower() in types_lower:
+            if _is_local_business(s):
                 has_name = bool(s.get("name"))
                 has_phone = bool(s.get("telephone"))
                 has_address = bool(s.get("address"))

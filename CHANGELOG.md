@@ -1,5 +1,69 @@
 # Changelog
 
+## [3.11.0] - 2026-10-09
+
+Lessons from a real audit of txsports.com.au, a Next.js 16 shop on nginx
+behind Cloudflare.
+
+### Fixed: false positives and broken calls
+- `pagespeed.py` called `v5/runPagespeedTest`, which 404s. It now calls
+  `v5/runPagespeed` (SKILL.md and references updated). A keyless 429 says the
+  shared quota is exhausted and points to `--api-key`/`PAGESPEED_API_KEY` or
+  `lighthouse.py`.
+- `sitecrawl.py` fetched robots.txt with Python's default User-Agent, which
+  Cloudflare's Browser Integrity Check answers with 403, and the stdlib read
+  that 403 as "disallow everything" (1 page crawled, 0 indexable). robots.txt
+  now uses the crawl's `--user-agent` and RFC 9309: any 4xx means allow all,
+  only 5xx or unreachable means disallow all, and the blocked rows say why.
+- Cloudflare Email Obfuscation links (`/cdn-cgi/l/email-protection`) are no
+  longer crawled or reported as broken internal links (it produced a bogus P0
+  with 408 affected).
+- `punchlist.py update` scoped auto-resolution to the module only, so merging
+  audits of several pages of one site resolved page A's findings because page
+  B did not repeat them (38 false resolutions, including a P0). Scores files
+  now carry `page_url` (analyse-html.py and calculate-score.py pass it
+  through, or use `update --page`), items record their page, and only the
+  rescanned page's items auto-resolve. Items on the site URL keep their old
+  ids; older punch lists keep working (unscoped items are adopted by the first
+  page that reports them again).
+- Structured data: `@type` is checked against a bundled list of every
+  schema.org type (v30.1), so `SportsActivityLocation`, `SportsTeam` and the
+  rest are no longer "Unknown @type". `https://schema.org/X` forms count.
+- `local_seo` treats every LocalBusiness subtype (131, e.g.
+  SportsActivityLocation, SportingGoodsStore, ProfessionalService) as
+  LocalBusiness, reads `@graph`, and no longer crashes on `@type` lists.
+- noindex on checkout, cart, basket, account, login, register and thank-you or
+  order-confirmation pages is a P3 note, not a P0 that caps the grade at 59
+  (meta robots and `X-Robots-Tag`).
+- `dns_infra`: an `alt-svc` advertising h3, or a Cloudflare response, counts as
+  HTTP/2+; the TLS check also negotiates ALPN. When nothing can confirm it,
+  the finding is "HTTP/2 support unverified" instead of "not detected".
+- `js_bundle` recognises framework build output (`/_next/static/`, `/_nuxt/`,
+  `/_astro/`, `/_app/immutable/`) as bundled, so Turbopack's hash-named chunks
+  no longer get "No bundler detected".
+- `i18n` only asks for hreflang when the site is multilingual (language
+  switcher, several languages in lang attributes or Content-Language, or
+  several locale path prefixes).
+- `email_deliverability`: DKIM selectors cannot be listed from DNS, so a miss
+  on the common selectors is now "DKIM not verifiable from DNS (selectors
+  unknown)" at P3, with a provider hint from the SPF record (SES, Microsoft 365,
+  Google, SendGrid, Mailgun, Mailchimp). More selectors are tried (selector2,
+  dkim, smtp, s1, s2, k2, mandrill, everlytickey1/2, mxvault).
+- `ecommerce`: "Missing Product structured data" is only raised on product
+  pages (Product schema, `og:type` product, a `/product(s)/` path, or a single
+  add-to-cart control with a price), not on the home page, landing pages, blog
+  posts or checkout. The PDP depth checks use the same signal.
+
+### Added: checks
+- `ecommerce`: "Merchant listing enhancements missing in Product schema" (P2)
+  lists missing `image`, `description`, `offers.hasMerchantReturnPolicy` and
+  `offers.shippingDetails` (Organization-level policies count).
+- `schema_validator`: BreadcrumbList entries other than the last without an
+  `item` URL (Google's "Missing field 'item'") are a P2.
+- `sitewide`: when most pages canonicalise to another host, one P2 explains it
+  (domain migration in progress or misconfigured canonical base URL) instead
+  of a silent "0 indexable".
+
 ## [3.10.2] - 2026-09-24
 
 Found by auditing FAT Agent's own website with FAT Agent.

@@ -176,3 +176,39 @@ def test_score_noindex_triggers_p0():
     noindex_findings = [f for f in mod.findings if "noindex" in f["title"].lower()]
     assert len(noindex_findings) == 1
     assert noindex_findings[0]["priority"] == "P0"
+
+
+def _noindex_html():
+    return (
+        "<html><head><title>Checkout</title>"
+        '<meta name="robots" content="noindex, nofollow"></head>'
+        "<body><h1>Checkout</h1></body></html>"
+    )
+
+
+def test_noindex_on_transactional_pages_is_p3_not_p0():
+    for path in (
+        "/checkout",
+        "/cart/",
+        "/basket",
+        "/my-account/orders",
+        "/account",
+        "/login",
+        "/signin",
+        "/register",
+        "/thank-you",
+        "/order-confirmation",
+    ):
+        mod = SEOModule()
+        res = mod.score(mod.analyse(_noindex_html(), url="https://shop.example" + path))
+        noindex = [f for f in mod.findings if "noindex" in f["title"].lower()]
+        assert [f["priority"] for f in noindex] == ["P3"], path
+        assert res["details"]["robots"]["score"] == 5, path
+
+
+def test_noindex_on_content_page_still_p0():
+    for path in ("/", "/products/jersey", "/blog/checkout-tips", "/cartography"):
+        mod = SEOModule()
+        mod.score(mod.analyse(_noindex_html(), url="https://shop.example" + path))
+        noindex = [f for f in mod.findings if "noindex" in f["title"].lower()]
+        assert [f["priority"] for f in noindex] == ["P0"], path

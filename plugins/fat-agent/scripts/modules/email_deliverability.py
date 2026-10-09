@@ -14,7 +14,35 @@ from urllib.parse import urlparse
 from modules import register_module
 from modules.base import AuditModule
 
-_DKIM_SELECTORS = ("google", "default", "selector1", "mail", "k1")
+# Common DKIM selectors. Selectors cannot be listed from DNS, so a miss here
+# means "not verifiable", not "missing" (SES, for one, uses random tokens).
+_DKIM_SELECTORS = (
+    "google",  # Google Workspace
+    "selector1",  # Microsoft 365
+    "selector2",  # Microsoft 365
+    "default",
+    "dkim",
+    "mail",
+    "smtp",
+    "k1",  # Mailchimp / Mandrill
+    "k2",
+    "s1",  # SendGrid
+    "s2",
+    "mandrill",
+    "everlytickey1",
+    "everlytickey2",
+    "mxvault",
+)
+
+# SPF include -> (provider, where its DKIM selector lives)
+_SPF_PROVIDER_HINTS = (
+    ("amazonses.com", "Amazon SES", "<token>._domainkey CNAMEs to dkim.amazonses.com"),
+    ("spf.protection.outlook.com", "Microsoft 365", "selector1/selector2._domainkey"),
+    ("_spf.google.com", "Google Workspace", "google._domainkey"),
+    ("sendgrid.net", "SendGrid", "s1/s2._domainkey"),
+    ("mailgun.org", "Mailgun", "the selector shown in the Mailgun dashboard"),
+    ("servers.mcsv.net", "Mailchimp", "k1/k2._domainkey"),
+)
 
 _DMARC_POLICY_SCORES: dict[str, int] = {
     "reject": 30,
@@ -92,15 +120,26 @@ class EmailDeliverabilityModule(AuditModule):
             )
 
         if not analysis["dkim"].get("found"):
+            spf_record = (analysis["spf"].get("record") or "").lower()
+            hints = [
+                f"{name} ({where})"
+                for needle, name, where in _SPF_PROVIDER_HINTS
+                if needle in spf_record
+            ]
+            provider = (
+                " SPF names " + "; ".join(hints) + ", so check there." if hints else ""
+            )
             self.add_finding(
-                priority="P1",
-                title="Missing DKIM record",
-                description="No DKIM record was found for common selectors. "
-                "DKIM signs outgoing emails so recipients can verify "
-                "they have not been tampered with.",
-                fix="Configure DKIM signing with your email provider and publish "
-                "the public key as a TXT record at <selector>._domainkey.<domain>.",
-                effort="medium",
+                priority="P3",
+                title="DKIM not verifiable from DNS (selectors unknown)",
+                description="None of the common DKIM selectors resolved. DKIM "
+                "selectors cannot be listed from DNS, so this is not proof DKIM "
+                "is missing: Amazon SES signs with random token selectors, Microsoft "
+                "365 uses selector1/selector2, Google uses google." + provider,
+                fix="Confirm DKIM is enabled in the sending provider's console, or "
+                "read the DKIM-Signature header (s= is the selector) of a real email "
+                "from this domain and look up <selector>._domainkey.<domain>.",
+                effort="low",
             )
 
         if not dmarc_data.get("found"):

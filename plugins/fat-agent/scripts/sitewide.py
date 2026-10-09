@@ -28,6 +28,7 @@ import re
 import sqlite3
 import sys
 from collections import Counter
+from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from modules.google_guidelines import (  # noqa: E402
@@ -63,10 +64,12 @@ CHECKS = [
         "Update or remove each link, or restore/redirect the target page.",
         "medium",
         "SELECT COUNT(*) FROM links l JOIN pages p ON p.url=l.target "
-        "WHERE l.type='internal' AND p.status>=400 AND p.status NOT IN (403,429)",
+        "WHERE l.type='internal' AND p.status>=400 AND p.status NOT IN (403,429) "
+        "AND l.target NOT LIKE '%/cdn-cgi/%'",
         "SELECT DISTINCT l.source || '  ->  ' || l.target FROM links l "
         "JOIN pages p ON p.url=l.target "
-        "WHERE l.type='internal' AND p.status>=400 AND p.status NOT IN (403,429)",
+        "WHERE l.type='internal' AND p.status>=400 AND p.status NOT IN (403,429) "
+        "AND l.target NOT LIKE '%/cdn-cgi/%'",
     ),
     (
         "broken_4xx",
@@ -76,9 +79,9 @@ CHECKS = [
         "Restore the page, 301 it to the best replacement, or remove links to it.",
         "medium",
         "SELECT COUNT(*) FROM pages WHERE status>=400 AND status<500 "
-        "AND status NOT IN (403,429)",
+        "AND status NOT IN (403,429) AND url NOT LIKE '%/cdn-cgi/%'",
         "SELECT url FROM pages WHERE status>=400 AND status<500 "
-        "AND status NOT IN (403,429)",
+        "AND status NOT IN (403,429) AND url NOT LIKE '%/cdn-cgi/%'",
     ),
     (
         "fetch_errors",
@@ -354,6 +357,7 @@ def run_checks(con, gsc: dict = None) -> list:
                 "key": key,
             }
         )
+    findings.extend(canonical_host_checks(con))
     findings.extend(guideline_checks(con, gsc))
     order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
     findings.sort(key=lambda f: order.get(f["priority"], 9))
@@ -565,6 +569,62 @@ def gsc_checks(con, gsc: dict) -> list:
             }
         )
     return findings
+
+
+CROSS_HOST_SHARE = 0.5  # "most pages" canonicalise to another host
+
+
+def canonical_host_checks(con) -> list:
+    """Explain a crawl where most pages canonicalise to a different host.
+
+    Those pages are counted as "canonicalised elsewhere", so the summary reads
+    "0 indexable" with no hint why. One finding names the cause: a domain
+    migration in progress (crawling the old or new host) or a canonical
+    misconfiguration.
+    """
+    rows = con.execute(
+        "SELECT url, canonical FROM pages WHERE status>=200 AND status<300 "
+        "AND content_type='text/html' AND canonical IS NOT NULL AND canonical<>''"
+    ).fetchall()
+    if not rows:
+        return []
+    html_pages = con.execute(
+        "SELECT COUNT(*) FROM pages WHERE status>=200 AND status<300 "
+        "AND content_type='text/html'"
+    ).fetchone()[0]
+    cross = Counter()
+    examples = []
+    for url, canonical in rows:
+        page_host = (urlparse(url).hostname or "").lower()
+        canon_host = (urlparse(canonical).hostname or "").lower()
+        if canon_host and page_host and canon_host != page_host:
+            cross[canon_host] += 1
+            if len(examples) < SAMPLE_LIMIT:
+                examples.append(f"{url}  ->  {canonical}")
+    n = sum(cross.values())
+    if not n or n / max(html_pages, 1) < CROSS_HOST_SHARE:
+        return []
+    crawled = urlparse(rows[0][0]).hostname
+    target = ", ".join(h for h, _ in cross.most_common(3))
+    return [
+        {
+            "priority": "P2",
+            "title": "Canonical host differs from crawled host",
+            "description": f"{n} of {html_pages} crawled pages on {crawled} declare "
+            f"a canonical on another host ({target}), so the crawl counts them as "
+            "canonicalised elsewhere and reports few or no indexable pages. Either "
+            "a domain migration is in progress (you crawled the old or the new "
+            "host) or the canonical base URL is misconfigured. Examples: "
+            + "; ".join(examples),
+            "fix": "If migrating, crawl the host the canonicals point at, and 301 "
+            "the old host to it once live. If not, set the site's canonical base "
+            "URL to the host that should rank.",
+            "effort": "low",
+            "module": MODULE,
+            "count": n,
+            "key": "canonical_cross_host",
+        }
+    ]
 
 
 def guideline_checks(con, gsc: dict = None) -> list:

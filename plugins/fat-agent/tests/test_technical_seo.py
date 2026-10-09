@@ -89,6 +89,19 @@ class TestModule(unittest.TestCase):
         f = next(f for f in m.findings if "X-Robots-Tag" in f["title"])
         self.assertEqual(f["priority"], "P0")
 
+    def test_noindex_header_on_checkout_is_p3(self):
+        m = TechnicalSEOModule()
+        res = m.score(
+            m.analyse(
+                "<html></html>",
+                "https://x.example/checkout",
+                headers={"X-Robots-Tag": "noindex"},
+            )
+        )
+        f = next(f for f in m.findings if "X-Robots-Tag" in f["title"])
+        self.assertEqual(f["priority"], "P3")
+        self.assertEqual(res["details"]["indexability"]["score"], 30)
+
     def test_meta_refresh_finding(self):
         m = TechnicalSEOModule()
         m.score(

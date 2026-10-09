@@ -218,6 +218,17 @@ _LANG_ATTR_RE = re.compile(r"<html[^>]+lang=[\"']([^\"']+)[\"']", re.IGNORECASE)
 
 _DIR_RTL_RE = re.compile(r'dir=["\']rtl["\']', re.IGNORECASE)
 
+# lang="xx" on any element (language links, quoted passages, the root)
+_ANY_LANG_ATTR_RE = re.compile(
+    r"\blang=[\"']([A-Za-z]{2,3})(?:[-_][^\"']*)?[\"']", re.IGNORECASE
+)
+
+_SWITCHER_RE = re.compile(
+    r"lang-selector|language-switcher|lang-switch|locale-switcher|"
+    r"language-selector|locale-selector",
+    re.IGNORECASE,
+)
+
 
 @register_module
 class I18nModule(AuditModule):
@@ -308,6 +319,25 @@ class I18nModule(AuditModule):
 
         has_rtl_support = bool(_DIR_RTL_RE.search(html))
 
+        # Is this site actually multilingual? Only then is missing hreflang a
+        # problem. Signals: a language switcher, several languages declared in
+        # lang attributes or Content-Language, or several locale path prefixes.
+        declared_langs = {
+            m.group(1).lower()
+            for m in _ANY_LANG_ATTR_RE.finditer(html)
+            if m.group(1).lower() in _VALID_LANG_CODES
+        }
+        for part in (content_language or "").split(","):
+            code = part.strip().split("-")[0].lower()
+            if code in _VALID_LANG_CODES:
+                declared_langs.add(code)
+        multilingual = bool(
+            hreflang_tags
+            or _SWITCHER_RE.search(html)
+            or len(declared_langs) >= 2
+            or len(locale_patterns) >= 2
+        )
+
         return {
             "hreflang_tags": hreflang_tags,
             "has_x_default": has_x_default,
@@ -321,6 +351,7 @@ class I18nModule(AuditModule):
             "locale_patterns": sorted(locale_patterns),
             "has_rtl_support": has_rtl_support,
             "rtl_language_detected": rtl_language_detected,
+            "multilingual": multilingual,
         }
 
     # ------------------------------------------------------------------
@@ -381,7 +412,9 @@ class I18nModule(AuditModule):
                 effort="low",
             )
 
-        if not analysis.get("hreflang_tags"):
+        # hreflang only matters when the site serves more than one language
+        # (a missing "multilingual" key keeps the old always-flag behaviour)
+        if not analysis.get("hreflang_tags") and analysis.get("multilingual", True):
             self.add_finding(
                 priority="P2",
                 title="No hreflang tags found",

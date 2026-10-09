@@ -365,3 +365,64 @@ def test_check_ssl_classifies_failures(monkeypatch):
     monkeypatch.setattr(ssl, "create_default_context", lambda: BadCtx())
     r = DNSInfraModule._check_ssl("expired.example")
     assert r["valid"] is False and r["reason"] == "expired"
+
+
+# ---------------------------------------------------------------------------
+# HTTP/2 detection (txsports.com.au behind Cloudflare: h2 + alt-svc h3)
+# ---------------------------------------------------------------------------
+
+
+def test_http2_from_alt_svc_h3():
+    assert DNSInfraModule._check_http2({"alt-svc": 'h3=":443"; ma=86400'}) is True
+
+
+def test_http2_from_cloudflare_headers():
+    assert DNSInfraModule._check_http2({"server": "cloudflare"}) is True
+    assert DNSInfraModule._check_http2({"CF-RAY": "8abc-SYD"}) is True
+
+
+def test_http2_not_detected_from_plain_headers():
+    assert DNSInfraModule._check_http2({"server": "nginx"}) is False
+
+
+def _offline(monkeypatch, alpn):
+    mock_run = MagicMock()
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+    monkeypatch.setattr("subprocess.run", mock_run)
+    monkeypatch.setattr(
+        DNSInfraModule,
+        "_check_ssl",
+        staticmethod(
+            lambda domain, timeout=5: {
+                "valid": True,
+                "days_remaining": 90,
+                "alpn": alpn,
+            }
+        ),
+    )
+
+
+def test_http2_from_alpn(monkeypatch):
+    _offline(monkeypatch, "h2")
+    r = DNSInfraModule().analyse("<html></html>", "https://e.com", {"server": "nginx"})
+    assert r["http2_support"] is True
+
+
+def test_alpn_http11_is_verified_negative(monkeypatch):
+    _offline(monkeypatch, "http/1.1")
+    mod = DNSInfraModule()
+    r = mod.analyse("<html></html>", "https://e.com", {"server": "nginx"})
+    assert r["http2_support"] is False and r["http2_verified"] is True
+    mod.score(r)
+    assert any(f["title"] == "HTTP/2 not detected" for f in mod.findings)
+
+
+def test_unknown_protocol_is_unverified_not_missing(monkeypatch):
+    _offline(monkeypatch, None)
+    mod = DNSInfraModule()
+    r = mod.analyse("<html></html>", "https://e.com", {"server": "nginx"})
+    assert r["http2_verified"] is False
+    mod.score(r)
+    titles = {f["title"]: f["priority"] for f in mod.findings}
+    assert "HTTP/2 not detected" not in titles
+    assert titles["HTTP/2 support unverified"] == "P3"

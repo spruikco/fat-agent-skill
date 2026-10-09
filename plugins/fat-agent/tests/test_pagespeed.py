@@ -200,6 +200,30 @@ class TestFetchPagespeed(unittest.TestCase):
         self.assertIn("error", result)
         self.assertIn("429", result["error"])
 
+    @patch("pagespeed.urllib.request.urlopen")
+    def test_uses_run_pagespeed_endpoint(self, mock_urlopen):
+        # Regression: v5/runPagespeedTest 404s; the real method is runPagespeed.
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"{}"
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+        pagespeed.fetch_pagespeed("https://example.com")
+        called = mock_urlopen.call_args[0][0].full_url
+        self.assertTrue(
+            called.startswith(
+                "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?"
+            ),
+            called,
+        )
+
+    def test_keyless_429_explains_quota(self):
+        msg = pagespeed._explain_http_error(429, "", "https://example.com", None)
+        self.assertIn("keyless", msg)
+        self.assertIn("--api-key", msg)
+        self.assertIn("PAGESPEED_API_KEY", msg)
+        self.assertIn("lighthouse.py", msg)
+
 
 class TestFetchBothStrategies(unittest.TestCase):
     """Test fetch_both_strategies."""

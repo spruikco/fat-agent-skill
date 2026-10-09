@@ -207,6 +207,101 @@ class TestUpdatePunchlist:
         update_punchlist(punch, _scores(findings=[_finding(priority="P1")]), now="T2")
         assert punch["items"][0]["priority"] == "P1"
 
+    def _page_scores(self, page, findings):
+        scores = _scores(
+            findings=findings, module_scores={"technical_seo": {"total": 70}}
+        )
+        scores["page_url"] = page
+        return scores
+
+    def test_other_page_does_not_resolve_first_pages_findings(self):
+        # Regression: merging audits of several pages of one site resolved
+        # page A's findings because page B did not repeat them.
+        punch = _fresh()
+        site = "https://e.com"
+        a = _finding(title="Only on home", priority="P0")
+        shared = _finding(title="On both pages")
+        update_punchlist(
+            punch, self._page_scores("https://e.com/", [a, shared]), url=site
+        )
+        stats = update_punchlist(
+            punch, self._page_scores("https://e.com/checkout", [shared]), url=site
+        )
+        assert stats["resolved"] == 0
+        assert all(i["status"] == "open" for i in punch["items"])
+        # the shared finding is tracked per page
+        assert len(punch["items"]) == 3
+        assert {i.get("page") for i in punch["items"]} == {
+            "https://e.com/",
+            "https://e.com/checkout",
+        }
+
+    def test_rescan_of_same_page_still_resolves(self):
+        punch = _fresh()
+        site = "https://e.com"
+        update_punchlist(
+            punch, self._page_scores("https://e.com/shop", [_finding()]), url=site
+        )
+        update_punchlist(
+            punch, self._page_scores("https://e.com/", [_finding("seo", "x")]), url=site
+        )
+        stats = update_punchlist(
+            punch, self._page_scores("https://e.com/shop/", []), url=site
+        )
+        assert stats["resolved"] == 1
+        shop = [i for i in punch["items"] if i["page"] == "https://e.com/shop"][0]
+        assert shop["status"] == "resolved"
+
+    def test_site_url_page_keeps_legacy_id(self):
+        punch = _fresh()
+        update_punchlist(
+            punch,
+            self._page_scores("https://e.com/", [_finding()]),
+            url="https://e.com",
+        )
+        f = _finding()
+        assert punch["items"][0]["id"] == finding_id(f["module"], f["title"])
+
+    def test_legacy_items_adopted_not_resolved_by_other_page(self):
+        punch = _fresh()
+        # an old punch list: no page recorded on items
+        update_punchlist(
+            punch,
+            _scores(
+                findings=[_finding(), _finding(title="Legacy other")],
+                module_scores={"technical_seo": {"total": 70}},
+            ),
+            url="https://e.com",
+        )
+        assert all("page" not in i for i in punch["items"])
+        stats = update_punchlist(
+            punch,
+            self._page_scores("https://e.com/about", [_finding()]),
+            url="https://e.com",
+        )
+        assert stats["resolved"] == 0
+        assert stats["new"] == 0
+        adopted = [i for i in punch["items"] if i["title"] == _finding()["title"]][0]
+        assert adopted["page"] == "https://e.com/about"
+        # a rescan of the site URL itself may still resolve legacy items
+        stats = update_punchlist(
+            punch, self._page_scores("https://e.com/", []), url="https://e.com"
+        )
+        legacy = [i for i in punch["items"] if i["title"] == "Legacy other"][0]
+        assert legacy["status"] == "resolved"
+
+    def test_page_url_passes_through_calculate_score(self):
+        result = score_mod.calculate_scores(
+            {
+                "seo": {},
+                "accessibility": {},
+                "performance": {},
+                "security": {},
+                "page_url": "https://e.com/x",
+            }
+        )
+        assert result["page_url"] == "https://e.com/x"
+
     def test_url_recorded(self):
         punch = _fresh()
         update_punchlist(punch, _scores(), url="https://example.com", now="T1")

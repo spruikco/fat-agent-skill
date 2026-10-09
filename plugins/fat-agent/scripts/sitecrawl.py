@@ -186,6 +186,13 @@ def in_scope(url: str, start_host: str, allow_subdomains: bool) -> bool:
     return False
 
 
+def is_cdn_internal(url: str) -> bool:
+    """Cloudflare-injected endpoints (/cdn-cgi/...), e.g. Email Obfuscation's
+    /cdn-cgi/l/email-protection, which stand in for mailto: links and 404 for
+    bots. They are not site pages, so never crawl or link-check them."""
+    return urlparse(url).path.startswith("/cdn-cgi/")
+
+
 def coerce_url(url: str) -> str:
     """Accept bare 'example.com' and assume https://."""
     url = (url or "").strip()
@@ -320,6 +327,47 @@ def fetch(url, opener, ua, timeout, retries=2, allow_private=False):
                 "error": f"{type(e).__name__}: {str(e)[:200]}",
             }
     return last
+
+
+def load_robots(start_url, opener, ua, timeout, allow_private=False):
+    """Fetch and parse robots.txt with the crawl's own User-Agent.
+
+    RobotFileParser.read() uses Python's default UA, which bot filters such as
+    Cloudflare's Browser Integrity Check answer with 403. The stdlib then reads
+    that 403 as "disallow everything" and the crawl stops at one page. Fetch it
+    ourselves and apply RFC 9309: 2xx parse, 3xx follow (up to 5 hops),
+    4xx (any) allow all, 5xx or unreachable disallow all.
+
+    Returns (parser, note). note is None on a normal parse, otherwise a short
+    explanation used when the result blocks every URL.
+    """
+    rp = RobotFileParser()
+    url = "{0.scheme}://{0.netloc}/robots.txt".format(urlparse(start_url))
+    rp.set_url(url)
+    note = None
+    r = None
+    for _ in range(6):
+        r = fetch(url, opener, ua, timeout, allow_private=allow_private)
+        status = r.get("status")
+        if status and 300 <= status < 400 and r.get("location"):
+            url = r["location"]
+            continue
+        break
+    status = r.get("status") if r else None
+    if status and 200 <= status < 300:
+        raw = r.get("raw") or b""
+        rp.parse(raw.decode("utf-8", errors="replace").splitlines())
+    elif status and 400 <= status < 500:
+        rp.allow_all = True  # RFC 9309 2.3.1.3: unavailable means no restrictions
+    else:
+        rp.disallow_all = True  # RFC 9309 2.3.1.4: unreachable means full disallow
+        why = f"HTTP {status}" if status else (r or {}).get("error") or "no response"
+        note = (
+            f"robots.txt unreachable ({why}); RFC 9309 treats that as disallow "
+            "all. Rerun with --ignore-robots if the server is only flaky"
+        )
+    rp.modified()  # can_fetch() refuses everything until last_checked is set
+    return rp, note
 
 
 # --------------------------------------------------------------------------- #
@@ -681,6 +729,7 @@ class Crawl:
         self.link_rows: list[tuple] = []
         self.errors = 0
         self.sitemap_urls: set[str] = set()
+        self.robots_note: str | None = None
 
 
 def consume(url, depth, r, ctx: Crawl):
@@ -755,7 +804,7 @@ def consume(url, depth, r, ctx: Crawl):
     internal = external = 0
     for tgt, anchor, rel in p.links:
         nt = normalise(tgt)
-        if not nt:
+        if not nt or is_cdn_internal(nt):
             continue
         is_internal = in_scope(nt, start_host, args.subdomains)
         ctx.link_rows.append(
@@ -876,7 +925,8 @@ def crawl_site(ctx: Crawl, rp, opener):
                         {
                             "url": url,
                             "status": None,
-                            "error": "blocked by robots.txt",
+                            "error": "blocked by robots.txt"
+                            + (f" ({ctx.robots_note})" if ctx.robots_note else ""),
                             "depth": depth,
                             "index_reason": "robots disallow",
                             "indexable": 0,
@@ -977,17 +1027,19 @@ def main():
     opener = make_opener(args.insecure)
 
     rp = None
+    robots_note = None
     robots_sitemaps = None
     if not args.ignore_robots:
-        rp = RobotFileParser()
-        rp.set_url("{0.scheme}://{0.netloc}/robots.txt".format(urlparse(start)))
         try:
-            rp.read()
+            rp, robots_note = load_robots(
+                start, opener, args.user_agent, args.timeout, args.allow_private
+            )
             robots_sitemaps = rp.site_maps()
         except Exception:
-            rp = None  # unreadable robots.txt → crawl politely anyway
+            rp = None  # unparseable robots.txt: crawl politely anyway
 
     ctx = Crawl(args, start_host)
+    ctx.robots_note = robots_note
     ctx.seen.add(start)
     ctx.frontier.append((start, 0))
 

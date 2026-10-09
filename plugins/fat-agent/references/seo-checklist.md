@@ -120,7 +120,7 @@ These affect ranking. FAT Agent can fetch CWV data from the PageSpeed Insights A
 
 CWV data is fetched from:
 ```
-https://www.googleapis.com/pagespeedonline/v5/runPagespeedTest?url={URL}&strategy=mobile
+https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={URL}&strategy=mobile
 ```
 No API key required for basic usage.
 
