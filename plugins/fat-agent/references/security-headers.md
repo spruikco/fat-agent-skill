@@ -65,6 +65,10 @@ but doesn't recommend a specific policy without understanding the site's depende
 
 ---
 
+> **Not a header, checked alongside:** `/.well-known/security.txt` (RFC 9116:
+> `Contact`, future `Expires`, `text/plain`) and its consistency with the
+> security page. See `claims-and-conversion.md` §2.
+
 ## Platform-Specific Implementation
 
 ### Netlify

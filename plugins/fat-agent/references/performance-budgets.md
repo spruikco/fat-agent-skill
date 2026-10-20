@@ -148,6 +148,13 @@ Real case (vend16.com, server-rendered Node site): mobile performance went from
 Recommend these when the breakdown is rendering-heavy; they are low effort and
 do not require a framework change.
 
+> **Paint cost and third parties:** backdrop-filter on sticky chrome,
+> infinite animations, autoplay video weight, LCP render-delay phase and
+> tag-manager main-thread time. See `claims-and-conversion.md` §8.
+> Unauthenticated PageSpeed API calls can return 404/429; fall back to
+> `npx lighthouse <url> --output=json` with a local Chromium (e.g.
+> Playwright's, via `CHROME_PATH`).
+
 ## PageSpeed Insights Integration
 
 FAT Agent can fetch live CWV data from the PageSpeed Insights API (no key required

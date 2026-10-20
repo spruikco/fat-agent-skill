@@ -83,7 +83,7 @@ html,body{overflow-x:clip}
 
 def nav(active):
     items = [("/#evidence", "What he checks", "home"), ("/#platforms", "Platforms", "home"),
-             ("/security/", "Security", "security"), ("/dossier/", "Full dossier", "dossier"),
+             ("/security/", "Security", "security"), ("/design/", "Design", "design"), ("/dossier/", "Full dossier", "dossier"),
              ("/#casework", "Case files", "home"), ("/pricing/", "Pricing", "pricing"), ("/#install", "Install", "home")]
     links = "\n      ".join(
         f'<a href="{h}"{" aria-current=\"page\"" if a == active and h.startswith("/" + a) else ""}>{t}</a>'
@@ -376,6 +376,7 @@ def build_home():
   </section>
 """
     main = main.replace('  <section id="casework"', extra + '  <section id="casework"', 1)
+    main = main.replace('  <section id="casework"', DESIGN_HOME + '  <section id="casework"', 1)
     main = main.replace('  <section id="install"', HQ_SECTION + '  <section id="install"', 1)
     return doc("FAT Agent: free SEO and security auditor for Claude Code",
                "FAT Agent audits your website inside Claude Code: Google spam policies, SEO, security, accessibility and speed, then fixes what it finds. Free and open source.",
@@ -508,6 +509,151 @@ def build_security():
                "security", SECURITY + INSTALL)
 
 
+# ------------------------------------------------------------------ design
+DESIGN = """
+  <section class="page-hero" aria-labelledby="des-title">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Design department</p>
+        <h1 id="des-title">He's got<span class="red">an eye.</span></h1>
+        <p class="lede">Scores can be green while a screen still reads as assembled from defaults: the stock font, the gradient hero, three identical cards, a button that says Submit. FAT Design runs six lenses over what the visitor actually sees, names every weak decision, prices it by cost and writes the brief that fixes it.</p>
+        <div class="counters" aria-label="At a glance">
+          <span><b>6</b>lenses</span><span><b>P0 to P3</b>ranked by cost</span><span><b>3</b>lines per brief</span>
+        </div>
+      </div>
+      <img class="sticker" src="/assets/scenes/pose-magnifier.png" alt="FAT Agent peering through a magnifying glass with a folder under his arm" width="220" height="503">
+    </div>
+  </section>
+
+  <section aria-labelledby="des-lenses">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Six lenses</p>
+        <h2 id="des-lenses">One lens at a time, behaviour first.</h2>
+        <p>Hunt for everything at once and the loudest flaw takes the whole pass. He sweeps the screen six times, records the evidence, and only then ranks what he found.</p>
+      </div>
+      <div class="cards">
+        <article class="card" data-tab="1. Product">
+          <h3>Product design</h3>
+          <p>What the screen should do before anyone styles it. Styling cannot rescue a control that makes the wrong promise.</p>
+          <ul class="list"><li>The control matches the shape of the choice, not habit</li><li>Object, scope and consequence named before the click</li><li>Every reachable state designed: empty, loading, error, denied</li></ul>
+          <p class="finding"><span class="stamp p0">P0</span>Delete wears the same button as Save, no confirm, irreversible</p>
+        </article>
+        <article class="card" data-tab="2. Copy">
+          <h3>Copywriting</h3>
+          <p>Every word in the interface, from the headline to the error message.</p>
+          <ul class="list"><li>Headline leads with the reader's problem, body with their outcome</li><li>Adjectives replaced by a number, a name or a scenario</li><li>Buttons name results; errors name the recovery</li></ul>
+          <p class="finding"><span class="stamp p1">P1</span>Primary button says "Get started": a mechanic, not an outcome</p>
+        </article>
+        <article class="card" data-tab="3. Type">
+          <h3>Typography</h3>
+          <p>How the text is set, and whether the typeface's voice agrees with the words.</p>
+          <ul class="list"><li>No faux bold or faked italic; test Il1O0 and rn</li><li>Measure 45 to 75 characters, line height 1.4 to 1.5</li><li>Sizes identical or clearly different, never nearly equal</li></ul>
+          <p class="finding"><span class="stamp p2">P2</span>Heading is a browser-smeared faux bold</p>
+        </article>
+        <article class="card" data-tab="4. Craft">
+          <h3>Craft</h3>
+          <p>A look chosen on purpose, then space, colour and edges that keep to it.</p>
+          <ul class="list"><li>Type, colour, radius and voice agree on one look</li><li>Gaps identical or clearly different, never 12 next to 16</li><li>One accent with one job; neutrals tinted toward the page</li></ul>
+          <p class="finding"><span class="stamp p2">P2</span>Eleven font sizes and six greys: the menu was never written down</p>
+        </article>
+        <article class="card" data-tab="5. Interaction">
+          <h3>Interaction</h3>
+          <p>What it does under your hands: focus, targets, forms, feedback and access.</p>
+          <ul class="list"><li>Focus visible, returns to its trigger, never trapped</li><li>A failed submit keeps every character typed</li><li>The same task finishes by keyboard, by screen reader and in bad light</li></ul>
+          <p class="finding"><span class="stamp p0">P0</span>Validation error clears the whole form</p>
+        </article>
+        <article class="card" data-tab="6. Motion">
+          <h3>Animation</h3>
+          <p>Motion that explains a change. Everything else is instant.</p>
+          <ul class="list"><li>Every movement has a job: feedback, orientation, continuity or delight</li><li>Starts fast and settles; exits quicker than entrances</li><li>Reduced motion honoured; keyboard actions get none</li></ul>
+          <p class="finding"><span class="stamp p1">P1</span>Hero is blank on first paint behind an entrance animation</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="casefile" aria-labelledby="des-rules">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Method</p>
+        <h2 id="des-rules">Spot. Name. Fix. Verify.</h2>
+        <p>A vibe cannot be briefed. "The hero feels weak" is a mood. "The subhead repeats the headline" is a ticket.</p>
+      </div>
+      <div class="rules">
+        <div class="rule"><h3>Spot</h3><p>A 30-second smell test first: the stock font, the purple gradient, three identical cards, stacked glow, chatbot phrasing. One may be a choice. Several together with no shared reason is slop.</p></div>
+        <div class="rule"><h3>Name</h3><p>Every finding is written in the lens's vocabulary with its evidence attached, and traced to the user's goal, verified behaviour or a convention. Never to taste alone.</p></div>
+        <div class="rule"><h3>Fix</h3><p>Each P0 and P1 becomes a three-line brief: the job, the change, the consequence. With the repo open he makes the change himself, editing rather than regenerating.</p></div>
+        <div class="rule"><h3>Verify</h3><p>He re-runs the task that exposed the flaw, then the last mile: tab title, favicon, share preview, theme colour, and what happens when the connection drops mid-save.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="des-sev">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Priorities</p>
+        <h2 id="des-sev">Cost sets the order, not visibility.</h2>
+        <p>The predictable mistake is polishing the most visible flaw first. A weak shadow is obvious and cheap. A wiped form after a validation error is invisible in a screenshot and expensive.</p>
+      </div>
+      <div class="table-box">
+        <table class="sev">
+          <thead><tr><th>Priority</th><th>Means</th><th>Design examples</th></tr></thead>
+          <tbody>
+            <tr><td><span class="stamp p0">P0</span></td><td>Fix before ship</td><td>Blocks the task or loses work, for everyone: a wiped form on error, a delete with no confirm, an action unreachable by keyboard</td></tr>
+            <tr><td><span class="stamp p1">P1</span></td><td>This pass</td><td>Wrong-action risk or clear trust erosion, met often: an ambiguous destructive label, no error recovery, invisible focus, a blank hero on first paint</td></tr>
+            <tr><td><span class="stamp p2">P2</span></td><td>Soon</td><td>Rough but the task completes: flat hierarchy, a typeface arguing with the words, weak call-to-action copy, border soup</td></tr>
+            <tr><td><span class="stamp p3">P3</span></td><td>Polish</td><td>Cosmetic drift: a heavy shadow, an odd gap, a stranded word in a headline</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="des-run">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">On the case</p>
+        <h2 id="des-run">Point him at a screen.</h2>
+        <p>Run <code>/fat-design https://your-site.com</code>, drop in a screenshot, or open the component in your repo and say "run FAT design on this". For a whole site, run <code>/fat-audit</code> as well: the design findings land on the same punch list.</p>
+        <p class="src" style="color:var(--chrome-dim);margin-top:18px">Method informed by Matthew Blode's <a href="https://blode.co/taste-training">Taste Training</a>. The checklists are our working notes; the course is the depth behind them.</p>
+      </div>
+    </div>
+  </section>
+"""
+
+
+def build_design():
+    return doc("FAT Design: the six-lens design audit for Claude Code",
+               "FAT Design audits a screen the way a designer would: product decisions, copy, typography, craft, interaction and motion, ranked P0 to P3 with a brief for every fix. Part of FAT Agent, free and open source.",
+               "design", DESIGN + INSTALL)
+
+
+DESIGN_HOME = """
+  <section class="casefile" aria-labelledby="design-title">
+    <div class="wrap">
+      <div class="split">
+        <div class="sec-head">
+          <p class="eyebrow">New department</p>
+          <h2 id="design-title">He can tell it was generated.</h2>
+          <p>Scores can be green while the screen still reads as generated. FAT Design runs six lenses over what the visitor actually sees: what it does, what it says, how the type is set, the space and colour, how it behaves under your hands, and how it moves. Every weak decision gets a name, a price and a brief.</p>
+          <div class="cta-row"><a class="cta" href="/design/">Open the design file</a><a class="cta ghost" href="/#install">Run /fat-design</a></div>
+        </div>
+        <img class="sticker" src="/assets/scenes/pose-magnifier.png" alt="FAT Agent peering through a magnifying glass with a folder under his arm" width="220" height="503" loading="lazy" style="justify-self:center;width:min(100%,260px);height:auto">
+      </div>
+      <div class="locks">
+        <div class="lock"><span class="stamp p0">P0</span><b>Product</b><span>The wrong control, an unnamed consequence, a state nobody designed</span></div>
+        <div class="lock"><span class="stamp p1">P1</span><b>Copy</b><span>Buttons that name a mechanic, claims with no evidence, errors with no way out</span></div>
+        <div class="lock"><span class="stamp p2">P2</span><b>Type</b><span>Faux bold, a voice that argues with the words, sizes that nearly match</span></div>
+        <div class="lock"><span class="stamp p2">P2</span><b>Craft</b><span>A look never chosen, gaps that nearly match, border soup, six greys</span></div>
+        <div class="lock"><span class="stamp p0">P0</span><b>Interaction</b><span>Forms that wipe your work, invisible focus, targets you cannot hit</span></div>
+        <div class="lock"><span class="stamp p1">P1</span><b>Motion</b><span>A hero blank on first paint, movement with no job, reduced motion ignored</span></div>
+      </div>
+    </div>
+  </section>
+"""
+
+
 # ------------------------------------------------------------------ dossier
 GROUPS = [
     ("Google's rulebook", ["google_guidelines.py"], "Spam policies and current Search guidance."),
@@ -632,7 +778,7 @@ def build_dossier():
       <div class="dossier-grid">
 {chr(10).join(cards)}
       </div>
-      <p class="src" style="color:var(--chrome-dim);margin-top:28px">Generated from the finding titles in the plugin source on every build. Some titles include the specific value found, shown here as "…".</p>
+      <p class="src" style="color:var(--chrome-dim);margin-top:28px">Generated from the finding titles in the plugin source on every build. Some titles include the specific value found, shown here as "…". Design taste is judged, not pattern-matched, so it is not in this list: see <a href="/design/">the design file</a>.</p>
     </div>
   </section>
 """
@@ -670,7 +816,7 @@ PRIVACY = """
 """
 
 
-PAGES = ("index.html", "security/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html")
+PAGES = ("index.html", "security/index.html", "design/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html")
 
 CSP = "; ".join([
     "default-src 'self'",
@@ -719,10 +865,11 @@ HEADERS_FILE = f"""/*
 
 def main():
     os.makedirs(os.path.join(DIST, "assets"), exist_ok=True)
-    for sub in ("security", "dossier", "privacy", "pricing"):
+    for sub in ("security", "design", "dossier", "privacy", "pricing"):
         os.makedirs(os.path.join(DIST, sub), exist_ok=True)
     open(os.path.join(DIST, "index.html"), "w", encoding="utf-8").write(build_home())
     open(os.path.join(DIST, "security", "index.html"), "w", encoding="utf-8").write(build_security())
+    open(os.path.join(DIST, "design", "index.html"), "w", encoding="utf-8").write(build_design())
     dossier, total = build_dossier()
     open(os.path.join(DIST, "dossier", "index.html"), "w", encoding="utf-8").write(dossier)
     open(os.path.join(DIST, "pricing", "index.html"), "w", encoding="utf-8").write(
@@ -735,7 +882,7 @@ def main():
     def have(rel):
         return os.path.exists(os.path.join(HERE, rel.lstrip("/")))
 
-    for page in ("index.html", "security/index.html", "dossier/index.html", "privacy/index.html", "pricing/index.html"):
+    for page in PAGES:
         path = os.path.join(DIST, page)
         txt = open(path, encoding="utf-8").read()
         txt = re.sub(r'<figure class="scene[^"]*"[^>]*>\s*<img src="(/?assets/scenes/[^"]+)".*?</figure>',
@@ -774,7 +921,7 @@ def main():
             txt = re.sub(r'url\((/?assets/scenes/[a-z-]+)\.jpg\)', r"url(\1.webp)", txt)
         open(path, "w", encoding="utf-8").write(txt)
     today = datetime.date.today().isoformat()
-    urls = ["/", "/security/", "/dossier/", "/pricing/", "/privacy/"]
+    urls = ["/", "/security/", "/design/", "/dossier/", "/pricing/", "/privacy/"]
     open(os.path.join(DIST, "sitemap.xml"), "w", encoding="utf-8").write(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"  <url><loc>{SITE}{u}</loc><lastmod>{today}</lastmod></url>\n" for u in urls) + "</urlset>\n")

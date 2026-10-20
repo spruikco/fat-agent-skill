@@ -24,6 +24,22 @@ The skill activates when you say things like:
 
 Runs the full audit workflow with the provided URL.
 
+## FAT Design
+
+The design department. `fat-design` runs a six-lens design-taste audit (product
+design, copywriting, typography, craft, interaction, animation) over a URL, a
+screenshot or frontend code, names every weak decision, ranks it by cost (harm x
+frequency x reach) and writes the brief to fix it. Where the audit above checks
+SEO, security, speed and accessibility as code, FAT Design checks whether the
+screen feels designed rather than generated.
+
+```
+/fat-design https://example.com/pricing
+```
+
+Or say "run FAT design on this screen", "does this look AI-generated", "fix the
+last 10%". References live in `references/design/`.
+
 ## Audit Categories
 
 | Category | What It Checks |

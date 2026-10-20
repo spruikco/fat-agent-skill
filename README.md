@@ -47,6 +47,14 @@ After you deploy a site, say **"run FAT agent"** and it will:
 
 Plus Content Quality, GDPR/Cookie consent, Schema validation, and Sitemap modules.
 
+### FAT Design (design-taste audit)
+
+Scores can be green while a screen still reads as generated. `/fat-design` runs
+six lenses over a URL, screenshot or component (product design, copywriting,
+typography, craft, interaction, animation), names each weak decision, ranks it
+P0 to P3 by harm x frequency x reach, and writes a job / change / consequence
+brief for the fixes. Design findings join the same punch list as everything else.
+
 ### Audit Profiles
 
 | Profile | Modules |

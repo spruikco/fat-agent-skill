@@ -92,6 +92,12 @@ this file covers the extended checks for deeper audits.
 - ✅ `<html lang="xx">` attribute set correctly
 - ✅ Content is actually translated (not just machine-translated)
 
+> **Site-wide inheritance:** check canonical, `og:url`, `og:image` and
+> title/description across *all* sitemap pages, not one page at a time. A
+> root-layout canonical or `og:url` leaks onto every page that doesn't
+> override it; in Next.js a page-level `openGraph` drops the root's image.
+> See `claims-and-conversion.md` §7.
+
 ## Social / Sharing
 
 ### Open Graph

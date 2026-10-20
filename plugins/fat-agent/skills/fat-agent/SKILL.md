@@ -210,6 +210,7 @@ Fetch the HTML and check:
 - **robots.txt / sitemap cross-reference** — Check if `robots.txt` references the sitemap URL. If not, flag as P2.
 - **Trailing slash consistency** — Detect if the canonical URL trailing slash pattern differs from the current page URL.
 - **Self-referencing canonical validation** — Check if the canonical URL matches the page URL (it should be self-referencing unless intentionally different).
+- **Site-wide metadata inheritance** — Across *every* sitemap URL, count pages whose canonical or `og:url` is the homepage, pages carrying the homepage's exact title/description, and pages with no `og:image` while others have one. A root-layout `canonical: "/"` (Next.js, Nuxt, SvelteKit) silently de-indexes every page that doesn't override it (P1 when several pages); Next.js merges `openGraph` shallowly, so a page that sets its own loses the root's image (P2). Method and fix brief: `references/claims-and-conversion.md` §7.
 - **Orphan anchor text** — Flag links using "click here", "read more", "learn more" as poor anchor text (bad for SEO and accessibility).
 - **rel=nofollow audit** — Count links with `nofollow`. Flag internal links with `nofollow` as a mistake (it wastes link equity).
 - **Core Web Vitals via PageSpeed Insights API** — Fetch `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={URL}&strategy=mobile` (no API key needed for basic usage). Extract LCP, CLS, INP/FID, FCP, TTFB, Speed Index. Flag any metric in "poor" range as P1, "needs improvement" as P2. Fetch `strategy=desktop` for comparison. Display as a CWV summary table.
@@ -304,6 +305,7 @@ From the HTML response, check:
   rather than Script**, see "Rendering-bound pages" in
   `references/performance-budgets.md` (`content-visibility:auto`, self-hosted
   fonts, `srcset`).
+- **Paint cost, motion and third-party main thread** — in the browser, count `backdrop-filter` elements (worst on sticky/fixed chrome), `infinite` CSS animations (must stop offscreen and under reduced motion) and `<video autoplay>` weight on mobile; read Lighthouse's LCP phase breakdown (a text LCP with seconds of *render delay* = render-blocking CSS, a JS-injected blocking script such as Cloudflare Email Obfuscation's `email-decode.min.js`, font swap or a hydration reveal) and `third-party-summary` (tag manager > 250 ms main thread on mobile = P2). See `references/claims-and-conversion.md` §8.
 
 > **⚠️ This is a markup *proxy*, not measured performance.** The `performance`
 > module reads HTML; it does **not** measure Core Web Vitals. Three rules so the
@@ -391,6 +393,7 @@ From the HTML, check:
 - **Form error association** — Check for `aria-describedby` / `aria-errormessage` usage
 - **Motion preference** — Detect `prefers-reduced-motion` in inline styles/media queries
 - **Fake affordance detection** — Detect non-interactive elements (`<div>`, `<span>`) with interactive styling (hover effects, cursor:pointer, button/link CSS classes) that lack `href`, `onclick`, or appropriate ARIA roles. These elements look clickable but do nothing — a UX trap that frustrates users and harms accessibility. Flag as P1 High.
+- **Mobile conversion (390 x 844, Playwright `is_mobile`)** — the primary sign-up CTA is inside the viewport in the header on load **and** inside the opened mobile menu (a sticky header whose open menu is taller than `innerHeight` hides its bottom items: cap the panel at `100dvh` minus the bar and let it scroll); every visible input/select/textarea computes `font-size >= 16px` on mobile (else iOS Safari zooms on focus); `scrollWidth <= innerWidth` at mobile and desktop widths. No reachable CTA = P1, cut-off menu or < 16px form inputs = P2. Snippet and fix briefs: `references/claims-and-conversion.md` §5.
 
 Ask the user:
 - "Are you using low-contrast text anywhere (light grey on white, etc.)?"
@@ -443,6 +446,7 @@ Check the HTML for known analytics providers (detected automatically):
 - **Ad pixels:** Snapchat Pixel, TikTok Pixel, LinkedIn Insight Tag, Pinterest Tag, Reddit Pixel
 - **Consent management:** Cookiebot, OneTrust, CookieYes, Termly, iubenda, TrustArc, Osano, CookieFirst, Complianz, Quantcast Choice, Microsoft Clarity
 - If none found, ask: "I don't see any analytics installed — is that intentional?"
+- **Verify it fires, don't trust the snippet.** In the browser, record requests to the collector (GA4 `google-analytics.com/g/collect` with `en=page_view`, Plausible `/api/event`, PostHog `/e/`, Umami `/api/send`, Cloudflare `cdn-cgi/rum`), then trigger one non-submitting tracked interaction (copy button, outbound link with navigation aborted) and confirm the custom event reaches `dataLayer` and the network (GA4 batches: navigate away to flush). Tag present but zero hits = P1; page views but no conversion events = P2. Confirm the marketing site and the sign-up app send to the same property. See `references/claims-and-conversion.md` §6.
 
 ### 1.9 — Platform-Specific Checks
 
@@ -470,6 +474,7 @@ or not listed, run the Generic checks.
 - Check if response headers indicate Cloudflare (`cf-ray`, `server: cloudflare`)
 - Ask: "Do you have a `_headers` and `_redirects` file in your build output?"
 - Warn about Rocket Loader potentially breaking inline scripts
+- Check for **Email Address Obfuscation** (served HTML contains `[email protected]` / `/cdn-cgi/l/email-protection` and loads `email-decode.min.js`): it hides contact and security-disclosure addresses from crawlers, AI answer engines and no-JS readers, and adds a render-blocking script. P2; turn it off or wrap addresses in `<!--email_off-->`.
 - Check for Cloudflare-specific features (Auto Minify, Polish, etc.)
 - Reference: `references/platform-fixes/cloudflare-pages.md`
 
@@ -800,7 +805,8 @@ Exposed credential files (`.env`, `.git/config`, SQL dumps, config backups,
 and topology leaks are P1; `phpinfo`/`server-status` P1–P2. Soft-404s (an HTML
 error page served at 200) are filtered — a `.git/HEAD` must actually start with
 `ref:`, a `.git/config` must contain `[core]`. A missing
-`/.well-known/security.txt` is noted as P3. Findings (module `exposed_paths`)
+`/.well-known/security.txt` is noted as P3 here; section 1.31 validates its
+fields and raises it to P2 when the site has a security or disclosure page. Findings (module `exposed_paths`)
 merge into the punch list.
 
 ### 1.26 — AI crawler logs (module: `ai_crawler_logs`, log-driven)
@@ -1023,6 +1029,40 @@ without a human look at a sample. Pin a versioned model
 
 **Running OpenJev locally (optional, free):** see
 `references/google-guidelines.md` §6b.
+
+### 1.31 — Claims, disclosure & trust consistency (always-on, agent judgement)
+
+Scores can be green while the site tells visitors things the product can't
+back. A human reviewer catches these in minutes, so the audit must too. Run on
+every sitemap page; full method, registry endpoints, priorities and fix briefs
+are in `references/claims-and-conversion.md` (§1-4).
+
+- **Claims vs reality.** Grep page text for compliance and security claims
+  (SOC 2, ISO 27001, "AES-256 at rest", "audit in progress"), infrastructure
+  claims ("we own the stack"), stats, testimonials and named SDKs, plugins and
+  apps. Verify each: the same fact must read the same on the security page,
+  privacy policy, pricing table, features and about pages; every named
+  package must exist on its registry (npm, PyPI, RubyGems, Packagist, NuGet,
+  Go proxy, crates.io, wordpress.org, Shopify App Store, Zapier, app stores);
+  code snippets must use options the published SDK actually has. False or
+  contradicted compliance claim / invented API in a snippet = P1; unpublished
+  package or plugin, or cross-page contradictions = P2.
+- **security.txt (RFC 9116).** `/.well-known/security.txt` returns 200
+  `text/plain` with `Contact:` and a future `Expires:` (< 1 year); optional
+  fields resolve. It must agree with the security page (same contact, any
+  promised PGP key / policy present), and the disclosure address must be
+  readable in the served HTML (not Cloudflare-obfuscated). Missing while a
+  disclosure page exists, expired, or inconsistent = P2.
+- **Sub-processor completeness.** Build a vendor inventory from DNS (MX, SPF
+  includes, DKIM CNAMEs, verification TXT records), response headers, the
+  browser's third-party request hosts, sign-in providers, payments, email/SMS
+  delivery, AI providers and backup destinations; diff it against the privacy
+  policy. Undisclosed vendor receiving personal data = P2; stale entry
+  (listed, not used) = P3.
+- **Vendor naming inventory.** List every third-party brand named in copy,
+  meta, JSON-LD, `llms.txt` and public DNS TXT records with page and snippet.
+  Names on the owner's "never name" list (project memory, CLAUDE.md, brand
+  guide) = P1; otherwise report without a priority for the owner to judge.
 
 ---
 
@@ -1693,6 +1733,15 @@ For extended check details, see:
 - `references/ci-cd-integration.md` — CI/CD integration examples (GitHub Actions, Netlify, Vercel, etc.)
 - `references/semrush-integration.md` — Optional SEMrush enrichment (API key setup + field reference)
 - `references/google-guidelines.md` — Google update timeline (2024-2026), spam policies → FAT checks, retired rich results, drop diagnosis and report wording
+- `references/claims-and-conversion.md` — Public claims vs reality (compliance, SDK/plugin registries, code snippets), security.txt (RFC 9116) consistency, sub-processor completeness, vendor-naming inventory, mobile conversion at 390px, analytics firing, site-wide metadata inheritance, paint cost
+
+### Companion skill: FAT Design
+- `skills/fat-design/SKILL.md` and `/fat-design`: the six-lens design-taste audit
+  (product design, copywriting, typography, craft, interaction, animation). Run it
+  when the user asks whether a screen looks generated, cheap or unfinished, or
+  after any site build; its P0/P1 findings join this punch list under module
+  `design`. References: `references/design/lenses.md`, `briefs.md`,
+  `ai-features.md`, `report-template.md`.
 
 ### Scripts
 - `scripts/analyse-html.py` — HTML analysis helper (extracts meta tags, headers, scripts)

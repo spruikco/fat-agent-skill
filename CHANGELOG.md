@@ -1,5 +1,36 @@
 # Changelog
 
+## [3.12.0] - 2026-10-20
+
+### Added: FAT Design, the design department
+- New skill `skills/fat-design/SKILL.md` and `/fat-design` command. A six-lens
+  design-taste audit (product design, copywriting, typography, craft,
+  interaction, animation) that runs over a URL, a screenshot or frontend code,
+  names every weak decision in the lens's vocabulary, ranks findings by cost
+  (harm x frequency x reach) into P0 to P3, writes three-part briefs (job,
+  change, consequence) and can make the highest-value repair then verify it.
+  Where `fat-agent` checks SEO, security, speed and accessibility as code,
+  `fat-design` checks whether the screen feels designed rather than generated.
+- References in `references/design/`: `lenses.md` (the six checklists),
+  `briefs.md` (the brief and the P0 to P3 pricing), `ai-features.md` (slop
+  tells, the subtract-first three-pass edit, the last-mile check, and two
+  extra passes for AI features: what the agent exposes and whether it earned
+  the trust to act), `report-template.md`.
+- Design P0 and P1 findings join the shared punch list under module `design`
+  when a FAT Agent audit exists for the same site.
+- Method informed by Matthew Blode's Taste Training course; checklists
+  refreshed against its October 2026 rewrite (48 lessons, including the new
+  craft lessons on choosing a look under constraints and giving a layout room
+  to breathe).
+- Landing site: new /design/ page, a home section for the design department,
+  and a Design link in the nav. The dossier stays code-derived and says so.
+
+### Also in this release
+- Section 1.31 "Claims, disclosure and trust consistency" and
+  `references/claims-and-conversion.md` (claims vs reality, security.txt
+  consistency, sub-processor completeness, vendor naming, mobile conversion
+  at 390px, analytics firing, site-wide metadata inheritance, paint cost).
+
 ## [3.11.0] - 2026-10-09
 
 Lessons from a real audit of txsports.com.au, a Next.js 16 shop on nginx
