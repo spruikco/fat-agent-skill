@@ -40,6 +40,17 @@ after its domain move.
   has both.
 - `analyse-html.py` and `calculate-score.py` answer `--help`/`-h` with their
   usage and exit 0 (they tried to open a file called `--help`).
+- "Missing canonical URL" is no longer a finding, and costs no SEO points, on a
+  noindex page (any robots or googlebot meta tag, or the `X-Robots-Tag`
+  header), in both the core check and the `seo` module. It stays P1 on
+  indexable pages. `technical_seo` already advised leaving the canonical off
+  noindex pages, so TX's cart and checkout were flagged for following that
+  advice once the inherited root canonical was removed.
+- Security headers are reported as not assessed, instead of every header
+  missing, when the `--fetch` request fails or times out, or when the response
+  is a 4xx/5xx with no security headers at all (a CDN or proxy error page). A
+  404 fetched during a load spike had reported HSTS, CSP and nosniff missing
+  although the site sends all three.
 
 ### Added: site-level checks (`sitewide.py`)
 - **Noindex pages listed in the sitemap** (P1), grouped by URL pattern
@@ -92,7 +103,7 @@ after its domain move.
   1.19, 1.22, the site-wide step 2) and adds 1.32 Merchant Center feed.
 
 ### Tests
-- `tests/test_txsports_oct_2026.py` (34 tests) with trimmed TX fixtures in
+- `tests/test_txsports_oct_2026.py` (41 tests) with trimmed TX fixtures in
   `tests/fixtures/txsports_oct_2026/`.
 
 ## [3.12.0] - 2026-10-20

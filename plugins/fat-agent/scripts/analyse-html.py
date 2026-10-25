@@ -359,6 +359,8 @@ class FATHTMLAnalyser(HTMLParser):
 
         # HTTP response headers (populated when --fetch is used)
         self.response_headers = {}
+        # every robots/googlebot meta value: meta_tags keeps only the last
+        self.robots_meta_values = []
         # HEAD/GET status codes from --fetch (see fetch_page)
         self.fetch_info = {}
 
@@ -698,6 +700,8 @@ class FATHTMLAnalyser(HTMLParser):
 
             if name:
                 self.meta_tags[name] = content
+                if name in ("robots", "googlebot"):
+                    self.robots_meta_values.append(content.lower())
             if prop.startswith("og:"):
                 self.og_tags[prop] = content
                 # --- NEW: Duplicate OG tracking ---
@@ -1381,6 +1385,11 @@ class FATHTMLAnalyser(HTMLParser):
                 "canonical_trailing_slash_mismatch": canonical_trailing_slash_mismatch,
                 "has_robots_meta": "robots" in self.meta_tags,
                 "robots_content": self.meta_tags.get("robots", ""),
+                # noindex from any robots/googlebot meta tag or the
+                # X-Robots-Tag header (a canonical is optional on such pages)
+                "noindex": any("noindex" in v for v in self.robots_meta_values)
+                or "noindex"
+                in str(self.response_headers.get("x-robots-tag", "")).lower(),
                 "og_tags": self.og_tags,
                 "og_image_url": self.og_tags.get("og:image", None),
                 "duplicate_og_tags": duplicate_og_tags,
@@ -1558,6 +1567,15 @@ class FATHTMLAnalyser(HTMLParser):
             if missing_headers:
                 for h in missing_headers:
                     issues["high"].append(f"Missing security header: {h}")
+        elif self.fetch_info.get("headers_not_assessed"):
+            report["security"]["headers_not_assessed"] = self.fetch_info[
+                "headers_not_assessed"
+            ]
+            issues["low"].append(
+                "Security headers not assessed: "
+                + self.fetch_info["headers_not_assessed"]
+                + ". Re-run --fetch when the page answers HTTP 200."
+            )
         else:
             issues["low"].append(
                 "Response headers not available — run with --fetch --url <url> to check security headers"
@@ -1590,7 +1608,9 @@ class FATHTMLAnalyser(HTMLParser):
             issues["high"].append(
                 f"{report['accessibility']['img_missing_alt']} images missing alt text"
             )
-        if not report["seo"]["has_canonical"]:
+        # A noindex page needs no canonical (technical_seo advises leaving it
+        # off), so its absence is only a finding on indexable pages.
+        if not report["seo"]["has_canonical"] and not report["seo"]["noindex"]:
             issues["high"].append("Missing canonical URL")
         if not report["seo"]["og_tags"]:
             issues["high"].append("No Open Graph tags found")
@@ -1950,6 +1970,38 @@ def _jsonld_types(blocks) -> list:
     return types
 
 
+SECURITY_HEADER_NAMES = (
+    "strict-transport-security",
+    "content-security-policy",
+    "x-content-type-options",
+    "x-frame-options",
+    "referrer-policy",
+    "permissions-policy",
+)
+
+
+def headers_not_assessed_reason(fetched: dict):
+    """Why the fetched headers can't be scored, or None when they can.
+
+    A failed or timed-out request has no headers to score. An error response
+    (4xx/5xx) that carries none of the security headers is usually a CDN or
+    proxy error page served during a load spike, not the site's own response,
+    so reading it as "every header missing" would be a false report.
+    """
+    headers = fetched.get("headers") or {}
+    status = fetched.get("headers_status")
+    if not headers:
+        if fetched.get("error"):
+            return f"the request failed ({fetched['error'][:160]})"
+        return None
+    if status and status >= 400 and not any(h in headers for h in SECURITY_HEADER_NAMES):
+        return (
+            f"the response was HTTP {status} with no security headers at all, which "
+            "usually means a CDN or proxy error page rather than the site's own response"
+        )
+    return None
+
+
 def fetch_page(page_url, want_body=False, timeout=10, opener=None):
     """HEAD the URL, falling back to GET when HEAD errors or is not 2xx/3xx
     (some servers answer HEAD with 404/405). GET is also used when the body is
@@ -1960,6 +2012,7 @@ def fetch_page(page_url, want_body=False, timeout=10, opener=None):
         "body": None,
         "head_status": None,
         "get_status": None,
+        "headers_status": None,
         "error": None,
     }
 
@@ -1981,6 +2034,7 @@ def fetch_page(page_url, want_body=False, timeout=10, opener=None):
         result["head_status"] = head_status
         if head_status < 400:
             result["headers"] = head_headers
+            result["headers_status"] = head_status
     except Exception as e:
         result["error"] = f"HEAD failed: {e}"
         head_status = None
@@ -1991,6 +2045,7 @@ def fetch_page(page_url, want_body=False, timeout=10, opener=None):
             result["get_status"] = get_status
             if get_status < 400 or not result["headers"]:
                 result["headers"] = get_headers
+                result["headers_status"] = get_status
             charset = "utf-8"
             ctype = get_headers.get("content-type", "")
             m = re.search(r"charset=([\w-]+)", ctype, re.IGNORECASE)
@@ -2117,6 +2172,11 @@ def main():
             "head_status": fetched["head_status"],
             "get_status": fetched["get_status"],
         }
+        reason = headers_not_assessed_reason(fetched)
+        if reason:
+            # Score nothing rather than report every security header missing.
+            fetch_info["headers_not_assessed"] = reason
+            response_headers = {}
         if fetched["error"]:
             print(
                 f"Warning: fetching '{page_url}': {fetched['error']}",

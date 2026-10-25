@@ -124,7 +124,8 @@ def calculate_seo_score(seo: dict, performance: dict, render_gap: dict = None) -
 
     # Technical SEO (20 points)
     technical = 0
-    if seo.get("has_canonical"):
+    # a noindex page needs no canonical, so it loses nothing for lacking one
+    if seo.get("has_canonical") or seo.get("noindex"):
         technical += 5
     # Penalise duplicate canonicals
     if seo.get("duplicate_canonicals", 1) > 1:

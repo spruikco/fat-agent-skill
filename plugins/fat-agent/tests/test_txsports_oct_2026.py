@@ -556,3 +556,117 @@ def test_sitemap_xml_argument_never_fetches(monkeypatch):
 
 def test_fixture_dir_exists():
     assert os.path.isdir(FIX)
+
+
+# --------------------------------------------------------------------------- #
+# 14. no "Missing canonical" on noindex pages
+# --------------------------------------------------------------------------- #
+_NO_CANON = (
+    '<html lang="en-AU"><head><title>Your cart | TX Sports</title>{robots}</head>'
+    "<body><main><h1>Your cart</h1></main></body></html>"
+)
+
+
+def _high(report):
+    return report["summary"]["high"]
+
+
+def test_core_seo_skips_canonical_on_noindex_meta():
+    html = _NO_CANON.format(robots='<meta name="robots" content="noindex, nofollow"/>')
+    report = analyse_mod.analyse_html(html)
+    assert report["seo"]["noindex"] is True
+    assert "Missing canonical URL" not in _high(report)
+    calc = import_module("calculate-score")
+    noindex_tech = calc.calculate_seo_score(report["seo"], report["performance"])[
+        "details"
+    ]["technical"]["score"]
+    indexable = analyse_mod.analyse_html(_NO_CANON.format(robots=""))
+    assert "Missing canonical URL" in _high(indexable)
+    index_tech = calc.calculate_seo_score(indexable["seo"], indexable["performance"])[
+        "details"
+    ]["technical"]["score"]
+    assert noindex_tech == index_tech + 5 - 3  # +5 canonical, -3 for noindex robots
+
+
+def test_core_seo_skips_canonical_on_x_robots_tag():
+    report = analyse_mod.analyse_html(
+        _NO_CANON.format(robots=""),
+        response_headers={"x-robots-tag": "noindex", "strict-transport-security": "x"},
+    )
+    assert report["seo"]["noindex"] is True
+    assert "Missing canonical URL" not in _high(report)
+
+
+def test_core_seo_reads_every_robots_tag():
+    # Next.js 404s carry two robots tags; noindex in either one counts
+    html = _NO_CANON.format(
+        robots='<meta name="robots" content="noindex"/><meta name="robots" content="follow"/>'
+    )
+    assert analyse_mod.analyse_html(html)["seo"]["noindex"] is True
+
+
+def test_seo_module_skips_canonical_on_noindex():
+    from modules.seo import SEOModule
+
+    mod = SEOModule()
+    a = mod.analyse(_NO_CANON.format(robots=""), headers={"X-Robots-Tag": "noindex"})
+    assert a["noindex"] is True
+    result = mod.score(a)
+    assert "Missing canonical URL" not in _titles(mod)
+    assert result["details"]["canonical"]["score"] == 5
+    mod = SEOModule()
+    mod.score(mod.analyse(_NO_CANON.format(robots="")))
+    assert "Missing canonical URL" in _titles(mod)
+
+
+# --------------------------------------------------------------------------- #
+# 15. failed or error-page fetches don't report every header missing
+# --------------------------------------------------------------------------- #
+def test_headers_not_assessed_reason():
+    reason = analyse_mod.headers_not_assessed_reason
+    assert "request failed" in reason(
+        {"headers": {}, "error": "GET failed: timed out", "headers_status": None}
+    )
+    assert "HTTP 503" in reason(
+        {"headers": {"server": "cloudflare"}, "headers_status": 503, "error": None}
+    )
+    # a real 404 that carries the site's headers is still assessed
+    assert (
+        reason(
+            {
+                "headers": {"strict-transport-security": "max-age=1"},
+                "headers_status": 404,
+                "error": None,
+            }
+        )
+        is None
+    )
+    assert reason({"headers": {"server": "x"}, "headers_status": 200}) is None
+    assert reason({"headers": {}, "error": None}) is None
+
+
+def test_fetch_page_records_header_status():
+    import io
+    import urllib.error
+
+    def opener(req, timeout=10):
+        if req.get_method() == "HEAD":
+            raise urllib.error.HTTPError(req.full_url, 503, "busy", {}, io.BytesIO())
+        raise TimeoutError("timed out")
+
+    got = analyse_mod.fetch_page("https://t.au/x", opener=opener)
+    assert got["headers"] == {} and "timed out" in got["error"]
+    assert "request failed" in analyse_mod.headers_not_assessed_reason(got)
+
+
+def test_unassessed_headers_are_not_reported_missing():
+    report = analyse_mod.analyse_html(
+        _NO_CANON.format(robots=""),
+        response_headers={},
+        fetch_info={"headers_not_assessed": "the request failed (timed out)"},
+    )
+    assert not [i for i in _high(report) if i.startswith("Missing security header")]
+    assert any("Security headers not assessed" in i for i in report["summary"]["low"])
+    calc = import_module("calculate-score")
+    sec = calc.calculate_scores(report)["security"]
+    assert sec.get("assessed") is False
