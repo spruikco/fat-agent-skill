@@ -1145,3 +1145,101 @@ export default function Custom404() {
 
 Do not mix these up. Using `pages/404.js` in an App Router project will be
 ignored. Using `app/not-found.tsx` in a Pages Router project will not work.
+
+### 8. A Root-Layout Canonical Inherited by Every Page
+
+**Problem:** `alternates: { canonical: '/' }` in `app/layout.tsx` is inherited by
+every route that doesn't set its own canonical. Cart, checkout, the 404 page,
+and every fallback branch of a `generateMetadata` (the `if (!item) return {...}`
+case) then declare the home page as their canonical, telling Google each one is
+a duplicate of the home page. Seen on txsports.com.au (Next.js 16, Oct 2026).
+
+```tsx
+// BAD: app/layout.tsx
+export const metadata: Metadata = {
+  metadataBase: new URL("https://example.com"),
+  alternates: { canonical: "/" }, // every page without its own canonical inherits this
+};
+```
+
+**Fix:** keep the canonical off the root layout. Set it on the home page and on
+each route; let noindex pages have none.
+
+```tsx
+// GOOD: app/page.tsx
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+// GOOD: a dynamic route, including its fallback
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const item = await getItem((await params).id);
+  if (!item) return { title: "Not found", robots: { index: false } }; // no canonical
+  return { title: item.name, alternates: { canonical: `/items/${item.id}` } };
+}
+```
+
+FAT flags it per page (`technical_seo`: "noindex page canonicalises to another
+URL") and across the crawl (`sitewide`: "Pages canonicalise to the home page").
+
+### 9. Dynamic Params Arrive Percent-Encoded in the Page
+
+**Problem:** for an id containing a reserved character, such as
+`/league/phq:bacc7199`, `generateMetadata` can receive `params.id` decoded
+(`phq:bacc7199`) while the page component receives it percent-encoded
+(`phq%3Abacc7199`). The metadata lookup succeeds (title, `index, follow`), the
+page lookup misses, and every such URL renders its "couldn't load" fallback with
+HTTP 200: thousands of soft 404s that look fine in the `<head>`.
+
+**Fix:** decode route params once, in both functions, before any lookup.
+
+```tsx
+// lib/route-param.ts
+export function routeParam(v: string): string {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
+// app/league/[id]/page.tsx
+export async function generateMetadata({ params }: Props) {
+  const id = routeParam((await params).id);
+  // ...
+}
+export default async function Page({ params }: Props) {
+  const id = routeParam((await params).id);
+  // ...
+}
+```
+
+FAT's `sitewide` check "Error-state pages served as 200" groups these by URL
+pattern; one pattern with every URL failing is the signature of this bug.
+
+### 10. 404s Served as the `__next_error__` Shell
+
+**Problem:** if the server render bails out (an error thrown in the root layout,
+or `notFound()` / `redirect()` called after streaming has started), Next.js
+serves its error fallback document, `<html id="__next_error__">`. It has no root
+layout, so no `lang`, no landmarks and no server-rendered body; the page only
+appears once client JavaScript runs. On a 404 that is low impact; on a real page
+it is a full render gap.
+
+**Fix:** call `notFound()` before anything streams (in the page or
+`generateMetadata`, not inside a Suspense child), keep the root layout free of
+code that can throw, and render 404s through `app/not-found.tsx` (or
+`app/global-not-found.tsx` in Next 15.4+) so they get the normal layout. Check
+the served HTML with `curl -s https://example.com/missing | head -c 300`.
+
+### 11. Two Robots Tags on 404s
+
+Next.js adds `<meta name="robots" content="noindex">` to not-found responses by
+itself. A `robots` entry in `not-found.tsx` metadata adds a second tag with a
+different value (`noindex, nofollow`). Google applies the stricter one, but keep
+one: drop `robots` from `not-found.tsx` unless you need `nofollow`.
+
+### 12. noindex Fallbacks That Keep a Canonical
+
+A `generateMetadata` fallback that returns `{ robots: { index: false } }` still
+inherits any canonical from a parent layout, so the page says both "drop me"
+and "I am a copy of that page". Either remove the parent canonical (pitfall 8)
+or set `alternates: { canonical: null }` in the fallback.

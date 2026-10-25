@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Shape of txsports.com.au/feeds/google-shopping.xml (25 Oct 2026), plus deliberately broken items 9001-9004. -->
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+<channel>
+<title>TX Sports</title>
+<link>https://txsports.com.au</link>
+<description>TX Sports products</description>
+<item>
+  <g:id>76193</g:id>
+  <g:title>Albert Park - Boot Bag</g:title>
+  <g:description>A small yet handy boot bag to hold your boots before and after games</g:description>
+  <g:link>https://txsports.com.au/product/albert-park-boot-bag</g:link>
+  <g:image_link>https://img.txsports.com.au/wp-content/uploads/2026/03/Boot-Bag-1.jpeg</g:image_link>
+  <g:price>35.00 AUD</g:price>
+  <g:availability>in_stock</g:availability>
+  <g:condition>new</g:condition>
+  <g:brand>TX Sports</g:brand>
+  <g:identifier_exists>no</g:identifier_exists>
+  <g:google_product_category>5549</g:google_product_category>
+  <g:shipping><g:country>AU</g:country><g:service>Standard Shipping</g:service><g:price>12.00 AUD</g:price></g:shipping>
+</item>
+<item>
+  <g:id>80977-80978</g:id>
+  <g:item_group_id>80977</g:item_group_id>
+  <g:title>Blackdog - Puffer Jacket - S</g:title>
+  <g:description>Puffer jacket</g:description>
+  <g:link>https://txsports.com.au/product/blackdog-puffer-jacket</g:link>
+  <g:image_link>https://img.txsports.com.au/a.jpeg</g:image_link>
+  <g:price>95.00 AUD</g:price>
+  <g:availability>in_stock</g:availability>
+  <g:brand>TX Sports</g:brand>
+  <g:identifier_exists>no</g:identifier_exists>
+  <g:size>S</g:size>
+</item>
+<item>
+  <g:id>80977-80979</g:id>
+  <g:item_group_id>80977</g:item_group_id>
+  <g:title>Blackdog - Puffer Jacket - S</g:title>
+  <g:description>Puffer jacket</g:description>
+  <g:link>https://txsports.com.au/product/blackdog-puffer-jacket</g:link>
+  <g:image_link>https://img.txsports.com.au/a.jpeg</g:image_link>
+  <g:price>95.00 AUD</g:price>
+  <g:availability>in_stock</g:availability>
+  <g:brand>TX Sports</g:brand>
+  <g:identifier_exists>no</g:identifier_exists>
+  <g:size>S</g:size>
+</item>
+<item>
+  <g:id>9001</g:id>
+  <g:title>No price item</g:title>
+  <g:description>Missing price and image</g:description>
+  <g:link>https://tradexco.com.au/product/old-link</g:link>
+  <g:availability>In Stock Now</g:availability>
+  <g:brand>TX Sports</g:brand>
+</item>
+<item>
+  <g:id>9002</g:id>
+  <g:title>Bad price</g:title>
+  <g:description>Price without currency</g:description>
+  <g:link>https://txsports.com.au/product/bad-price</g:link>
+  <g:image_link>https://img.txsports.com.au/b.jpeg</g:image_link>
+  <g:price>$40</g:price>
+  <g:availability>in_stock</g:availability>
+  <g:brand>TX Sports</g:brand>
+  <g:google_product_category>Apparel &amp; Accessories &gt; Clothing</g:google_product_category>
+</item>
+<item>
+  <g:id>9002</g:id>
+  <g:title>Duplicate id</g:title>
+  <g:description>Same id as the item above</g:description>
+  <g:link>https://txsports.com.au/product/dup</g:link>
+  <g:image_link>https://img.txsports.com.au/c.jpeg</g:image_link>
+  <g:price>40.00 AUD</g:price>
+  <g:availability>out_of_stock</g:availability>
+  <g:brand>TX Sports</g:brand>
+  <g:mpn>TX-123</g:mpn>
+</item>
+</channel>
+</rss>

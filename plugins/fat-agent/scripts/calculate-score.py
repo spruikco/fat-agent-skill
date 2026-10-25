@@ -6,6 +6,12 @@ Takes JSON output from analyse-html.py and produces scored audit report.
 Usage:
     python calculate-score.py <path-to-json-file>
     python analyse-html.py index.html | python calculate-score.py
+    python calculate-score.py report.json headers.json  (score security from saved headers)
+    python calculate-score.py report.json --profile quick
+
+Options:
+    --profile NAME   record the audit profile (quick, full, local, ecommerce, custom)
+    -h, --help       show this help and exit
 
 Output: JSON report with SEO, Security, Accessibility, Performance, and Overall FAT scores.
 """
@@ -789,6 +795,9 @@ def main():
     profile = None
 
     args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print(__doc__.strip())
+        sys.exit(0)
     i = 0
     while i < len(args):
         if args[i] == "--profile" and i + 1 < len(args):

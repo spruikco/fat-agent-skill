@@ -8,6 +8,17 @@ Usage:
     python analyse-html.py --url <url>  (requires html content piped in)
     python analyse-html.py --budget .fat-budget.json page.html
     python analyse-html.py --fetch --url <url> page.html  (fetches HTTP headers + analyses HTML)
+    python analyse-html.py --fetch --url <url>  (no file: GETs the page and analyses it)
+    python analyse-html.py rendered.html --served served.html --url <url>  (render-gap check)
+    python analyse-html.py page.html --modules auto  (or a comma-separated list of module ids)
+
+Options:
+    --url URL        page URL (enables mixed content, canonical and host checks)
+    --fetch          fetch live response headers (and the body when no file is given)
+    --served FILE    raw server HTML, compared against the primary (rendered) file
+    --budget FILE    performance budget JSON (default: ./.fat-budget.json if present)
+    --modules LIST   run audit modules: "auto" or ids such as seo,security,ecommerce
+    -h, --help       show this help and exit
 
 Output: JSON report of findings.
 """
@@ -264,6 +275,12 @@ class FATHTMLAnalyser(HTMLParser):
         # aria-hidden / display:none). Inputs inside are not exposed to AT, so
         # they don't count as unlabelled (e.g. framework detection forms).
         self.hidden_open_depths = []
+        # Label association: inputs wrapped in a <label> (implicit label) are
+        # labelled; inputs with an id are labelled only when a <label for=id>
+        # exists somewhere on the page, which is resolved in compile_report.
+        self.label_depth = 0
+        self.label_for_ids = set()
+        self.inputs_needing_for_label = []
 
         # --- NEW: Keyword overlap title/h1 ---
         self.h1_texts = []
@@ -932,11 +949,29 @@ class FATHTMLAnalyser(HTMLParser):
             self.in_style = True
 
         # Form inputs (skip those inside a hidden container — not exposed to AT)
-        if tag in ("input", "select", "textarea") and not self.hidden_open_depths:
-            input_type = attrs_dict.get("type", "text")
-            if input_type not in ("hidden", "submit", "button"):
+        if tag == "label":
+            self.label_depth += 1
+            if attrs_dict.get("for"):
+                self.label_for_ids.add(attrs_dict.get("for"))
+
+        if (
+            tag in ("input", "select", "textarea")
+            and not self.hidden_open_depths
+            and not _is_honeypot_input(attrs_dict)
+        ):
+            input_type = (attrs_dict.get("type") or "text").lower()
+            if input_type not in ("hidden", "submit", "button", "reset", "image"):
                 self.form_inputs += 1
-                if "aria-label" not in attrs_dict and "id" not in attrs_dict:
+                if (
+                    attrs_dict.get("aria-label")
+                    or attrs_dict.get("aria-labelledby")
+                    or attrs_dict.get("title")
+                    or self.label_depth > 0
+                ):
+                    pass
+                elif attrs_dict.get("id"):
+                    self.inputs_needing_for_label.append(attrs_dict.get("id"))
+                else:
                     self.form_inputs_without_label += 1
                 # --- NEW: Form error association ---
                 if (
@@ -1004,6 +1039,8 @@ class FATHTMLAnalyser(HTMLParser):
             self.landmarks.add(attrs_dict["role"])
 
     def handle_endtag(self, tag):
+        if tag == "label" and self.label_depth > 0:
+            self.label_depth -= 1
         if tag == "head":
             self.in_head = False
         if tag == "body":
@@ -1382,7 +1419,12 @@ class FATHTMLAnalyser(HTMLParser):
                 "img_missing_alt": self.img_missing_alt,
                 "img_with_dimensions": self.img_with_dimensions,
                 "form_inputs_total": self.form_inputs,
-                "form_inputs_without_label": self.form_inputs_without_label,
+                "form_inputs_without_label": self.form_inputs_without_label
+                + sum(
+                    1
+                    for i in self.inputs_needing_for_label
+                    if i not in self.label_for_ids
+                ),
                 "form_inputs_with_describedby": self.form_inputs_with_describedby,
                 "has_skip_link": self.has_skip_link,
                 "landmarks_found": list(self.landmarks),
@@ -1965,6 +2007,30 @@ def fetch_page(page_url, want_body=False, timeout=10, opener=None):
     return result
 
 
+_OFFSCREEN_STYLE_RE = re.compile(
+    r"(left|top|right)\s*:\s*-\d{3,}px|clip\s*:\s*rect\(|opacity\s*:\s*0(?![.\d])",
+    re.IGNORECASE,
+)
+
+
+def _is_honeypot_input(attrs_dict: dict) -> bool:
+    """True for spam-trap inputs hidden from people and assistive tech.
+
+    A field with aria-hidden="true", or one removed from the tab order
+    (tabindex="-1") and pushed offscreen, is never meant to be filled in, so a
+    missing label on it is not an accessibility failure.
+    """
+    if (attrs_dict.get("aria-hidden") or "").lower() == "true":
+        return True
+    style = attrs_dict.get("style") or ""
+    if (attrs_dict.get("tabindex") or "").strip() == "-1" and (
+        _OFFSCREEN_STYLE_RE.search(style)
+        or "display:none" in style.replace(" ", "").lower()
+    ):
+        return True
+    return False
+
+
 def analyse_html(
     html_content: str,
     page_url: str = "",
@@ -1989,6 +2055,9 @@ def main():
     served_path = None  # raw server-response HTML for the render-gap check
 
     args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print(__doc__.strip())
+        sys.exit(0)
     i = 0
     while i < len(args):
         if args[i] == "--url" and i + 1 < len(args):

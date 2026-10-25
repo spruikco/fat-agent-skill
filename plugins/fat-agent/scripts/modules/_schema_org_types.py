@@ -223,3 +223,24 @@ LOCAL_BUSINESS_TYPES: frozenset[str] = frozenset(_LOCAL_BUSINESS.split())
 LOCAL_BUSINESS_TYPES_LOWER: frozenset[str] = frozenset(
     t.lower() for t in LOCAL_BUSINESS_TYPES
 )
+
+_ORGANIZATION = """
+Organization Airline Consortium Cooperative Corporation EducationalOrganization
+CollegeOrUniversity ElementarySchool HighSchool MiddleSchool Preschool School
+FundingScheme GovernmentOrganization LibrarySystem MedicalOrganization
+DiagnosticLab VeterinaryCare NGO NewsMediaOrganization OnlineBusiness OnlineStore
+PerformingGroup DanceGroup MusicGroup TheaterGroup PoliticalParty Project
+FundingAgency ResearchProject ResearchOrganization SearchRescueOrganization
+SportsOrganization SportsTeam WorkersUnion
+"""
+
+# Organization, its subtypes and every LocalBusiness subtype (LocalBusiness is
+# both a Place and an Organization), e.g. SportsTeam, OnlineStore,
+# SportsActivityLocation. Used to recognise the brand entity whatever type a
+# site picked for it.
+ORGANIZATION_TYPES: frozenset[str] = (
+    frozenset(_ORGANIZATION.split()) | LOCAL_BUSINESS_TYPES
+)
+ORGANIZATION_TYPES_LOWER: frozenset[str] = frozenset(
+    t.lower() for t in ORGANIZATION_TYPES
+)

@@ -44,6 +44,34 @@ _SPF_PROVIDER_HINTS = (
     ("servers.mcsv.net", "Mailchimp", "k1/k2._domainkey"),
 )
 
+# Second-level public suffixes where the registrable (organisational) domain
+# has three labels (example.com.au, example.co.nz, example.co.uk). Not the full
+# Public Suffix List, just the ones audits meet; anything else is treated as a
+# plain TLD.
+_TWO_LEVEL_SUFFIXES = frozenset(
+    """
+    com.au net.au org.au edu.au gov.au asn.au id.au
+    co.nz net.nz org.nz govt.nz ac.nz school.nz geek.nz kiwi.nz
+    co.uk org.uk ac.uk gov.uk me.uk ltd.uk plc.uk net.uk sch.uk nhs.uk
+    co.za org.za co.jp ne.jp or.jp co.in net.in org.in co.id co.kr or.kr
+    com.sg edu.sg com.my com.hk com.tw com.cn com.br com.mx com.ar com.tr
+    co.il com.ph com.vn com.pk com.ng co.ke
+    """.split()
+)
+
+
+def organisational_domain(host: str) -> str:
+    """The registrable domain for a host: data.example.com.au -> example.com.au,
+    www.example.com -> example.com. IP addresses and bare names pass through."""
+    host = (host or "").strip(".").lower()
+    if not host or re.fullmatch(r"[\d.]+|\[?[0-9a-f:]+\]?", host):
+        return host
+    labels = host.split(".")
+    if len(labels) >= 3 and ".".join(labels[-2:]) in _TWO_LEVEL_SUFFIXES:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:]) if len(labels) >= 2 else host
+
+
 _DMARC_POLICY_SCORES: dict[str, int] = {
     "reject": 30,
     "quarantine": 20,
@@ -72,15 +100,31 @@ class EmailDeliverabilityModule(AuditModule):
     # ------------------------------------------------------------------
 
     def analyse(self, html: str, url: str = "", headers: dict = None, **kwargs) -> dict:
-        domain = self._extract_domain(url)
+        host = self._extract_domain(url)
+        domain = organisational_domain(host)
         contact_form = self.detect(html)
 
-        spf = self._check_spf(domain) if domain else {"found": False}
-        dkim = self._check_dkim(domain) if domain else {"found": False}
-        dmarc = self._check_dmarc(domain) if domain else {"found": False}
+        # A subdomain (data.example.com.au, www.example.co.uk) rarely sends mail
+        # itself. Receivers fall back to the organisational domain's DMARC
+        # record, and that is where SPF and DKIM for the brand's mail live, so
+        # the host is checked first and the organisational domain after it.
+        def _first_found(check):
+            if not host:
+                return {"found": False}, ""
+            result = check(host)
+            if result.get("found") or domain == host:
+                return result, host
+            return check(domain), domain
+
+        spf, spf_domain = _first_found(self._check_spf)
+        dkim, _ = _first_found(self._check_dkim)
+        dmarc, dmarc_domain = _first_found(self._check_dmarc)
 
         analysis = {
             "domain": domain,
+            "host": host,
+            "spf_domain": spf_domain,
+            "dmarc_domain": dmarc_domain,
             "contact_form": contact_form,
             "spf": spf,
             "dkim": dkim,
@@ -108,11 +152,20 @@ class EmailDeliverabilityModule(AuditModule):
         total = spf_score + dkim_score + dmarc_score + form_score
 
         # generate findings
+        host = analysis.get("host") or analysis.get("domain") or ""
+        org = analysis.get("domain") or host
+        checked = (
+            f" Checked {host} and its organisational domain {org}."
+            if host and org and host != org
+            else (f" Checked {org}." if org else "")
+        )
         if not analysis["spf"].get("found"):
             self.add_finding(
                 priority="P1",
                 title="Missing SPF record",
-                description="No SPF TXT record was found for this domain. "
+                description="No SPF TXT record was found for this domain."
+                + checked
+                + " "
                 "Without SPF, receiving servers cannot verify that "
                 "emails claiming to come from your domain are legitimate.",
                 fix="Add a TXT record to your DNS: v=spf1 include:<your-esp> -all",
@@ -146,8 +199,9 @@ class EmailDeliverabilityModule(AuditModule):
             self.add_finding(
                 priority="P1",
                 title="Missing DMARC record",
-                description="No DMARC record was found at _dmarc.<domain>. "
-                "DMARC tells receivers what to do when SPF/DKIM fail.",
+                description="No DMARC record was found at _dmarc.<domain>."
+                + checked
+                + " DMARC tells receivers what to do when SPF/DKIM fail.",
                 fix="Add a TXT record at _dmarc.<domain>: "
                 "v=DMARC1; p=quarantine; rua=mailto:dmarc@<domain>",
                 effort="low",

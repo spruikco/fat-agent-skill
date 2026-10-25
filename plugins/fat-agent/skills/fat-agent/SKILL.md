@@ -201,6 +201,11 @@ Fetch the HTML and check:
   canonical off, or make it self-referencing.
 - **Sitemaps list HTML pages only.** `llms.txt`, `robots.txt`, feeds and JSON
   files do not belong in the page sitemap (`sitemap` module, P3).
+- **Every declared sitemap is read.** The `sitemap` module follows each
+  robots.txt `Sitemap:` line and the children of a sitemap index (capped at
+  25 files), not just the first file it finds: an unreachable or invalid one
+  is P2, one that loads but lists no URLs is P3 (a generator returning an
+  empty file when its data source is down).
 - **Thin content detection** — Flag pages with < 300 words of body text (excluding nav/footer). Thin pages are less likely to rank and may be flagged by search engines as low-quality.
 - **Keyword in title/h1** — Track whether the `<title>` and `<h1>` share key terms. If they don't overlap at all, flag as P3 Low.
 - **Internal link audit** — Count internal vs external links. Flag pages with zero internal links as P3.
@@ -374,7 +379,7 @@ From the HTML, check:
 - All `<img>` tags have `alt` attributes (not just present — non-empty and meaningful)
 - **Dynamic alt text fallbacks**: If the codebase is available, check that Image components using dynamic data (e.g., `alt={product.name}`) include fallbacks like `alt={product.name || 'Product image'}`. Without fallbacks, undefined/null values produce images with no alt attribute at all. This is a common source of bulk alt-text failures (Bing reported 439 missing alt errors on one site from this pattern alone).
 - Images have explicit `width` and `height` attributes (CLS prevention)
-- Form inputs have associated `<label>` elements or `aria-label`
+- Form inputs have associated `<label>` elements or `aria-label`. A `<label for=id>`, a `<label>` wrapping the control (implicit label), `aria-label`, `aria-labelledby` and `title` all count; honeypot fields (`aria-hidden="true"`, or `tabindex="-1"` and offscreen) are skipped
 - `<html lang="...">` attribute is set
 - Skip links present for keyboard navigation
 - ARIA landmarks used (`<main>`, `<nav>`, `<header>`, `<footer>`)
@@ -421,6 +426,8 @@ of 3-4 so it's not overwhelming.
 ### 1.7 — Content, Legal & Privacy
 - Check for placeholder/lorem ipsum text in the HTML
 - Detect cookie/consent management scripts (Cookiebot, OneTrust, CookieYes, Termly, iubenda, TrustArc, Quantcast Choice)
+- Home-grown banners (an element named `cookie-consent`, `consent-banner`, `aria-label="Cookie consent"`) and Google Consent Mode defaults (`gtag('consent','default', ...)` before the tags) count as consent handling, even when the banner itself renders client-side
+- The `cookie_gdpr` module is **region-aware**: for an Australian or New Zealand site (`lang="en-AU"`/`en-NZ"` or a `.au`/`.nz` host) with no EU hreflang, "No cookie consent banner", "No cookie policy link" and "No data controller information" are P3, because the AU and NZ Privacy Acts need a clear privacy policy, not a GDPR banner or a separate cookie policy
 - If no consent banner detected and site targets EU/UK/CA, ask: "Do you need a cookie consent banner for GDPR/CCPA compliance?"
 - Ask: "Is your privacy policy linked in the footer?"
 - Ask: "Is your copyright year current?"
@@ -431,7 +438,7 @@ Check the HTML for:
 - `<link rel="manifest">` (web app manifest)
 - `<meta name="theme-color">` for browser chrome theming
 - `<link rel="apple-touch-icon">` for iOS home screen
-- Service worker registration (`navigator.serviceWorker.register`)
+- Service worker registration (`navigator.serviceWorker.register`). A missing service worker is P3 on an ordinary site (shop, brochure, content) and P2 only when the page declares a manifest, i.e. it is meant to install
 - If none found and the site is a web app, suggest adding these for "Add to Home Screen" support
 
 ### 1.8b — Analytics & Tracking
@@ -559,6 +566,7 @@ Uses `scripts/modules/email_deliverability.py`. Checks:
 - **DKIM record** — DNS TXT lookup for common selectors (google, default, selector1, mail, k1)
 - **DMARC record** — DNS TXT lookup for `_dmarc.{domain}`, policy evaluation (reject > quarantine > none)
 - Flags missing records as P1 High (emails likely going to spam)
+- **Subdomains** (`data.example.com.au`, `www.example.co.uk`): the host is checked first, then the organisational domain (two-level suffixes such as `.com.au`, `.co.nz`, `.co.uk` handled), since receivers fall back to the organisational domain's DMARC and that is where the brand's SPF lives. Findings name the domains checked, so an app subdomain no longer reports "Missing SPF" for a domain that has it
 
 ### 1.13 — i18n Checks (module: `i18n`)
 
@@ -688,6 +696,8 @@ Header- and DOM-level technical checks beneath the core SEO module. Uses
 - **Meta-refresh redirects** (use a 301 instead).
 - **Intrusive interstitial / pop-up** heuristics (a page-experience demotion).
 - **Next-gen images** (WebP/AVIF) and **explicit width/height** (CLS).
+- **Next.js error shell**: `<html id="__next_error__">` means the server render bailed out to Next's error fallback (no root layout, no `lang`, body rendered client-side only). P1 on a real page, P3 on a 404. See `references/framework-fixes/nextjs.md` pitfalls 8 to 12 for this, root-layout canonical inheritance and percent-encoded route params.
+- **Duplicate robots meta tags** with different values (P3; Next.js adds its own noindex to 404s beside the page's metadata).
 
 ### 1.20 — Crawlability & Indexation (module: `crawlability`, always-on)
 
@@ -724,7 +734,7 @@ Quality-Rater-aligned content signals. Uses `scripts/modules/content_depth.py`. 
 ### 1.22 — E-commerce / Merchant depth (module: `ecommerce`)
 
 Beyond Product schema/cart/price, the `ecommerce` module now checks PDPs for:
-**GTIN/MPN/SKU**, **shipping** info, **return/refund policy**, **out-of-stock** schema
+**GTIN/MPN/SKU**, **shipping** info (copy on the page, or `offers.shippingDetails` / a shipping service in the JSON-LD), **return/refund policy**, **out-of-stock** schema
 alignment (`availability: OutOfStock`, or 404/301 retired products), and **related/cross-sell
 links** — the fields that drive Merchant/free-listing eligibility and crawl discovery.
 
@@ -1063,6 +1073,34 @@ are in `references/claims-and-conversion.md` (§1-4).
   meta, JSON-LD, `llms.txt` and public DNS TXT records with page and snippet.
   Names on the owner's "never name" list (project memory, CLAUDE.md, brand
   guide) = P1; otherwise report without a priority for the owner to judge.
+
+### 1.32 Merchant Center feed (script: `merchant_feed.py`)
+
+Run whenever the site sells online and has (or should have) a Google Merchant
+feed. Ask for the feed URL, or find it in `robots.txt`, the sitemap, or common
+paths (`/feeds/google-shopping.xml`, `/products.xml`, Shopify's
+`/collections/all.atom`). Uses `scripts/merchant_feed.py`:
+
+```bash
+python scripts/merchant_feed.py --url https://example.com/feeds/google.xml \
+    --output ./.fat-work/merchant_feed.json
+python scripts/punchlist.py update --scores ./.fat-work/merchant_feed.json
+```
+
+- **Every item:** required attributes (id, title, description, link,
+  image_link, availability, price, brand) P1; accepted availability values
+  and `12.00 AUD` price format P1; duplicate ids P1; gtin/mpn or
+  `identifier_exists=no` P2; links on another host (a feed still sending the
+  pre-migration domain) P2; variant groups whose variants share or lack
+  size/colour P2; apparel attributes (color, size, gender, age_group) P2.
+- **Landing pages** (a spread-out sample, `--sample 20` by default): HTTP 200,
+  no redirect, indexable P1/P2; Product JSON-LD present P2; **JSON-LD price
+  vs `g:price`** and **JSON-LD `shippingDetails` rate vs `g:shipping`** P1.
+  Google compares page and feed and disapproves on a mismatch. Real case: the
+  txsports.com.au feed sent $12.00 shipping (the checkout rate) while every
+  product page's schema said $9.
+- Fixing a mismatch: make the feed, the structured data and the checkout
+  default read one constant.
 
 ---
 
@@ -1427,7 +1465,15 @@ Checks that only exist at site level: **internal links to broken pages (P0)**,
 **5xx errors (P0)**, broken 4xx pages, fetch errors, **duplicate titles /
 meta descriptions / page content across URLs**, **orphan pages**, thin
 content at scale, slow responses, internal links resolving through redirects,
-and **sitemap hygiene** — sitemap entries that redirect or 404. Plus the
+and **sitemap hygiene**: sitemap entries that redirect or 404. Indexation
+conflicts: **noindex pages listed in the sitemap** (P1, grouped by URL
+pattern), **error-state pages served as 200** ("couldn't load", "something
+went wrong", "try again in a minute": soft 404s, P0 at 10+ in the sitemap,
+grouped by URL pattern so one broken route shows as one line), **pages
+canonicalising to the home page** (P1 at 3+ indexable pages, P2 when they are
+noindex; usually a root-layout canonical), and **junior player pages that are
+indexable** (P2, verify minors' names and stats are not in search; noindex
+junior player pages are the correct state). Plus the
 **Google guideline patterns** from 1.27: templated near-duplicate (doorway)
 clusters, scaled-content share, trailing-slash duplicates, stuffed titles,
 possible site reputation abuse sections, retired rich-result markup, and
@@ -1772,6 +1818,7 @@ For extended check details, see:
 - `scripts/ai_crawler_logs.py` — AI-crawler hit analysis from access logs (which answer/training bots actually visit, last-seen, error-heavy crawlers)
 - `scripts/ai_visibility.py` — Live AEO/GEO citation check via the Perplexity API (key from `PERPLEXITY_API_KEY`) → citation rate, share of voice, top-cited competitor domains, punch-list findings
 - `scripts/semrush.py` — Optional SEMrush API enrichment → `semrush.json` (key from `SEMRUSH_API_KEY`)
+- `scripts/merchant_feed.py`: Google Merchant feed validator: required attributes, price/availability formats, duplicate ids, identifiers, variant groups, apparel attributes, plus sampled landing pages (200, indexable, Product JSON-LD, price and shipping rate vs the feed)
 - `scripts/suggest_schema.py` — From-afar schema advisor → paste-ready JSON-LD (Organization/LocalBusiness, Product/PDP, ItemList/PLP, Article, FAQPage, Breadcrumb) + Merchant-listing readiness
 - `scripts/gsc.py` — Google Search Console behavioural analysis (NavBoost proxy) → striking-distance, low-CTR, branded share, `opportunity_keywords`
 - `scripts/redirects.py` — Redirect-chain / loop / 302-vs-301 / soft-404 analyser (multi-hop)

@@ -41,6 +41,10 @@ _SHIPPING_RE = re.compile(
     r"shipping (?:policy|info|cost|rate)|delivery (?:policy|info)|free shipping",
     re.IGNORECASE,
 )
+_SHIPPING_SCHEMA_RE = re.compile(
+    r'"(?:shippingDetails|hasShippingService|OfferShippingDetails|ShippingService)"',
+    re.IGNORECASE,
+)
 _RETURN_RE = re.compile(
     r"return(?:s)? policy|refund policy|returns? &|exchange policy|30[- ]day return",
     re.IGNORECASE,
@@ -218,7 +222,12 @@ class EcommerceModule(AuditModule):
             "is_pdp": product_page,
             "merchant_gaps": merchant_listing_gaps(products, html),
             "gtin": bool(_GTIN_RE.search(html)),
-            "shipping_policy": bool(_SHIPPING_RE.search(html)),
+            # Shipping detail in the Product markup (OfferShippingDetails on an
+            # Offer, or a shipping service/policy on the Organization) is
+            # what Merchant listings read, so it counts as much as copy does.
+            "shipping_policy": bool(_SHIPPING_RE.search(html))
+            or any(o.get("shippingDetails") for p in products for o in _offers(p))
+            or bool(_SHIPPING_SCHEMA_RE.search(html)),
             "return_policy": bool(_RETURN_RE.search(html)),
             "related_items": bool(_RELATED_RE.search(html)),
             "out_of_stock": oos,
