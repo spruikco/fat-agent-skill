@@ -8,6 +8,7 @@ are fully detectable from afar:
 - meta-refresh redirects (use a 301 instead)
 - intrusive interstitial / pop-up heuristics (a page-experience demotion)
 - next-gen image adoption (WebP/AVIF) and explicit image dimensions (CLS)
+- Next.js error shells (`<html id="__next_error__">`) and duplicate robots tags
 
 Redirect-chain depth and soft-404 detection need multi-request following and are
 driven from SKILL.md rather than this single-response module.
@@ -151,6 +152,36 @@ def noindex_canonical_conflict(html, url, x_robots=""):
     return f"This page is noindex but its canonical points to '{canon}'."
 
 
+_NEXT_ERROR_SHELL_RE = re.compile(
+    r'<html[^>]*\bid=["\']__next_error__["\']', re.IGNORECASE
+)
+_NOT_FOUND_TITLE_RE = re.compile(
+    r"<title[^>]*>[^<]*(?:\b404\b|not found|page missing)", re.IGNORECASE
+)
+
+
+def robots_meta_values(html):
+    """Content of every <meta name="robots"> tag, lower-cased, in page order."""
+    out = []
+    for tag in re.findall(r"<meta\s[^>]*>", html, re.IGNORECASE):
+        if re.search(r'name=["\']robots["\']', tag, re.IGNORECASE):
+            m = re.search(r'content=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+            out.append(
+                " ".join((m.group(1) if m else "").lower().replace(",", " ").split())
+            )
+    return out
+
+
+def next_error_shell(html):
+    """Next.js (App Router) served its error fallback document,
+    `<html id="__next_error__">`: no root layout, so no lang, landmarks or
+    server-rendered body; the page only appears after client-side rendering.
+    Returns None, "not_found" (the page looks like a 404) or "page"."""
+    if not _NEXT_ERROR_SHELL_RE.search(html):
+        return None
+    return "not_found" if _NOT_FOUND_TITLE_RE.search(html) else "page"
+
+
 @register_module
 class TechnicalSEOModule(AuditModule):
     MODULE_ID = "technical_seo"
@@ -178,6 +209,8 @@ class TechnicalSEOModule(AuditModule):
             ),
             "interstitial": interstitial_signals(html),
             "images": image_signals(html),
+            "next_error_shell": next_error_shell(html),
+            "robots_meta_values": robots_meta_values(html),
         }
 
     def score(self, analysis: dict) -> dict:
@@ -291,6 +324,43 @@ class TechnicalSEOModule(AuditModule):
                 "formats cut bytes substantially and help LCP.",
                 fix="Serve WebP/AVIF (via `<picture>` or your CDN/image pipeline).",
                 effort="medium",
+            )
+        shell = a.get("next_error_shell")
+        if shell:
+            not_found = shell == "not_found"
+            self.add_finding(
+                priority="P3" if not_found else "P1",
+                title="Next.js error shell served (__next_error__)",
+                description="The response is Next.js's error fallback document "
+                '(`<html id="__next_error__">`): the root layout did not render on the '
+                "server, so the HTML has no `lang`, no landmarks and no body content "
+                "until client-side JavaScript runs."
+                + (
+                    " Here it is the 404 page, which is low impact, but every missing "
+                    "URL serves a blank document to crawlers and screen readers."
+                    if not_found
+                    else " On an indexable page this is a render gap: crawlers that "
+                    "do not run JavaScript see an empty page."
+                ),
+                fix="Find what makes the server render bail out to the error shell (an "
+                "error thrown in the root layout, or `notFound()`/`redirect()` called "
+                "after streaming began). Render the 404 inside the root layout "
+                "(app/not-found.tsx, or app/global-not-found.tsx in Next 15.4+).",
+                effort="medium",
+            )
+        robots_vals = a.get("robots_meta_values") or []
+        if len(robots_vals) > 1 and len(set(robots_vals)) > 1:
+            self.add_finding(
+                priority="P3",
+                title="Multiple robots meta tags with different values",
+                description=f'{len(robots_vals)} `<meta name="robots">` tags say '
+                + " / ".join(f"'{v}'" for v in robots_vals)
+                + ". Google applies the most restrictive, but other crawlers may read "
+                "only the first. Common in Next.js, which adds its own noindex to 404s "
+                "beside the page's metadata.",
+                fix="Emit one robots tag per page (drop the duplicate from the page or "
+                "layout metadata).",
+                effort="low",
             )
         if img["total"] and img["missing_dims"]:
             self.add_finding(

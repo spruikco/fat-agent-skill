@@ -358,6 +358,7 @@ def run_checks(con, gsc: dict = None) -> list:
             }
         )
     findings.extend(canonical_host_checks(con))
+    findings.extend(indexation_checks(con))
     findings.extend(guideline_checks(con, gsc))
     order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
     findings.sort(key=lambda f: order.get(f["priority"], 9))
@@ -625,6 +626,227 @@ def canonical_host_checks(con) -> list:
             "key": "canonical_cross_host",
         }
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Indexation signals that contradict each other across the crawl
+# --------------------------------------------------------------------------- #
+# Text a page shows when its data failed to load or the thing is gone. Served
+# with a 200 and indexable, each one is a soft 404 (or worse, a thin page that
+# competes with the real one). Kept specific to error states: "not found" alone
+# also appears in ordinary copy, so it must be the title or the start of the
+# main content to count.
+_ERROR_STATE_RE = re.compile(
+    r"\b(?:couldn['’]?t load|could not load|can['’]?t load|"
+    r"unable to load|failed to load|something went wrong|"
+    r"try again in a minute|try again later|is (?:temporarily )?unavailable|"
+    r"no longer available|page (?:not found|doesn['’]?t exist)|"
+    r"we can['’]?t find (?:that|this|the) page)",
+    re.IGNORECASE,
+)
+_NOT_FOUND_LEAD_RE = re.compile(r"^\W*(?:404\b|not found\b|page not found\b)", re.I)
+SOFT_ERROR_P0 = 10  # this many soft-error URLs listed in the sitemap is a P0
+
+# Junior / under-age grades. Matched against URL, title and H1.
+_JUNIOR_RE = re.compile(
+    r"\b(?:juniors?|under[- ]?(?:[6-9]|1[0-7])s?|u[- ]?(?:[6-9]|1[0-7])s?|"
+    r"auskick|youth)\b",
+    re.IGNORECASE,
+)
+_PLAYER_PAGE_RE = re.compile(
+    r"/(?:players?|athletes?|members?|people|profiles?)/", re.IGNORECASE
+)
+
+
+def _shape_key(url: str) -> str:
+    """Group URLs by their parent path: /league/club/x -> /league/club/{*}."""
+    segs = [s for s in urlparse(url).path.split("/") if s]
+    if not segs:
+        return "/"
+    return "/" + "/".join(segs[:-1] + ["{*}"])
+
+
+def _grouped(urls: list, limit: int = 5) -> str:
+    groups = Counter(_shape_key(u) for u in urls)
+    return ", ".join(f"{k} ({n})" for k, n in groups.most_common(limit))
+
+
+def _root_of(url: str) -> str:
+    p = urlparse(url)
+    return f"{p.scheme}://{(p.hostname or '').lower()}"
+
+
+def _is_root(url: str) -> bool:
+    p = urlparse(url)
+    return (p.path or "/") in ("", "/") and not p.query
+
+
+def indexation_checks(con) -> list:
+    """Sitemap vs robots, soft error pages, home-page canonicals and minors."""
+    findings = []
+    cols = _columns(con)
+
+    def _f(priority, title, description, fix, effort, count, key):
+        return {
+            "priority": priority,
+            "title": title,
+            "description": description,
+            "fix": fix,
+            "effort": effort,
+            "module": MODULE,
+            "count": count,
+            "key": key,
+        }
+
+    # (a) noindex pages listed in the sitemap: the sitemap says "index this",
+    # the page says "don't". Google reports these under "Submitted URL marked
+    # noindex" and stops trusting the sitemap as a canonical hint.
+    noidx = [
+        r[0]
+        for r in con.execute(
+            "SELECT url FROM pages WHERE in_sitemap=1 AND status>=200 AND status<300 "
+            "AND index_reason='noindex'"
+        )
+    ]
+    if noidx:
+        findings.append(
+            _f(
+                "P1",
+                "Noindex pages listed in the sitemap",
+                f"{len(noidx)} sitemap URLs carry a noindex robots tag or header, so "
+                "the sitemap asks search engines to index pages that refuse it "
+                f"(Search Console: 'Submitted URL marked noindex'). By URL pattern: "
+                f"{_grouped(noidx)}. Examples: " + "; ".join(noidx[:SAMPLE_LIMIT]),
+                "Decide per pattern: if the pages should rank, remove the noindex; if "
+                "they are private, thin or failing to load, drop them from the sitemap "
+                "generator (and fix the failure first if the noindex is a fallback).",
+                "medium",
+                len(noidx),
+                "sitemap_noindex",
+            )
+        )
+
+    # (b) error-state pages served as 200
+    excerpt = "main_excerpt" if "main_excerpt" in cols else "NULL"
+    soft = []
+    for url, title, h1, text, in_sm in con.execute(
+        f"SELECT url, title, h1, {excerpt}, in_sitemap FROM pages "
+        "WHERE status>=200 AND status<300 AND content_type='text/html' "
+        "AND COALESCE(index_reason,'')<>'noindex'"
+    ):
+        lead = (text or "")[:400]
+        heads = " ".join(x for x in (title, h1) if x)
+        if (
+            _ERROR_STATE_RE.search(heads)
+            or _ERROR_STATE_RE.search(lead)
+            or _NOT_FOUND_LEAD_RE.search(title or "")
+            or _NOT_FOUND_LEAD_RE.search(lead)
+        ):
+            soft.append((url, in_sm))
+    if soft:
+        in_sitemap = sum(1 for _, s in soft if s)
+        urls = [u for u, _ in soft]
+        findings.append(
+            _f(
+                "P0" if in_sitemap >= SOFT_ERROR_P0 else "P1",
+                "Error-state pages served as 200",
+                f"{len(soft)} indexable pages answer HTTP 200 but show an error or "
+                f"'couldn't load' state ({in_sitemap} of them in the sitemap). Google "
+                "treats them as soft 404s, and while they stay indexable the real "
+                "content never reaches the index. By URL pattern: "
+                f"{_grouped(urls)}. Examples: " + "; ".join(urls[:SAMPLE_LIMIT]),
+                "Open a few: if the data source failed, fix the lookup (a route that "
+                "renders the error for every URL of one pattern is usually a code bug, "
+                "e.g. an id that arrives percent-encoded); if the thing is gone, return "
+                "404/410; while a fallback shows, send noindex and keep it out of the "
+                "sitemap.",
+                "medium",
+                len(soft),
+                "soft_error_pages",
+            )
+        )
+
+    # (c) non-root pages whose canonical is the home page
+    to_home_idx, to_home_noidx = [], []
+    for url, canonical, reason in con.execute(
+        "SELECT url, canonical, index_reason FROM pages WHERE status>=200 "
+        "AND status<300 AND canonical IS NOT NULL AND canonical<>''"
+    ):
+        if _is_root(url) or not _is_root(canonical):
+            continue
+        if _root_of(canonical) != _root_of(url):
+            continue  # cross-host canonicals have their own finding
+        (to_home_noidx if reason == "noindex" else to_home_idx).append(url)
+    if len(to_home_idx) >= 3:
+        findings.append(
+            _f(
+                "P1",
+                "Pages canonicalise to the home page",
+                f"{len(to_home_idx)} pages declare the home page as their canonical, "
+                "telling Google each one is a copy of the home page, so none of them "
+                "can rank. The usual cause is a site-wide canonical in a root layout "
+                "(Next.js `alternates: { canonical: '/' }`, a Nuxt/SvelteKit default "
+                "head) that every page without its own inherits. By URL pattern: "
+                f"{_grouped(to_home_idx)}. Examples: "
+                + "; ".join(to_home_idx[:SAMPLE_LIMIT]),
+                "Remove the canonical from the root layout and give each page a "
+                "self-referencing canonical (or none).",
+                "low",
+                len(to_home_idx),
+                "canonical_to_home",
+            )
+        )
+    if len(to_home_noidx) >= 3:
+        findings.append(
+            _f(
+                "P2",
+                "Noindex pages canonicalise to the home page",
+                f"{len(to_home_noidx)} noindex pages also point their canonical at the "
+                "home page: a conflicting signal (noindex says drop this URL, the "
+                "canonical says merge it into the home page). Usually inherited from "
+                "a root-layout canonical. By URL pattern: "
+                f"{_grouped(to_home_noidx)}. Examples: "
+                + "; ".join(to_home_noidx[:SAMPLE_LIMIT]),
+                "Leave the canonical off noindex pages (or make it self-referencing); "
+                "removing the root-layout canonical fixes them all at once.",
+                "low",
+                len(to_home_noidx),
+                "noindex_canonical_to_home",
+            )
+        )
+
+    # (d) minors' data: indexable junior-grade player pages
+    schema = "schema_types" if "schema_types" in cols else "NULL"
+    minors = []
+    for url, title, h1, types in con.execute(
+        f"SELECT url, title, h1, {schema} FROM pages WHERE indexable=1 "
+        "AND status>=200 AND status<300"
+    ):
+        text = " ".join(x for x in (url, title, h1) if x)
+        if not _JUNIOR_RE.search(text):
+            continue
+        person = "person" in (types or "").lower().split(",")
+        if person or _PLAYER_PAGE_RE.search(urlparse(url).path):
+            minors.append(url)
+    if minors:
+        findings.append(
+            _f(
+                "P2",
+                "Junior player pages are indexable (verify minors' data)",
+                f"{len(minors)} indexable pages look like individual player pages (or "
+                "carry Person markup) in junior or under-age grades. Names, photos and "
+                "stats of children in search results are a privacy and safeguarding "
+                "risk, and most sporting bodies' policies forbid it. Examples: "
+                + "; ".join(minors[:SAMPLE_LIMIT]),
+                "Confirm with the data owner. Junior player pages should be noindex "
+                "(and out of the sitemap), or not exist; show scores only for junior "
+                "grades.",
+                "medium",
+                len(minors),
+                "junior_player_pages",
+            )
+        )
+    return findings
 
 
 def guideline_checks(con, gsc: dict = None) -> list:

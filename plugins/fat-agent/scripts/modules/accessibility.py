@@ -26,6 +26,23 @@ _HIDDEN_BLOCK_RE = re.compile(
 )
 
 
+_LABEL_BLOCK_RE = re.compile(r"<label\b[^>]*>.*?</label>", re.IGNORECASE | re.DOTALL)
+_OFFSCREEN_RE = re.compile(
+    r"(?:left|top|right)\s*:\s*-\d{3,}px|clip\s*:\s*rect\(|display\s*:\s*none",
+    re.IGNORECASE,
+)
+
+
+def _is_honeypot(tag_html: str) -> bool:
+    """A spam-trap field: aria-hidden, or out of the tab order and offscreen."""
+    if re.search(r'aria-hidden=["\']true["\']', tag_html, re.IGNORECASE):
+        return True
+    return bool(
+        re.search(r'tabindex=["\']-1["\']', tag_html, re.IGNORECASE)
+        and _OFFSCREEN_RE.search(tag_html)
+    )
+
+
 def _strip_hidden(html: str) -> str:
     """Remove hidden form/div blocks so their inputs don't count as unlabelled."""
     prev = None
@@ -57,26 +74,39 @@ class AccessibilityModule(AuditModule):
         # inputs inside hidden containers aren't exposed to assistive tech, so
         # they can't be a real labelling failure — scan the visible HTML only.
         visible_html = _strip_hidden(html)
-        inputs = re.findall(
-            r"<(?:input|select|textarea)\s[^>]*>",
-            visible_html,
-            re.IGNORECASE,
+        inputs = list(
+            re.finditer(
+                r"<(?:input|select|textarea)\s[^>]*>",
+                visible_html,
+                re.IGNORECASE,
+            )
         )
         form_inputs_total = 0
         form_inputs_without_label = 0
-        # an input is labelled by aria-label/labelledby/title, OR by a real
-        # <label for="<id>"> that references its id — NOT by merely having an id.
+        # an input is labelled by aria-label/labelledby/title, by a real
+        # <label for="<id>"> that references its id (NOT by merely having an
+        # id), or by sitting inside a <label> element (an implicit label).
         label_fors = set(
             re.findall(r'<label[^>]+for=["\']([^"\']+)', visible_html, re.IGNORECASE)
         )
-        for inp in inputs:
-            if re.search(r'type=["\']hidden["\']', inp, re.IGNORECASE):
+        label_spans = [m.span() for m in _LABEL_BLOCK_RE.finditer(visible_html)]
+        for m in inputs:
+            inp = m.group(0)
+            if re.search(
+                r'type=["\'](?:hidden|submit|button|reset|image)["\']',
+                inp,
+                re.IGNORECASE,
+            ):
+                continue
+            if _is_honeypot(inp):
                 continue
             form_inputs_total += 1
             id_m = re.search(r'\bid=["\']([^"\']+)', inp, re.IGNORECASE)
+            wrapped = any(a <= m.start() < b for a, b in label_spans)
             has_label = bool(
                 re.search(r"aria-label\b|aria-labelledby|\btitle=", inp, re.IGNORECASE)
                 or (id_m and id_m.group(1) in label_fors)
+                or wrapped
             )
             if not has_label:
                 form_inputs_without_label += 1

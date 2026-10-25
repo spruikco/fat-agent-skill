@@ -1,5 +1,111 @@
 # Changelog
 
+## [3.13.0] - 2026-10-25
+
+Lessons from the second txsports.com.au audit: a Next.js 16 shop with a
+5,000-URL results centre, a Merchant feed and an app subdomain, audited live
+after its domain move.
+
+### Fixed: false positives
+- Accessibility "Form inputs without labels" (P1): an input wrapped in a
+  `<label>` (an implicit label) now counts as labelled, as do `title` and
+  `aria-labelledby`, and honeypot fields (`aria-hidden="true"`, or
+  `tabindex="-1"` and offscreen) are skipped. Both `analyse-html.py` and the
+  `accessibility` module. The TX club store had 10 of 13 inputs flagged, every
+  one labelled. The analyser also stops treating any input with an `id` as
+  labelled: the id needs a matching `<label for>`.
+- E-E-A-T "No Organization entity markup": any Organization subtype or
+  LocalBusiness subtype counts (new `ORGANIZATION_TYPES` list in
+  `_schema_org_types.py`), read from parsed JSON-LD including `@graph`, nested
+  nodes and `@type` lists. TX Sports describes itself as a
+  `SportsActivityLocation` and was flagged on 13 of 17 pages.
+- E-commerce "No shipping information on the product page": Product JSON-LD
+  `offers.shippingDetails` (OfferShippingDetails) or a shipping service on the
+  Organization counts as shipping information.
+- PWA "No service worker registration found" is P3 on ordinary sites and P2
+  only when the page declares a web app manifest (was P1 on every page).
+- `cookie_gdpr` is region-aware: for an Australian or New Zealand site
+  (`lang="en-AU"`/`en-NZ"` or a `.au`/`.nz` host) with no EU hreflang, the
+  consent banner, cookie policy and data controller findings drop to P3 with a
+  note on what the AU/NZ Privacy Acts actually ask for. Home-grown banners
+  (`aria-label="Cookie consent"`, `consent-banner` classes) and Google Consent
+  Mode defaults (`gtag('consent','default', ...)`) count as consent handling,
+  so a banner that renders client-side is no longer "missing", and Consent Mode
+  counts as consent-gated tracking.
+- `email_deliverability` checks SPF, DKIM and DMARC on the host first and then
+  on the organisational domain (`data.txsports.com.au` falls back to
+  `txsports.com.au`; two-level suffixes such as `.com.au`, `.co.nz` and
+  `.co.uk` handled), and the findings name the domains checked. The app
+  subdomain reported "Missing SPF" and "Missing DMARC" at P1 for a domain that
+  has both.
+- `analyse-html.py` and `calculate-score.py` answer `--help`/`-h` with their
+  usage and exit 0 (they tried to open a file called `--help`).
+- "Missing canonical URL" is no longer a finding, and costs no SEO points, on a
+  noindex page (any robots or googlebot meta tag, or the `X-Robots-Tag`
+  header), in both the core check and the `seo` module. It stays P1 on
+  indexable pages. `technical_seo` already advised leaving the canonical off
+  noindex pages, so TX's cart and checkout were flagged for following that
+  advice once the inherited root canonical was removed.
+- Security headers are reported as not assessed, instead of every header
+  missing, when the `--fetch` request fails or times out, or when the response
+  is a 4xx/5xx with no security headers at all (a CDN or proxy error page). A
+  404 fetched during a load spike had reported HSTS, CSP and nosniff missing
+  although the site sends all three.
+
+### Added: site-level checks (`sitewide.py`)
+- **Noindex pages listed in the sitemap** (P1), grouped by URL pattern
+  (Search Console: "Submitted URL marked noindex").
+- **Error-state pages served as 200** (P0 when 10 or more are in the sitemap,
+  otherwise P1): indexable pages whose title or opening content is a "couldn't
+  load", "something went wrong", "try again in a minute" or "page not found"
+  state, grouped by URL pattern. On TX every League page with a colon in its id
+  rendered its fallback because Next.js handed the page component the id
+  percent-encoded, while `generateMetadata` (title, `index, follow`) got it
+  decoded; club pages for four sports failed the same way through a slug that
+  did not round-trip.
+- **Pages canonicalise to the home page** (P1 at 3 or more indexable pages) and
+  **Noindex pages canonicalise to the home page** (P2): the signature of a
+  root-layout `alternates: { canonical: '/' }`.
+- **Junior player pages are indexable (verify minors' data)** (P2): indexable
+  player pages or Person markup in junior and under-age grades. Noindex junior
+  player pages are the correct state and are not reported.
+
+### Added: Merchant Center feed validator (`scripts/merchant_feed.py`)
+- Reads an RSS or Atom Merchant feed (URL or file) and checks every item:
+  required attributes, availability values, price format, duplicate ids, unique
+  product identifiers, links on another host, variant groups whose variants
+  share or lack their variant attributes, and apparel attributes.
+- Samples landing pages (20 by default, spread across the feed): HTTP 200
+  without redirects, indexable, Product JSON-LD present, and the JSON-LD price
+  and `shippingDetails` rate against `g:price` and `g:shipping`. The TX feed
+  sent $12.00 shipping (the checkout rate) while every product page's schema
+  said $9, which Merchant Center disapproves as mismatched shipping.
+- Respects robots.txt, waits between requests, SSRF-guarded, sends the
+  crawler's User-Agent. Findings (module `merchant_feed`) merge into the punch
+  list. SKILL.md section 1.32.
+
+### Added: page-level checks
+- `technical_seo`: **Next.js error shell served (`__next_error__`)**, P1 on a
+  real page and P3 on a 404 (no root layout, no `lang`, body rendered
+  client-side only), and **Multiple robots meta tags with different values**
+  (P3).
+- `sitemap`: every robots.txt `Sitemap:` line and the children of a sitemap
+  index are fetched and checked (capped at 25), not only the first file found.
+  **Declared sitemap unreachable or invalid** (P2) and **Declared sitemap lists
+  no URLs** (P3). Replay mode (`sitemap_xml` passed in) never fetches.
+
+### Docs
+- `references/framework-fixes/nextjs.md` pitfalls 8 to 12: root-layout
+  canonical inheritance, percent-encoded dynamic params, `__next_error__` 404
+  shells, duplicate robots tags on 404s, and noindex fallbacks that keep a
+  canonical.
+- SKILL.md documents each new check in its section (1.2, 1.5, 1.7, 1.8a, 1.12,
+  1.19, 1.22, the site-wide step 2) and adds 1.32 Merchant Center feed.
+
+### Tests
+- `tests/test_txsports_oct_2026.py` (41 tests) with trimmed TX fixtures in
+  `tests/fixtures/txsports_oct_2026/`.
+
 ## [3.12.0] - 2026-10-20
 
 ### Added: FAT Design, the design department

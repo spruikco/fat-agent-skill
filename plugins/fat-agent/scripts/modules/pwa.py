@@ -122,11 +122,21 @@ class PWAModule(AuditModule):
             )
 
         if not analysis.get("has_service_worker"):
+            # Only an installable app (one that ships a manifest) is let down by a
+            # missing service worker; for a shop, brochure or content site it is
+            # a nice-to-have, not a high-priority defect.
+            app_like = bool(analysis.get("has_manifest"))
             self.add_finding(
-                priority="P1",
+                priority="P2" if app_like else "P3",
                 title="No service worker registration found",
                 description="No service worker registration was detected. A service worker "
-                "enables offline support, push notifications, and background sync.",
+                "enables offline support, push notifications, and background sync."
+                + (
+                    " The page declares a web app manifest, so it is meant to install."
+                    if app_like
+                    else " Only worth adding if you want an installable, offline-capable"
+                    " app; ordinary websites rank and convert fine without one."
+                ),
                 fix="Register a service worker in your main JS, e.g. "
                 "navigator.serviceWorker.register('/sw.js').",
                 effort="medium",

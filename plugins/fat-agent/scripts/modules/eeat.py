@@ -15,10 +15,12 @@ entity signals) reward — all detectable from the live HTML, no codebase needed
 
 from __future__ import annotations
 
+import json
 import re
 import urllib.parse
 
 from modules import register_module
+from modules._schema_org_types import ORGANIZATION_TYPES_LOWER
 from modules.base import AuditModule
 
 _JSON_LD_RE = re.compile(
@@ -91,6 +93,31 @@ def _trust_pages(html):
     return found
 
 
+def _type_names(node) -> list:
+    """The bare, lower-cased @type names of a JSON-LD node (str or list,
+    with or without a schema.org URL prefix)."""
+    t = node.get("@type") if isinstance(node, dict) else None
+    names = t if isinstance(t, list) else [t]
+    out = []
+    for n in names:
+        if isinstance(n, str) and n:
+            out.append(n.rsplit("/", 1)[-1].lower())
+    return out
+
+
+def _walk_nodes(data):
+    """Every dict in a parsed JSON-LD block, including @graph members and
+    nested objects (publisher, seller, parentOrganization...)."""
+    stack = [data]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            yield x
+            stack.extend(x.values())
+        elif isinstance(x, list):
+            stack.extend(x)
+
+
 def _org_entity(html):
     has_org = False
     has_sameas = False
@@ -98,9 +125,16 @@ def _org_entity(html):
     has_contactpoint = False
     for block in _JSON_LD_RE.findall(html):
         bl = block.lower()
-        if re.search(r'"@type"\s*:\s*"organization"', bl) or re.search(
-            r'"@type"\s*:\s*"localbusiness"', bl
-        ):
+        try:
+            data = json.loads(block)
+        except (ValueError, TypeError):
+            data = None
+        if data is not None:
+            for node in _walk_nodes(data):
+                if any(n in ORGANIZATION_TYPES_LOWER for n in _type_names(node)):
+                    has_org = True
+        elif re.search(r'"@type"\s*:\s*"(?:organization|localbusiness)"', bl):
+            # unparseable block: fall back to the literal type names
             has_org = True
         if '"sameas"' in bl:
             has_sameas = True
@@ -284,7 +318,8 @@ class EEATModule(AuditModule):
             self.add_finding(
                 priority="P2",
                 title="No Organization entity markup",
-                description="No `Organization` (or `LocalBusiness`) JSON-LD found. This is the "
+                description="No `Organization` JSON-LD (or a subtype such as `LocalBusiness` or "
+                "`SportsTeam`) found. This is the "
                 "anchor for your brand's Knowledge Graph entity.",
                 fix="Add `Organization` schema with `name`, `url`, `logo`, `sameAs`, and "
                 "`contactPoint`.",

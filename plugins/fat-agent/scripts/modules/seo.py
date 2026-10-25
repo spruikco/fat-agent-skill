@@ -87,6 +87,20 @@ class SEOModule(AuditModule):
         )
         has_robots_meta = bool(robots_match)
         robots_content = robots_match.group(1) if robots_match else ""
+        robots_all = " ".join(
+            m.group(1).lower()
+            for m in re.finditer(
+                r'<meta\s[^>]*name=["\'](?:robots|googlebot)["\'][^>]*'
+                r'content=["\']([^"\']*)["\']',
+                html,
+                re.IGNORECASE,
+            )
+        )
+        x_robots = ""
+        for k, v in (headers or {}).items():
+            if k.lower() == "x-robots-tag":
+                x_robots = str(v).lower()
+        noindex = "noindex" in robots_all or "noindex" in x_robots
 
         json_ld_count = len(
             re.findall(
@@ -107,6 +121,7 @@ class SEOModule(AuditModule):
             "has_robots_meta": has_robots_meta,
             "robots_content": robots_content,
             "noindex_expected": noindex_expected(url),
+            "noindex": noindex,
             "json_ld_count": json_ld_count,
         }
 
@@ -148,7 +163,8 @@ class SEOModule(AuditModule):
         total += headings
 
         # canonical (5 points)
-        canonical = 5 if analysis.get("has_canonical") else 0
+        # a noindex page needs no canonical (leave it off or self-reference)
+        canonical = 5 if analysis.get("has_canonical") or analysis.get("noindex") else 0
         details["canonical"] = {"score": canonical, "max": 5}
         total += canonical
 
@@ -233,7 +249,7 @@ class SEOModule(AuditModule):
                 effort="low",
             )
 
-        if not analysis.get("has_canonical"):
+        if not analysis.get("has_canonical") and not analysis.get("noindex"):
             self.add_finding(
                 priority="P2",
                 title="Missing canonical URL",

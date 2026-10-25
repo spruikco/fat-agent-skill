@@ -138,9 +138,25 @@ class SitemapModule(AuditModule):
                     non_html_urls.append(u)
 
         referenced_in_robots = False
+        robots_sitemaps: list[str] = []
         if robots_content:
             robots_sitemaps = self._sitemaps_from_robots(robots_content)
             referenced_in_robots = len(robots_sitemaps) > 0
+
+        # Every sitemap the site declares, not just the first file found: the
+        # children of a sitemap index and each robots.txt Sitemap: line (a site
+        # can list several, e.g. /sitemap.xml plus /league/sitemap.xml).
+        other_sitemaps = []
+        # Only in live mode: a caller that hands in sitemap_xml is testing or
+        # replaying, and must not trigger network fetches.
+        if base_url and sitemap_xml is None and (is_index or robots_sitemaps):
+            other_sitemaps = self._check_other_sitemaps(
+                (urls if is_index else []) + robots_sitemaps,
+                skip={sitemap_source} if sitemap_source else set(),
+            )
+        page_url_total = sum(s["url_count"] for s in other_sitemaps) + (
+            0 if is_index else len(urls)
+        )
 
         return {
             "domain": domain,
@@ -160,6 +176,9 @@ class SitemapModule(AuditModule):
             "reasonable_size": reasonable_size,
             "referenced_in_robots": referenced_in_robots,
             "non_html_urls": non_html_urls[:10],
+            "robots_sitemaps": robots_sitemaps[:20],
+            "other_sitemaps": other_sitemaps,
+            "page_url_total": page_url_total,
         }
 
     # ------------------------------------------------------------------
@@ -295,6 +314,38 @@ class SitemapModule(AuditModule):
                 effort="low",
             )
 
+        broken = [s for s in analysis.get("other_sitemaps") or [] if not s.get("ok")]
+        if broken:
+            listed = ", ".join(
+                f"{s['url']} ({s.get('error', 'failed')})" for s in broken[:5]
+            )
+            self.add_finding(
+                priority="P2",
+                title="Declared sitemap unreachable or invalid",
+                description=f"{len(broken)} sitemap(s) named in robots.txt or a "
+                f"sitemap index failed to load as XML: {listed}. Search engines "
+                "drop every URL in a sitemap they can't read.",
+                fix="Make each Sitemap: URL return HTTP 200 with valid XML, or remove "
+                "the line from robots.txt / the index.",
+                effort="low",
+            )
+        empty = [
+            s
+            for s in analysis.get("other_sitemaps") or []
+            if s.get("ok") and not s.get("is_index") and not s.get("url_count")
+        ]
+        if empty:
+            self.add_finding(
+                priority="P3",
+                title="Declared sitemap lists no URLs",
+                description=f"{len(empty)} sitemap(s) load but list no <url> entries: "
+                + ", ".join(s["url"] for s in empty[:5])
+                + ". A generator that returns an empty file on error (data source down,"
+                " feature flag off) is the usual cause.",
+                fix="Check the generator for the empty sitemap, or drop it from robots.txt.",
+                effort="low",
+            )
+
         return {
             "total": total,
             "sitemap_exists": sitemap_exists_pts,
@@ -338,6 +389,42 @@ class SitemapModule(AuditModule):
         except (URLError, OSError, ValueError):
             pass
         return None
+
+    def _check_other_sitemaps(self, candidates: list, skip: set, limit: int = 25):
+        """Fetch each declared sitemap (and the children of any index among
+        them, one level deep) and report whether it loads, parses and lists
+        URLs. Capped so a 1,000-file index can't turn an audit into a crawl."""
+        seen = set(skip)
+        out = []
+        queue = list(candidates)
+        while queue and len(out) < limit:
+            sm_url = queue.pop(0)
+            if not sm_url or sm_url in seen:
+                continue
+            seen.add(sm_url)
+            body = self._fetch(sm_url)
+            entry = {"url": sm_url, "ok": False, "is_index": False, "url_count": 0}
+            if body:
+                try:
+                    root = ET.fromstring(body)
+                    entry["ok"] = True
+                    if root.tag == f"{_SITEMAP_NS}sitemapindex":
+                        entry["is_index"] = True
+                        for el in root.findall(
+                            f"{_SITEMAP_NS}sitemap/{_SITEMAP_NS}loc"
+                        ):
+                            if el.text and el.text.strip() not in seen:
+                                queue.append(el.text.strip())
+                    else:
+                        entry["url_count"] = len(
+                            root.findall(f"{_SITEMAP_NS}url/{_SITEMAP_NS}loc")
+                        )
+                except ET.ParseError:
+                    entry["error"] = "invalid XML"
+            else:
+                entry["error"] = "unreachable or not HTTP 200"
+            out.append(entry)
+        return out
 
     @staticmethod
     def _sitemaps_from_robots(robots_txt: str) -> list[str]:
