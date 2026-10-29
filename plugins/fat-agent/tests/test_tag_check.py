@@ -333,3 +333,15 @@ def test_public_only_browser_cannot_reach_local_server():
         srv.shutdown()
     assert hit == []  # the request never reached the local server
     assert rep["summary"]["blocked_private"] == [f"127.0.0.1:{srv.server_port}"]
+
+
+class TestThankYouPageStatus:
+    def test_404_thank_you_page_is_flagged_not_judged(self):
+        s = summarise(ga4_hit("page_view"), conversion_page=True, status=404)
+        titles = [f["title"] for f in tc.as_findings([s])]
+        assert "Thank-you page returns 404: https://x.com/" in titles
+        assert not any(t.startswith("No conversion event fires") for t in titles)
+
+    def test_tiktok_engaged_session_is_not_a_conversion(self):
+        r = hits("https://analytics.tiktok.com/api/v2/pixel", "POST", '{"event":"EngagedSession","context":{"pixel":{"code":"B1"}}}')
+        assert not tc.is_conversion(r[0])

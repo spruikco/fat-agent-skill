@@ -101,7 +101,7 @@ META_AMBIENT = {
     "InitiateCheckout",
     "AddPaymentInfo",
 }
-TIKTOK_AMBIENT = {"Pageview", "PageView", "LandingPageView", "ViewContent", "ClickButton"}
+TIKTOK_AMBIENT = {"Pageview", "PageView", "LandingPageView", "ViewContent", "ClickButton", "EngagedSession", "Search"}
 
 # Containers and session tools: loading is the job, hits are not expected
 LOAD_ONLY_VENDORS = {"Google Tag Manager", "Google tag", "Floodlight", "Hotjar", "Microsoft Clarity"}
@@ -825,6 +825,13 @@ def capture_page(cdp, url, wait=6.0, scroll=True):
                 body = ""
         records.extend(classify(req.get("url", ""), req.get("method", "GET"), body))
 
+    # the page's own HTTP status (after redirects): a 404 thank-you page proves nothing
+    status = 0
+    for e in cdp.events:
+        p = e.get("params", {})
+        if e.get("method") == "Network.responseReceived" and p.get("requestId") == doc_id:
+            status = int(p.get("response", {}).get("status") or 0)
+
     raw_html = ""
     if doc_id:
         try:
@@ -834,7 +841,7 @@ def capture_page(cdp, url, wait=6.0, scroll=True):
                 raw_html = base64.b64decode(raw_html).decode("utf-8", "replace")
         except (CDPError, ValueError):
             raw_html = ""
-    return {"url": url, "records": records, "state": state, "raw_html": raw_html, "requests": requests}
+    return {"url": url, "records": records, "state": state, "raw_html": raw_html, "requests": requests, "status": status}
 
 
 def _undo_msys_path(p):
@@ -1010,6 +1017,7 @@ def analyse_page(page):
         "datalayer_events": (state.get("dataLayerEvents") or [])[:30],
         "forms": state.get("forms", 0),
         "requests": page.get("requests", 0),
+        "status": page.get("status", 0),
     }
 
 
@@ -1180,7 +1188,20 @@ def as_findings(summaries):
                     )
                 )
 
-        if s["conversion_page"] and not s["conversions"]:
+        if s["conversion_page"] and s.get("status", 0) >= 400:
+            findings.append(
+                _finding(
+                    "P2",
+                    f"Thank-you page returns {s['status']}: {url}",
+                    "The conversion check could not judge this page because it does "
+                    "not load. Either the URL is wrong, or real customers land on an "
+                    "error after converting.",
+                    "Point the check at the real thank-you URL (complete a test "
+                    "enquiry and copy the address), or fix the page.",
+                    page=url,
+                )
+            )
+        elif s["conversion_page"] and not s["conversions"]:
             findings.append(
                 _finding(
                     "P1",
