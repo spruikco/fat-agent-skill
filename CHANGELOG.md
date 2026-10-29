@@ -1,5 +1,53 @@
 # Changelog
 
+## [3.13.0] - 2026-10-29
+
+### Added: rendered tag check (`scripts/tag_check.py`)
+- Loads pages in headless Chrome, Edge or Chromium over the DevTools
+  Protocol with a small built-in WebSocket client, so it stays stdlib only
+  (no Playwright). `FAT_CHROME` overrides the browser path; no browser means
+  exit 2 and the manual check in SKILL.md 1.8b.
+- Records every request and classifies loads and hits for GA4 (including
+  batched POST bodies and server-side GTM on a custom domain), GTM, Google
+  Ads (conversion label vs remarketing), Universal Analytics, Meta Pixel (GET
+  and multipart POST), LinkedIn Insight, TikTok, Microsoft Ads UET,
+  Pinterest, Snapchat, Clarity and Hotjar. Also reads
+  `window.google_tag_manager`, `dataLayer` gtag calls (config and consent
+  defaults) and `fbq` pixel state.
+- Tracking beacons are blocked after being recorded by default, so an audit
+  never adds visits or conversions to client data (`--allow-hits` to send
+  them). GA4 retries a blocked batch with the same `_p`/`_s`, so hits are
+  de-duplicated on those; without it, blocking faked double counting on
+  every site tested.
+- Simulates the tab being hidden before reading, the same flush a leaving
+  visitor triggers, so batched GA4 events are captured.
+- Findings (module `tag_check`, punch-list ready): no hits at all (P1); tag
+  loads but sends nothing (P2, Meta Pixel P1, softened when Consent Mode
+  defaults to denied); GA4 events but no page_view (P1); same GA4 ID or
+  Meta Pixel sending page_view more than once per load (P1); UA still
+  installed (P2); several GA4 properties collecting (P3); and for each
+  `--pages` thank-you URL, no conversion event (P1).
+- `summary.render_only_tags` lists every tag the raw-HTML check could not
+  see (typically GTM-injected Meta, Ads, LinkedIn, TikTok).
+- Tested live on officeworks.com.au, koala.com and frankgreen.com: tags
+  GTM injects found, one clean page_view each after de-duplication.
+
+### Changed: analytics in `analyse-html.py`
+- "No analytics tracking detected" is now high (P1), was low. On a detected
+  SPA it is medium with a pointer to `tag_check.py`, because the tags may be
+  injected client-side.
+- New `analytics.tag_ids` (GTM, GA4, Google Ads, UA, Meta Pixel IDs from
+  library URLs, the GTM snippet, `gtag('config')`, analytics.js and
+  `fbq('init')`) and `analytics.duplicate_tags`.
+- New high issues: the same GTM container, GA4 config, gtag library or Meta
+  Pixel installed more than once; only Universal Analytics installed (dead
+  since 1 July 2024). New low issue: leftover UA next to GA4.
+
+### Tests
+- `tests/test_tag_check.py` (29, including an end-to-end run in a real
+  headless browser against a local page, skipped when none is installed).
+  Full pytest run: 1531 passing.
+
 ## [3.12.0] - 2026-10-20
 
 ### Added: FAT Design, the design department

@@ -445,8 +445,50 @@ Check the HTML for known analytics providers (detected automatically):
 - **Platform-specific:** Vercel Analytics, Cloudflare Web Analytics, Adobe Analytics
 - **Ad pixels:** Snapchat Pixel, TikTok Pixel, LinkedIn Insight Tag, Pinterest Tag, Reddit Pixel
 - **Consent management:** Cookiebot, OneTrust, CookieYes, Termly, iubenda, TrustArc, Osano, CookieFirst, Complianz, Quantcast Choice, Microsoft Clarity
-- If none found, ask: "I don't see any analytics installed — is that intentional?"
-- **Verify it fires, don't trust the snippet.** In the browser, record requests to the collector (GA4 `google-analytics.com/g/collect` with `en=page_view`, Plausible `/api/event`, PostHog `/e/`, Umami `/api/send`, Cloudflare `cdn-cgi/rum`), then trigger one non-submitting tracked interaction (copy button, outbound link with navigation aborted) and confirm the custom event reaches `dataLayer` and the network (GA4 batches: navigate away to flush). Tag present but zero hits = P1; page views but no conversion events = P2. Confirm the marketing site and the sign-up app send to the same property. See `references/claims-and-conversion.md` §6.
+- **No analytics is P1** (`No analytics tracking detected`, high). On a
+  detected SPA it drops to P2 with a pointer to `tag_check.py`, because the
+  tags may be injected client-side. Ask: "I don't see any analytics
+  installed. Is that intentional?"
+- **Tag IDs and duplicate installs (static).** `report["analytics"]["tag_ids"]`
+  lists GTM, GA4, Google Ads, UA and Meta Pixel IDs found in the HTML.
+  High: the same GTM container twice, the same GA4 `gtag('config')` twice, the
+  same gtag library twice, the same `fbq('init')` twice, or only Universal
+  Analytics installed (dead since 1 July 2024). Low: a leftover UA tag next to
+  GA4. Put the IDs in the report so the client can confirm they own them.
+- **Rendered tag check (run it whenever the site has any tracking or is
+  meant to).** The static check cannot see tags GTM injects (often the Meta
+  Pixel, Google Ads, LinkedIn, TikTok) and never proves a tag works:
+  ```bash
+  python scripts/tag_check.py --url https://example.com \
+      --pages /thank-you /contact/thanks --json > ./.fat-work/tag_check.json
+  ```
+  Headless Chrome/Edge over the DevTools Protocol, stdlib only (set
+  `FAT_CHROME` if the browser is somewhere unusual). It records every request,
+  then **blocks the tracking beacons by default**, so the audit never adds a
+  fake visit or conversion to the client's GA4, Ads or Meta data
+  (`--allow-hits` to let them through, e.g. while watching GA4 DebugView).
+  Retried beacons are de-duplicated, so blocking cannot fake double counting.
+  Findings (module `tag_check`, punch-list ready): no hits at all (P1); a tag
+  that loads but sends nothing (P2, P1 for the Meta Pixel; softened when
+  Consent Mode defaults to denied); GA4 sending events but **no page_view**
+  (P1); the same GA4 ID or Meta Pixel sending page_view more than once per
+  load (P1, double counting); UA still installed (P2); several GA4 properties
+  collecting (P3, confirm ownership); and for each `--pages` URL, **no
+  conversion event** (P1). Conversion = any GA4 event beyond the automatic
+  ones, a Google Ads hit with a conversion label, a Meta standard conversion
+  (Lead, Purchase, Contact, CompleteRegistration, Schedule ...), a LinkedIn
+  `conversionId`, a UET custom event, a TikTok non-pageview event. The
+  `summary.render_only_tags` list names every tag the static check missed:
+  say so in the report, it is the difference between "no pixel" and "pixel
+  via GTM".
+  Pick the `--pages`: the thank-you / confirmation / success URLs (search the
+  sitemap and crawl for `thank`, `success`, `confirm`, `booked`, `received`)
+  and, for e-commerce, the order-received page pattern. Never submit a real
+  form to reach one. If the conversion only fires on submit with no thank-you
+  page, say the script cannot prove it and use the manual check below on a
+  test entry the client has agreed to.
+  No browser installed → the script exits 2; use the manual check below.
+- **Verify it fires, don't trust the snippet (manual / agent fallback).** In the browser, record requests to the collector (GA4 `google-analytics.com/g/collect` with `en=page_view`, Plausible `/api/event`, PostHog `/e/`, Umami `/api/send`, Cloudflare `cdn-cgi/rum`), then trigger one non-submitting tracked interaction (copy button, outbound link with navigation aborted) and confirm the custom event reaches `dataLayer` and the network (GA4 batches: navigate away to flush). Tag present but zero hits = P1; page views but no conversion events = P2. Confirm the marketing site and the sign-up app send to the same property. See `references/claims-and-conversion.md` §6.
 
 ### 1.9 — Platform-Specific Checks
 
@@ -1764,6 +1806,7 @@ For extended check details, see:
 - `scripts/editorial_report.py` — Brand-pulled A4 editorial audit deck (single-file HTML, print-to-PDF; `--roadmap` adds the content-roadmap slide)
 - `scripts/content_engine.py` — The Content Engine: GSC queries → topic clusters → defend/optimise/rework/consolidate/create/refresh roadmap with brief skeletons
 - `scripts/ga4.py` — GA4 behaviour layer: engagement gaps + money pages converting nothing (reads UI CSV export as-is)
+- `scripts/tag_check.py` — rendered tag check in headless Chrome/Edge: what tracking actually fires, render-only (GTM-injected) tags, double counting, GA4 with no page_view, dead UA, conversions on thank-you pages; blocks beacons by default so client data stays clean
 - `scripts/bulk_audit.py` — Portfolio-wide bulk site auditor
 - `scripts/ci_gate.py` — CI/CD quality gate (threshold + priority checks)
 - `scripts/lighthouse.py` — Lighthouse CLI integration wrapper
@@ -2039,6 +2082,16 @@ converting nothing** (sessions but zero key events — broken tracking or
 broken persuasion). Pair with the Content Engine when presenting: a cluster
 that ranks AND gets traffic but doesn't engage needs better content, not
 better SEO.
+
+A "money page converting nothing" is the cue to run `tag_check.py` with that
+page's thank-you URL in `--pages` (section 1.8b): it tells broken tracking
+apart from broken persuasion in one run, and its findings go to the same
+punch list:
+
+```bash
+python scripts/tag_check.py --url https://example.com --pages /thank-you --json > ./.fat-work/tag_check.json
+python scripts/punchlist.py update --scores ./.fat-work/tag_check.json
+```
 
 `gsc.py` also emits `opportunity_keywords` in the report schema, so GSC wins feed
 straight into the deck's *SEO Priority Opportunities* slide. If no GSC access is

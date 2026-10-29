@@ -51,7 +51,7 @@ last 10%". References live in `references/design/`.
 | Accessibility | Alt text, labels, landmarks, skip links |
 | Functional Checks | Forms, navigation, mobile, 404 page, integrations |
 | Content & Legal | Placeholder text, privacy policy, copyright year |
-| Analytics & Tracking | GA4, GTM, Facebook Pixel, and more |
+| Analytics & Tracking | GA4, GTM, Meta Pixel and 20+ more; tag IDs and duplicate installs; what actually fires after render (`tag_check.py`), incl. conversions on thank-you pages |
 
 ## Scripts
 
@@ -60,6 +60,7 @@ last 10%". References live in `references/design/`.
 | `scripts/analyse-html.py` | HTML analysis — extracts meta tags, headers, scripts |
 | `scripts/calculate-score.py` | Scoring calculator (SEO, Security, A11y, Performance, FAT) |
 | `scripts/generate-badge.py` | SVG badge generator with character image and score bars |
+| `scripts/tag_check.py` | Rendered tag check in headless Chrome/Edge: what tracking fires, double counting, conversions on thank-you pages |
 | `scripts/test_fat_agent.py` | Full test suite (201 tests) |
 
 ## References

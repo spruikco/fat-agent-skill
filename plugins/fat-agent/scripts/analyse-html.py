@@ -138,6 +138,73 @@ PLACEHOLDER_RE = re.compile(
     r"|(?:insert|add|enter) (?:your )?(?:text|content|copy|heading|title) here|^(?:your )?(?:text|content|heading|title) here\W*$"
 )
 
+# Tag IDs: library URLs, the GTM snippet, gtag('config'), analytics.js, fbq('init')
+TAG_SRC_RE = re.compile(r"/(gtm\.js|gtag/js)\?(?:[^#]*&)?id=([A-Z]{1,3}-[A-Z0-9-]+)", re.I)
+GTM_SNIPPET_RE = re.compile(r"['\"](GTM-[A-Z0-9]{4,})['\"]")
+GTAG_CONFIG_RE = re.compile(r"gtag\(\s*['\"]config['\"]\s*,\s*['\"]((?:G|AW|UA|DC)-[A-Z0-9-]+)['\"]")
+UA_LEGACY_RE = re.compile(
+    r"(?:ga\(\s*['\"]create['\"]\s*,|_setAccount['\"]\s*,)\s*['\"](UA-\d+-\d+)['\"]"
+)
+FBQ_INIT_RE = re.compile(r"fbq\(\s*['\"]init['\"]\s*,\s*['\"]?(\d{6,})")
+
+
+def inline_tag_installs(script_text):
+    """(kind, id) installs named by one inline script; each counted once per block."""
+    found = []
+    if "gtm.js" in script_text or "googletagmanager" in script_text:
+        found += [("gtm", i) for i in sorted(set(GTM_SNIPPET_RE.findall(script_text)))]
+    found += [("gtag_config", i) for i in GTAG_CONFIG_RE.findall(script_text)]
+    found += [("ua", i) for i in sorted(set(UA_LEGACY_RE.findall(script_text)))]
+    found += [("meta_init", i) for i in FBQ_INIT_RE.findall(script_text)]
+    return found
+
+
+def summarise_tag_ids(installs):
+    """Unique IDs per platform, in first-seen order."""
+    out = {"gtm": [], "ga4": [], "google_ads": [], "ua": [], "meta_pixel": []}
+    for kind, tag_id in installs:
+        if kind == "gtm" or tag_id.startswith("GTM-"):
+            bucket = "gtm"
+        elif kind == "meta_init":
+            bucket = "meta_pixel"
+        elif tag_id.startswith("G-"):
+            bucket = "ga4"
+        elif tag_id.startswith("AW-"):
+            bucket = "google_ads"
+        elif tag_id.startswith("UA-"):
+            bucket = "ua"
+        else:
+            continue
+        if tag_id not in out[bucket]:
+            out[bucket].append(tag_id)
+    return out
+
+
+def duplicate_tag_installs(installs):
+    """Issue strings for the same tag installed more than once on one page."""
+    counts = {}
+    for kind, tag_id in installs:
+        counts[(kind, tag_id)] = counts.get((kind, tag_id), 0) + 1
+    issues = []
+    for (kind, tag_id), n in counts.items():
+        if n < 2:
+            continue
+        if kind == "gtm":
+            issues.append(
+                f"GTM container {tag_id} installed {n} times (every tag in it fires {n}x)"
+            )
+        elif kind == "gtag_config" and tag_id.startswith("G-"):
+            issues.append(
+                f"GA4 {tag_id} configured {n} times (page views double-counted)"
+            )
+        elif kind == "gtag_js":
+            issues.append(f"Google tag library for {tag_id} loaded {n} times")
+        elif kind == "meta_init":
+            issues.append(
+                f"Meta Pixel {tag_id} initialised {n} times (events double-counted)"
+            )
+    return issues
+
 
 class FATHTMLAnalyser(HTMLParser):
     """Parses HTML and extracts audit signals."""
@@ -180,6 +247,8 @@ class FATHTMLAnalyser(HTMLParser):
         self.json_ld_blocks = []
         self.has_analytics = False
         self.analytics_providers = []
+        # (kind, id) per install found: gtm, gtag_js, gtag_config, ua, meta_init
+        self.tag_installs = []
         self.landmarks = set()
         self.has_viewport = False
         self.has_lang = False
@@ -804,6 +873,12 @@ class FATHTMLAnalyser(HTMLParser):
 
                 src_lower = src.lower()
 
+                # Tag IDs from the library URL (gtm.js?id=GTM-..., gtag/js?id=G-...)
+                m = TAG_SRC_RE.search(src)
+                if m:
+                    kind = "gtm" if m.group(1) == "gtm.js" else "gtag_js"
+                    self.tag_installs.append((kind, m.group(2)))
+
                 # SPA detection from script src
                 if "/_next/" in src_lower:
                     if "Next.js" not in self.spa_indicators:
@@ -1125,6 +1200,7 @@ class FATHTMLAnalyser(HTMLParser):
 
         # Analytics in inline scripts
         if self.current_tag == "script":
+            self.tag_installs.extend(inline_tag_installs(data))
             if "gtag(" in data or "google-analytics" in data:
                 self.has_analytics = True
                 if "Google Analytics / GTM" not in self.analytics_providers:
@@ -1462,6 +1538,8 @@ class FATHTMLAnalyser(HTMLParser):
             "analytics": {
                 "has_analytics": self.has_analytics,
                 "providers": list(set(self.analytics_providers)),
+                "tag_ids": summarise_tag_ids(self.tag_installs),
+                "duplicate_tags": duplicate_tag_installs(self.tag_installs),
             },
             "content": {
                 "placeholder_text": self.placeholder_text_found,
@@ -1564,6 +1642,18 @@ class FATHTMLAnalyser(HTMLParser):
             issues["high"].append(
                 f"Duplicate canonical tags ({report['seo']['duplicate_canonicals']})"
             )
+        # No measurement = every marketing decision is a guess
+        if not report["analytics"]["has_analytics"]:
+            if report["seo"]["spa_detected"]:
+                frameworks = ", ".join(report["seo"]["spa_indicators"])
+                issues["medium"].append(
+                    f"No analytics tracking detected in server HTML ({frameworks} detected;"
+                    " tags may load client-side, confirm with tag_check.py)"
+                )
+            else:
+                issues["high"].append("No analytics tracking detected")
+        for dup in report["analytics"]["duplicate_tags"]:
+            issues["high"].append(dup)
         if (
             report["accessibility"]["has_viewport"]
             and not report["seo"]["viewport_valid"]
@@ -1705,8 +1795,17 @@ class FATHTMLAnalyser(HTMLParser):
         # Low (P3)
         if not report["seo"]["twitter_tags"]:
             issues["low"].append("No Twitter Card tags")
-        if not report["analytics"]["has_analytics"]:
-            issues["low"].append("No analytics tracking detected")
+        tag_ids = report["analytics"]["tag_ids"]
+        if tag_ids["ua"] and not (tag_ids["ga4"] or tag_ids["gtm"]):
+            issues["high"].append(
+                f"Only Universal Analytics installed ({', '.join(tag_ids['ua'])}):"
+                " UA stopped processing data on 1 July 2024, so nothing is being measured"
+            )
+        elif tag_ids["ua"]:
+            issues["low"].append(
+                f"Leftover Universal Analytics tag ({', '.join(tag_ids['ua'])}):"
+                " dead since July 2024, remove it"
+            )
         if (
             not report["performance"]["has_preconnect"]
             and report["performance"]["preconnect_needed"]

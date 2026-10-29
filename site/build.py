@@ -665,6 +665,7 @@ GROUPS = [
     ("Security", ["security.py", "exposed_paths.py"], "Headers, secrets and exposed files."),
     ("Infrastructure", ["dns_infra.py", "email_deliverability.py"], "TLS, DNS and email authentication."),
     ("Privacy and consent", ["cookie_gdpr.py"], "Consent and policy coverage."),
+    ("Analytics and tracking", ["tag_check.py"], "What actually fires, double counting and conversions."),
     ("Accessibility", ["accessibility.py"], "Can everyone use it."),
     ("Performance", ["performance.py", "js_bundle.py", "pwa.py"], "Speed, scripts and app readiness."),
     ("Links", ["links.py", "link_opportunities.py"], "Link health and money-page linking."),
@@ -705,6 +706,14 @@ READABLE = [  # prefix of the raw title -> the wording shown on the site
     ("Server version disclosed", "Server version disclosed"),
     ("Fan-out sub-queries not answered", "Fan-out sub-queries not answered (model-verified)"),
     ("Location pages judged as template", "Location pages judged as template copy (model-verified)"),
+    ("Universal Analytics … still installed", "Universal Analytics still installed (dead since July 2024)"),
+    ("… loads but sends nothing", "Tracking tag loads but sends nothing"),
+    ("GA4 … records no page views", "GA4 records no page views"),
+    ("GA4 … counts every page view", "GA4 counts every page view more than once"),
+    ("Meta Pixel … fires PageView", "Meta Pixel fires PageView more than once"),
+    ("… GA4 properties collecting", "Several GA4 properties collecting"),
+    ("gtag config for …", "Same gtag config runs more than once"),
+    ("No conversion event fires on", "Thank-you page fires no conversion event"),
 ]
 
 
@@ -728,6 +737,7 @@ def finding_titles(fname):
     raw = re.findall(r'title\s*=\s*f?["\']([^"\']{6,140})["\']', s)
     raw += re.findall(r'"title"\s*:\s*f?"([^"]{6,140})"', s)
     raw += [m[2] for m in re.findall(r'\(\s*"([a-z_0-9]+)",\s*"(P\d)",\s*"([^"]{6,140})"', s)]
+    raw += re.findall(r'_finding\(\s*(?:"P\d"|[^,]+),\s*f?"([^"]{6,140})"', s)
     out = []
     for t in raw:
         t = re.sub(r"\{[^}]*\}?|%[sd]", "…", t)

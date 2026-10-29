@@ -951,7 +951,7 @@ class TestAnalyticsDetection(unittest.TestCase):
     def test_no_analytics_flagged(self):
         r = analyse_html(BROKEN_HTML)
         self.assertFalse(r["analytics"]["has_analytics"])
-        self.assertIn("No analytics tracking detected", r["summary"]["low"])
+        self.assertIn("No analytics tracking detected", r["summary"]["high"])
 
 
 class TestPlaceholderText(unittest.TestCase):
@@ -981,7 +981,7 @@ class TestEmptyHTML(unittest.TestCase):
         self.assertIn("No Open Graph tags found", r["summary"]["high"])
         self.assertIn("No favicon detected", r["summary"]["medium"])
         self.assertIn("No Twitter Card tags", r["summary"]["low"])
-        self.assertIn("No analytics tracking detected", r["summary"]["low"])
+        self.assertIn("No analytics tracking detected", r["summary"]["high"])
         self.assertGreaterEqual(r["summary"]["issues_found"], 9)
 
 

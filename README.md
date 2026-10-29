@@ -147,6 +147,14 @@ python plugins/fat-agent/scripts/bulk_audit.py --sites sites.json --output-dir /
 
 Audit multiple sites from a JSON list with a comparison table output.
 
+### Rendered Tag Check
+
+```bash
+python plugins/fat-agent/scripts/tag_check.py --url https://example.com --pages /thank-you
+```
+
+Loads the site in headless Chrome or Edge (stdlib only, no Playwright) and records what tracking actually fires: GA4, GTM, Google Ads, Meta Pixel, LinkedIn, TikTok, Microsoft Ads, Pinterest, Snapchat, Clarity and Hotjar. Catches tags GTM injects that a raw-HTML check can't see, the same GA4 ID or pixel counting page views twice, GA4 sending no page_view, tags that load but send nothing, dead Universal Analytics, and thank-you pages that fire no conversion. Tracking beacons are blocked after being recorded, so an audit never pollutes the client's analytics or ad data.
+
 ### HTML Dashboard
 
 ```bash
