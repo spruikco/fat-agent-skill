@@ -1,5 +1,41 @@
 # Changelog
 
+## [3.14.0] - 2026-10-30
+
+### One product on fatagent.app
+- The landing site and FAT HQ are now one app on **https://fatagent.app**.
+  HQ serves the marketing pages (`site/build.py` output, vendored by HQ), so
+  sign-up, log-in and pricing all stay on one domain. `site/build.py` now
+  defaults `FAT_SITE_URL` to https://fatagent.app and links sign-ups to the
+  same origin; the nav gains "Log in". fatagent.netlify.app and
+  fathq.prodimus.com.au redirect there (the old HQ host still answers the
+  upload API and the Stripe webhook).
+- `fat_hq.py`: default base is https://fatagent.app (a saved base is kept),
+  and `upload` sends `.fat-work/tag_check.json` for HQ's tracking history
+  (`--tag-check PATH`, `--no-tag-check`).
+
+### `tag_check.py --public-only`
+- For server-side runs against URLs other people supply. Every browser
+  request (HTTP, HTTPS, WebSocket, redirects) goes through a built-in proxy
+  that resolves the host itself, refuses private, loopback, link-local and
+  CGNAT addresses and any port but 80/443, and connects only to the address
+  it vetted, so DNS rebinding cannot swap it. Loopback is forced through the
+  proxy, UDP WebRTC and QUIC are off. Refused hosts are listed in
+  `summary.blocked_private`.
+- `FAT_CHROME_FLAGS` adds browser flags (HQ's container uses
+  `--no-sandbox --disable-dev-shm-usage`); the DevTools connection ignores
+  any `HTTP_PROXY` in the environment.
+- Conversions are de-duplicated (Google Ads sends each one to two endpoints).
+
+### Fixed
+- The landing site source no longer hard-codes "222 checks" (the build always
+  replaced it with the live count, so the live site was right; the source
+  now uses a placeholder).
+
+### Tests
+- `tests/test_tag_check.py` 32 (proxy refusals, private ranges, and a real
+  headless run proving a public-only browser cannot reach a local server).
+
 ## [3.13.0] - 2026-10-29
 
 ### Added: rendered tag check (`scripts/tag_check.py`)

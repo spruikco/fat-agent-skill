@@ -25,11 +25,18 @@ the manual browser check in SKILL.md 1.8b.
 Usage:
     python scripts/tag_check.py --url https://x.com
         [--pages /thank-you /contact/thanks ...] [--wait 6] [--allow-hits]
-        [--json]
+        [--public-only] [--json]
+
+--public-only is for running on a server against URLs other people supply
+(FAT HQ does): every browser request goes through a built-in proxy that
+resolves the host itself, refuses private, loopback and link-local addresses
+and ports other than 80/443, and connects only to the address it checked.
+FAT_CHROME_FLAGS adds browser flags (e.g. --no-sandbox in a container).
 """
 
 import argparse
 import base64
+import ipaddress
 import json
 import os
 import re
@@ -39,6 +46,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -177,7 +185,156 @@ def find_browser():
     return None
 
 
-def launch_browser(browser, user_dir, timeout=20):
+def private_address(ip):
+    """True for loopback, private, link-local, CGNAT, multicast and reserved addresses."""
+    try:
+        a = ipaddress.ip_address(ip.split("%")[0])
+    except ValueError:
+        return True
+    if isinstance(a, ipaddress.IPv6Address) and a.ipv4_mapped:
+        a = a.ipv4_mapped
+    return (
+        a.is_private
+        or a.is_loopback
+        or a.is_link_local
+        or a.is_multicast
+        or a.is_reserved
+        or a.is_unspecified
+        or a in ipaddress.ip_network("100.64.0.0/10")
+    )
+
+
+class PublicOnlyProxy:
+    """Forward proxy that only connects to public addresses on ports 80/443.
+
+    For server-side runs (--public-only): every request Chrome makes, including
+    WebSockets and redirects, goes through here. The proxy resolves the host
+    itself and connects to the address it vetted, so a page cannot steer the
+    browser at the machine's own network, and DNS rebinding cannot swap the
+    address between the check and the connection.
+    """
+
+    PORTS = (80, 443)
+
+    def __init__(self):
+        self.blocked = []
+        self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.srv.bind(("127.0.0.1", 0))
+        self.srv.listen(64)
+        self.port = self.srv.getsockname()[1]
+        self.alive = True
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def close(self):
+        self.alive = False
+        try:
+            self.srv.close()
+        except OSError:
+            pass
+
+    def _accept(self):
+        while self.alive:
+            try:
+                conn, _ = self.srv.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._handle, args=(conn,), daemon=True).start()
+
+    def vet(self, host, port):
+        """A public address to connect to, or None (recorded as blocked)."""
+        if port not in self.PORTS:
+            self.blocked.append(f"{host}:{port}")
+            return None
+        try:
+            infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except OSError:
+            return None
+        addrs = [i[4][0] for i in infos]
+        if not addrs or any(private_address(a) for a in addrs):
+            self.blocked.append(f"{host}:{port}")
+            return None
+        return addrs[0]
+
+    def _handle(self, conn):
+        upstream = None
+        try:
+            conn.settimeout(30)
+            head = b""
+            while b"\r\n\r\n" not in head:
+                chunk = conn.recv(65536)
+                if not chunk or len(head) > 65536:
+                    return
+                head += chunk
+            line, rest = head.split(b"\r\n", 1)
+            method, target, version = line.decode("latin-1").split(" ", 2)
+            if method == "CONNECT":
+                host, _, port = target.rpartition(":")
+                host, port = host.strip("[]"), int(port or 443)
+                payload = head.split(b"\r\n\r\n", 1)[1]
+            else:
+                u = urllib.parse.urlsplit(target)
+                if u.scheme != "http" or not u.hostname:
+                    conn.sendall(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
+                    return
+                host, port = u.hostname, u.port or 80
+                path = urllib.parse.urlunsplit(("", "", u.path or "/", u.query, ""))
+                # one request per connection: a reused keep-alive connection
+                # would carry the next request past the check
+                hdrs, _, body = rest.partition(b"\r\n\r\n")
+                kept = [
+                    h for h in hdrs.split(b"\r\n")
+                    if h and not h.lower().startswith((b"connection:", b"proxy-connection:", b"keep-alive:"))
+                ]
+                payload = (
+                    f"{method} {path} {version}\r\n".encode("latin-1")
+                    + b"\r\n".join(kept + [b"Connection: close"])
+                    + b"\r\n\r\n"
+                    + body
+                )
+            ip = self.vet(host, port)
+            if not ip:
+                conn.sendall(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
+                return
+            upstream = socket.create_connection((ip, port), timeout=30)
+            if method == "CONNECT":
+                conn.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            if payload:
+                upstream.sendall(payload)
+            self._pipe(conn, upstream)
+        except (OSError, ValueError):
+            pass
+        finally:
+            for s in (conn, upstream):
+                if s:
+                    try:
+                        s.close()
+                    except OSError:
+                        pass
+
+    @staticmethod
+    def _pipe(a, b):
+        def copy(src, dst):
+            try:
+                while True:
+                    data = src.recv(65536)
+                    if not data:
+                        break
+                    dst.sendall(data)
+            except OSError:
+                pass
+            for s in (src, dst):
+                try:
+                    s.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+        t = threading.Thread(target=copy, args=(b, a), daemon=True)
+        t.start()
+        copy(a, b)
+        t.join(35)
+
+
+def launch_browser(browser, user_dir, timeout=20, extra_args=()):
     """Start headless Chrome on a free port; return (proc, page websocket url)."""
     args = [
         browser,
@@ -189,9 +346,12 @@ def launch_browser(browser, user_dir, timeout=20):
         "--disable-gpu",
         "--disable-extensions",
         "--window-size=1366,900",
+        *extra_args,
+        # FAT_CHROME_FLAGS: e.g. "--no-sandbox --disable-dev-shm-usage" in a container
+        *os.environ.get("FAT_CHROME_FLAGS", "").split(),
         "about:blank",
     ]
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
+    if hasattr(os, "geteuid") and os.geteuid() == 0 and "--no-sandbox" not in args:
         args.insert(1, "--no-sandbox")
     proc = subprocess.Popen(
         args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -214,11 +374,11 @@ def launch_browser(browser, user_dir, timeout=20):
     if not port:
         proc.kill()
         raise CDPError("browser did not open a DevTools port")
+    # never send the DevTools request through an HTTP_PROXY from the environment
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/json/list", timeout=3
-            ) as r:
+            with opener.open(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
                 targets = json.loads(r.read().decode("utf-8"))
             for t in targets:
                 if t.get("type") == "page" and t.get("webSocketDebuggerUrl"):
@@ -679,7 +839,7 @@ def _undo_msys_path(p):
     return "/" + m.group(1).replace("\\", "/") if m else p
 
 
-def run(url, pages=(), wait=6.0, allow_hits=False, browser=None):
+def run(url, pages=(), wait=6.0, allow_hits=False, browser=None, public_only=False):
     browser = browser or find_browser()
     if not browser:
         raise CDPError(
@@ -689,8 +849,18 @@ def run(url, pages=(), wait=6.0, allow_hits=False, browser=None):
     user_dir = tempfile.mkdtemp(prefix="fat-tag-check-")
     proc = None
     cdp = None
+    proxy = PublicOnlyProxy() if public_only else None
+    extra = []
+    if proxy:
+        extra = [
+            f"--proxy-server=http://127.0.0.1:{proxy.port}",
+            # route loopback through the proxy too (Chrome bypasses it by default)
+            "--proxy-bypass-list=<-loopback>",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--disable-quic",
+        ]
     try:
-        proc, ws = launch_browser(browser, user_dir)
+        proc, ws = launch_browser(browser, user_dir, extra_args=extra)
         cdp = CDP(ws)
         cdp.call("Network.enable", {"maxPostDataSize": 65536})
         cdp.call("Page.enable")
@@ -706,8 +876,12 @@ def run(url, pages=(), wait=6.0, allow_hits=False, browser=None):
             target = urllib.parse.urljoin(url, _undo_msys_path(extra))
             captured.append(capture_page(cdp, target, wait))
             captured[-1]["conversion_page"] = True
+        if proxy and captured:
+            captured[0]["blocked"] = sorted(set(proxy.blocked))
         return captured
     finally:
+        if proxy:
+            proxy.close()
         if cdp:
             cdp.close()
         if proc:
@@ -822,9 +996,10 @@ def analyse_page(page):
         "conversion_page": bool(page.get("conversion_page")),
         "tags": tags,
         "hits": len(hits),
-        "conversions": [
+        # unique: Google Ads sends each conversion to two endpoints
+        "conversions": list(dict.fromkeys(
             f"{r['vendor']} {r['id']} {r['event']}".strip() for r in hits if is_conversion(r)
-        ],
+        )),
         "ga4_consent": consents,
         "consent_default_denied": _consent_denied(state),
         "gtag_configs": gtag_configs,
@@ -1041,7 +1216,11 @@ def build_report(captured):
                 "conversions": sum(len(s["conversions"]) for s in summaries),
             }
         },
-        "summary": {"render_only_tags": render_only},
+        "summary": {
+            "render_only_tags": render_only,
+            # --public-only: hosts the page tried to reach that were refused
+            "blocked_private": sorted({b for p in captured for b in p.get("blocked", [])}),
+        },
     }
 
 
@@ -1060,13 +1239,18 @@ def main():
         action="store_true",
         help="let tracking hits reach the vendors (default: record then block)",
     )
+    ap.add_argument(
+        "--public-only",
+        action="store_true",
+        help="server-side runs: refuse private/loopback addresses and ports other than 80/443",
+    )
     ap.add_argument("--json", action="store_true", help="emit punchlist-ready JSON")
     args = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     try:
-        captured = run(args.url, args.pages, args.wait, args.allow_hits)
+        captured = run(args.url, args.pages, args.wait, args.allow_hits, public_only=args.public_only)
     except (CDPError, OSError) as e:
         print(f"tag_check: {e}", file=sys.stderr)
         return 2

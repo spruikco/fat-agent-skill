@@ -233,7 +233,7 @@ Recommends Organization/LocalBusiness (with NAP + `sameAs`), Product (offers, br
 
 ## FAT HQ (optional)
 
-The plugin is free and does everything on its own. [FAT HQ](https://fathq.prodimus.com.au) is the optional hosted side: every audit on one board, score and Search Console trends with Google's updates marked, scheduled re-checks, alerts, and client reports. Free for one site; see [pricing](https://fatagent.netlify.app/pricing/).
+The plugin is free and does everything on its own. [FAT HQ](https://fatagent.app) is the optional hosted side: every audit on one board, score and Search Console trends with Google's updates marked, tracking history (which tags fire, and conversions on thank-you pages), scheduled re-checks, alerts, and client reports. Free for one site; see [pricing](https://fatagent.app/pricing/).
 
 ```bash
 python scripts/fat_hq.py login fathq_...        # key from HQ > Plugin keys

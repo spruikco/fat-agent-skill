@@ -16,6 +16,9 @@ Commands:
                            too, so HQ can chart traffic against Google updates.
                            Open punch list items (site-wide crawl findings and
                            every module) go too, unless --no-punchlist.
+                           So does ./.fat-work/tag_check.json (tag_check.py
+                           --json), for HQ's tracking history, unless
+                           --no-tag-check.
   status                   Show the account, plan and sites HQ knows about.
   logout                   Forget the saved key.
 
@@ -29,7 +32,7 @@ import sys
 import urllib.error
 import urllib.request
 
-DEFAULT_BASE = "https://fathq.prodimus.com.au"
+DEFAULT_BASE = "https://fatagent.app"
 CONFIG = os.path.join(os.path.expanduser("~"), ".fat-agent", "hq.json")
 PLUGIN_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".claude-plugin", "plugin.json")
 
@@ -87,6 +90,23 @@ def call(cfg: dict, method: str, path: str, body=None) -> dict:
         raise SystemExit("FAT HQ said %s: %s" % (e.code, msg or e.reason))
     except urllib.error.URLError as e:
         raise SystemExit("Could not reach FAT HQ at %s (%s)" % (cfg["base"], e.reason))
+
+
+def load_tag_check(path: str):
+    """tag_check.py --json output, trimmed to what HQ shows; None when absent."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return None
+    keep = ("url", "conversion_page", "tags", "conversions", "hits", "ga4_consent")
+    return {
+        "pages": [{k: p.get(k) for k in keep} for p in data["pages"] if isinstance(p, dict)][:25],
+        "findings": [f for f in data.get("findings", []) if isinstance(f, dict)][:100],
+        "summary": data.get("summary") or {},
+    }
 
 
 def load_punchlist(path: str) -> dict:
@@ -155,6 +175,9 @@ def cmd_upload(args) -> int:
         keep = ("module", "priority", "title", "description", "fix", "effort", "status")
         payload["punchlist"] = {"items": [{k: it.get(k) for k in keep} for it in punch["items"]
                                           if isinstance(it, dict) and it.get("status", "open") == "open"]}
+    tags = None if args.no_tag_check else load_tag_check(args.tag_check)
+    if tags:
+        payload["tag_check"] = tags
     daily = [] if args.no_gsc else load_daily(args.gsc)
     if daily:
         payload["gsc_daily"] = daily
@@ -171,6 +194,8 @@ def cmd_upload(args) -> int:
         print("Since last upload: %s fixed, %s new, %s came back%s." % (
             ch.get("fixed"), ch.get("new"), ch.get("regressed"),
             "" if delta is None else ", score %+d" % delta))
+    if tags:
+        print("Tracking: tag check for %s page(s) sent." % len(tags.get("pages", [])))
     if res.get("gsc_days"):
         print("Search Console: %s days of clicks and impressions sent." % res["gsc_days"])
     print("Case file: %s" % res.get("url"))
@@ -211,6 +236,8 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("--gsc", default=os.path.join(".fat-work", "gsc_dates.json"), help="Search Console date export to include")
     up.add_argument("--no-gsc", action="store_true", help="do not send Search Console data")
     up.add_argument("--no-punchlist", action="store_true", help="send only scores.json, not the punch list's open items")
+    up.add_argument("--tag-check", default=os.path.join(".fat-work", "tag_check.json"), help="tag_check.py --json output to include")
+    up.add_argument("--no-tag-check", action="store_true", help="do not send the tracking check")
     up.add_argument("--json", action="store_true", help="print the raw response")
     sub.add_parser("status", help="show account and sites")
     sub.add_parser("logout", help="forget the saved key")

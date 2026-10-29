@@ -279,3 +279,57 @@ class TestStaticTags:
         r = analyse_html("<html lang='en'><head><title>App</title><script type='module' src='/assets/index-abc.js'></script></head><body><div id='root'></div></body></html>")
         assert not any("No analytics" in i for i in r["summary"]["high"])
         assert any("No analytics tracking detected in server HTML" in i and "tag_check.py" in i for i in r["summary"]["medium"])
+
+
+# ------------------------------------------------------------ public-only proxy (server-side runs)
+
+
+class TestPublicOnly:
+    def test_private_addresses(self):
+        for ip in ("127.0.0.1", "10.1.2.3", "172.17.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "::1", "fd00::1", "::ffff:127.0.0.1", "0.0.0.0", "nonsense"):
+            assert tc.private_address(ip), ip
+        for ip in ("1.1.1.1", "142.250.70.78", "2606:4700:4700::1111"):
+            assert not tc.private_address(ip), ip
+
+    def _ask(self, proxy, raw):
+        import socket as _s
+        c = _s.create_connection(("127.0.0.1", proxy.port), timeout=5)
+        c.sendall(raw)
+        out = c.recv(200)
+        c.close()
+        return out
+
+    def test_proxy_refuses_loopback_and_odd_ports(self):
+        p = tc.PublicOnlyProxy()
+        try:
+            assert self._ask(p, b"CONNECT 127.0.0.1:443 HTTP/1.1\r\nHost: 127.0.0.1:443\r\n\r\n").startswith(b"HTTP/1.1 403")
+            assert self._ask(p, b"GET http://localhost:80/ HTTP/1.1\r\nHost: localhost\r\n\r\n").startswith(b"HTTP/1.1 403")
+            assert self._ask(p, b"CONNECT 1.1.1.1:22 HTTP/1.1\r\nHost: 1.1.1.1:22\r\n\r\n").startswith(b"HTTP/1.1 403")
+            assert self._ask(p, b"GET ftp://x/ HTTP/1.1\r\n\r\n").startswith(b"HTTP/1.1 400")
+            assert "127.0.0.1:443" in p.blocked and "1.1.1.1:22" in p.blocked
+        finally:
+            p.close()
+
+
+@pytest.mark.skipif(tc.find_browser() is None, reason="no Chrome/Edge/Chromium installed")
+def test_public_only_browser_cannot_reach_local_server():
+    hit = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hit.append(self.path)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(E2E_PAGE)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        rep = tc.build_report(tc.run(f"http://127.0.0.1:{srv.server_port}/", wait=0.5, public_only=True))
+    finally:
+        srv.shutdown()
+    assert hit == []  # the request never reached the local server
+    assert rep["summary"]["blocked_private"] == [f"127.0.0.1:{srv.server_port}"]

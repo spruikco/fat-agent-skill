@@ -84,7 +84,8 @@ html,body{overflow-x:clip}
 def nav(active):
     items = [("/#evidence", "What he checks", "home"), ("/#platforms", "Platforms", "home"),
              ("/security/", "Security", "security"), ("/design/", "Design", "design"), ("/dossier/", "Full dossier", "dossier"),
-             ("/#casework", "Case files", "home"), ("/pricing/", "Pricing", "pricing"), ("/#install", "Install", "home")]
+             ("/#casework", "Case files", "home"), ("/pricing/", "Pricing", "pricing"), ("/#install", "Install", "home"),
+             ("/login", "Log in", "login")]
     links = "\n      ".join(
         f'<a href="{h}"{" aria-current=\"page\"" if a == active and h.startswith("/" + a) else ""}>{t}</a>'
         for h, t, a in items)
@@ -168,7 +169,7 @@ CONSENT_CSS = """<style>
 </style>"""
 
 
-SITE = os.environ.get("FAT_SITE_URL", "https://fatagent.netlify.app").rstrip("/")
+SITE = os.environ.get("FAT_SITE_URL", "https://fatagent.app").rstrip("/")
 # Search Console HTML-tag verification token (public by design); from FAT_GSC_VERIFY or site/gsc-verify.txt
 _gsc = os.environ.get("FAT_GSC_VERIFY", "").strip()
 if not _gsc and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gsc-verify.txt")):
@@ -189,7 +190,7 @@ VIDEO = {"@type": "VideoObject", "name": "FAT Agent trailer",
          "thumbnailUrl": SITE + "/assets/scenes/stakeout.jpg", "contentUrl": SITE + "/assets/fat-agent-promo.mp4",
          "uploadDate": "2026-09-24", "duration": "PT1M1S", "publisher": {"@id": "https://www.spruik.co/#org"}}
 HQ_OFFERS = {"@type": "SoftwareApplication", "name": "FAT HQ", "applicationCategory": "BusinessApplication",
-             "operatingSystem": "Web", "url": "https://fathq.prodimus.com.au/",
+             "operatingSystem": "Web", "url": SITE + "/signup",
              "publisher": {"@id": "https://www.spruik.co/#org"},
              "offers": [{"@type": "Offer", "name": n, "price": str(pr), "priceCurrency": "AUD"} for n, pr in (("Free", 0), ("Pro", 29), ("Agency", 99))]}
 
@@ -244,7 +245,8 @@ def doc(title, desc, active, main):
 
 
 # ------------------------------------------------------------------ home
-HQ_URL = os.environ.get("FAT_HQ_URL", "https://fathq.prodimus.com.au")
+# The site and HQ are one app on fatagent.app, so sign-up links stay on the same origin.
+HQ_URL = os.environ.get("FAT_HQ_URL", "").rstrip("/")
 
 HQ_SECTION = """
   <section class="hq-band" aria-labelledby="hq-title">
@@ -313,7 +315,7 @@ PRICING = """
       <h2 id="plans-title" class="sr-only">Plans</h2>
       <div class="plans">
         <div class="plan"><p class="plan-tag">The plugin</p><h3>FAT Agent</h3><p class="price">Free</p><p class="fine">Forever. MIT licence.</p>
-          <ul><li>All 222 checks, P0 to P3 punch list</li><li>Site-wide crawl, spam policy and doorway checks</li><li>Search Console, AI search and update impact</li><li>Fixes the code with you, then re-tests</li></ul>
+          <ul><li>All __CHECKS__ checks, P0 to P3 punch list</li><li>Site-wide crawl, spam policy and doorway checks</li><li>Search Console, AI search and update impact</li><li>Fixes the code with you, then re-tests</li></ul>
           <a class="cta ghost" href="/#install">Install</a></div>
         <div class="plan"><p class="plan-tag">HQ</p><h3>Free</h3><p class="price">A$0</p><p class="fine">No card needed.</p>
           <ul><li>1 site</li><li>Last 5 audits kept</li><li>Score trend, punch list, what changed</li><li>Search Console chart</li></ul>
@@ -357,7 +359,7 @@ def build_home():
           <p class="eyebrow">Beyond SEO</p>
           <h2 id="more-title">He checks the locks too.</h2>
           <p>FAT Agent is a security tester as much as an SEO auditor. He looks at your site the way an attacker would, from the outside, grades every defence on quality rather than presence, and ranks what he finds from P0 to P3.</p>
-          <div class="cta-row"><a class="cta" href="/security/">Open the security file</a><a class="cta ghost" href="/dossier/">All 222 checks</a></div>
+          <div class="cta-row"><a class="cta" href="/security/">Open the security file</a><a class="cta ghost" href="/dossier/">All __CHECKS__ checks</a></div>
         </div>
         <figure class="scene">
           <img src="/assets/scenes/raid.jpg" alt="FAT Agent kicking open a server room door as web pages with error marks fly past" width="1290" height="726" loading="lazy">
@@ -814,9 +816,9 @@ PRIVACY = """
         <p><b>What Google Analytics records:</b> pages viewed, rough location (country or city), device and browser type, and how you arrived. Google Analytics 4 does not store IP addresses.</p>
         <p><b>Your choice:</b> in the EU, UK and Switzerland analytics stays off until you accept. Everywhere else it is on until you decline. Change your mind any time by clearing this site's storage in your browser; the banner comes back.</p>
         <p><b>The plugin itself:</b> FAT Agent runs inside your own Claude Code session. It sends nothing to us unless you connect FAT HQ.</p>
-        <p><b>FAT HQ:</b> if you make an HQ account, the audits and Search Console numbers you send are covered by the <a href="https://fathq.prodimus.com.au/privacy">FAT HQ privacy policy</a>.</p>
+        <p><b>FAT HQ:</b> if you make an HQ account, the audits and Search Console numbers you send are covered by this policy and the <a href="/terms">terms</a>.</p>
         <p><b>Stored in your browser:</b> one entry, your analytics choice (<code>fat-consent</code> in local storage). This site sets no cookies of its own; Google Analytics sets its cookies only when analytics is on.</p>
-        <p><b>Hosting and fonts:</b> the site is served by Netlify, which keeps standard request logs (IP address, page, time) for security and uptime. Fonts load from Google Fonts, so Google sees your IP address when the page loads them.</p>
+        <p><b>Hosting and fonts:</b> the site and FAT HQ are served from our own servers in Germany (Hetzner), which keep standard request logs (IP address, page, time) for security and uptime. Fonts load from Google Fonts, so Google sees your IP address when the page loads them.</p>
         <p><b>What we never do:</b> sell data, run advertising or remarketing, or use fingerprinting. There are no forms on this site; nothing you type here is sent anywhere.</p>
         <p><b>Your rights:</b> under the Australian Privacy Principles you can ask what we hold about you and have it corrected or deleted. If you are unhappy with our answer you can contact the Office of the Australian Information Commissioner.</p>
         <p><b>Contact:</b> hello@spruik.co</p>
@@ -918,7 +920,7 @@ def main():
         txt = open(path, encoding="utf-8").read()
         # one number everywhere: the dossier's real count of checks
         txt = re.sub(r"(?<![\d,.])222(?= (?:things he checks|checks|things))", str(total), txt)
-        txt = txt.replace("<b>222</b>", f"<b>{total}</b>")
+        txt = txt.replace("<b>222</b>", f"<b>{total}</b>").replace("__CHECKS__", str(total))
         # below-the-fold images load lazily; the nav badge is the only eager one
         txt = re.sub(r'<img (?![^>]*loading=)(?![^>]*class="brand-img")([^>]*?)(/?)>',
                      lambda m: m.group(0) if 'badge-mark.png" alt="" width="38"' in m.group(0)

@@ -488,6 +488,10 @@ Check the HTML for known analytics providers (detected automatically):
   page, say the script cannot prove it and use the manual check below on a
   test entry the client has agreed to.
   No browser installed → the script exits 2; use the manual check below.
+  With FAT HQ connected, `fat_hq.py upload` sends `.fat-work/tag_check.json`
+  too: HQ keeps the tracking history, re-runs the check on every scheduled
+  check, and emails when a tag stops firing or a thank-you page stops
+  recording conversions.
 - **Verify it fires, don't trust the snippet (manual / agent fallback).** In the browser, record requests to the collector (GA4 `google-analytics.com/g/collect` with `en=page_view`, Plausible `/api/event`, PostHog `/e/`, Umami `/api/send`, Cloudflare `cdn-cgi/rum`), then trigger one non-submitting tracked interaction (copy button, outbound link with navigation aborted) and confirm the custom event reaches `dataLayer` and the network (GA4 batches: navigate away to flush). Tag present but zero hits = P1; page views but no conversion events = P2. Confirm the marketing site and the sign-up app send to the same property. See `references/claims-and-conversion.md` §6.
 
 ### 1.9 — Platform-Specific Checks
