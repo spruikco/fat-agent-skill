@@ -345,6 +345,10 @@ def launch_browser(browser, user_dir, timeout=20, extra_args=()):
         "--no-default-browser-check",
         "--disable-gpu",
         "--disable-extensions",
+        # no push, update or sync traffic of Chrome's own: only the page's requests
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-sync",
         "--window-size=1366,900",
         *extra_args,
         # FAT_CHROME_FLAGS: e.g. "--no-sandbox --disable-dev-shm-usage" in a container
