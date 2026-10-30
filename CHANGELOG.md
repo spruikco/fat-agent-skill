@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.14.1] - 2026-10-30
+
+### `tag_check.py --serve-proxy` and `--proxy`
+- The public-only proxy can run as its own service (`--serve-proxy HOST:PORT`,
+  refusals logged to stderr) and a run can use it (`--proxy URL`). This is for
+  a browser on a network with no route out: it can then only reach the proxy,
+  so even a compromised browser cannot skip the check. FAT HQ now runs Chrome
+  this way. With `--proxy`, `blocked_private` is empty in the report; the
+  service's log has the refusals.
+
 ## [3.14.0] - 2026-10-30
 
 ### One product on fatagent.app

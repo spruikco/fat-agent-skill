@@ -9,6 +9,7 @@ analyse-html.py: static tag-ID extraction, duplicate installs, dead UA, and
 
 import http.server
 import struct
+import subprocess
 import sys
 import threading
 from importlib import import_module
@@ -20,6 +21,8 @@ SCRIPTS = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import tag_check as tc  # noqa: E402
+
+SCRIPT = str(SCRIPTS / "tag_check.py")
 
 analyse_html = import_module("analyse-html").analyse_html
 
@@ -333,6 +336,46 @@ def test_public_only_browser_cannot_reach_local_server():
         srv.shutdown()
     assert hit == []  # the request never reached the local server
     assert rep["summary"]["blocked_private"] == [f"127.0.0.1:{srv.server_port}"]
+
+
+@pytest.mark.skipif(tc.find_browser() is None, reason="no Chrome/Edge/Chromium installed")
+def test_browser_sent_through_a_separate_proxy_service():
+    hit = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hit.append(self.path)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(E2E_PAGE)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    lines = []
+    proxy = tc.PublicOnlyProxy(log=lines.append)
+    try:
+        url = f"http://127.0.0.1:{srv.server_port}/"
+        tc.run(url, wait=0.5, proxy_url=f"http://127.0.0.1:{proxy.port}")
+    finally:
+        proxy.close()
+        srv.shutdown()
+    assert hit == []
+    assert list(proxy.blocked) == [f"127.0.0.1:{srv.server_port}"]
+    assert lines == [f"refused 127.0.0.1:{srv.server_port}"]  # a service logs what it turned away
+
+
+def test_serve_proxy_runs_alone_and_url_is_required_otherwise():
+    assert subprocess.run([sys.executable, SCRIPT], capture_output=True).returncode == 2
+    p = subprocess.Popen([sys.executable, SCRIPT, "--serve-proxy", "127.0.0.1:0"], stderr=subprocess.PIPE, text=True)
+    try:
+        assert p.stderr.readline().startswith("public-only proxy on 127.0.0.1:")
+        assert p.poll() is None
+    finally:
+        p.kill()
+        p.wait()
 
 
 class TestThankYouPageStatus:

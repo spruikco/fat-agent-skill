@@ -25,17 +25,22 @@ the manual browser check in SKILL.md 1.8b.
 Usage:
     python scripts/tag_check.py --url https://x.com
         [--pages /thank-you /contact/thanks ...] [--wait 6] [--allow-hits]
-        [--public-only] [--json]
+        [--public-only] [--proxy URL] [--json]
+    python scripts/tag_check.py --serve-proxy 0.0.0.0:8899
 
 --public-only is for running on a server against URLs other people supply
 (FAT HQ does): every browser request goes through a built-in proxy that
 resolves the host itself, refuses private, loopback and link-local addresses
 and ports other than 80/443, and connects only to the address it checked.
+--serve-proxy runs that same proxy as a service, and --proxy points a run at
+it. That is for a browser on a network with no route out: the browser can then
+only reach the proxy, so even a compromised one cannot skip the check.
 FAT_CHROME_FLAGS adds browser flags (e.g. --no-sandbox in a container).
 """
 
 import argparse
 import base64
+import collections
 import ipaddress
 import json
 import os
@@ -216,10 +221,12 @@ class PublicOnlyProxy:
 
     PORTS = (80, 443)
 
-    def __init__(self):
-        self.blocked = []
+    def __init__(self, host="127.0.0.1", port=0, log=None):
+        self.blocked = collections.deque(maxlen=500)  # a service runs for months
+        self.log = log
         self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.srv.bind(("127.0.0.1", 0))
+        self.srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.srv.bind((host, port))
         self.srv.listen(64)
         self.port = self.srv.getsockname()[1]
         self.alive = True
@@ -240,10 +247,15 @@ class PublicOnlyProxy:
                 return
             threading.Thread(target=self._handle, args=(conn,), daemon=True).start()
 
+    def refuse(self, host, port):
+        self.blocked.append(f"{host}:{port}")
+        if self.log:
+            self.log(f"refused {host}:{port}")
+
     def vet(self, host, port):
         """A public address to connect to, or None (recorded as blocked)."""
         if port not in self.PORTS:
-            self.blocked.append(f"{host}:{port}")
+            self.refuse(host, port)
             return None
         try:
             infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
@@ -251,7 +263,7 @@ class PublicOnlyProxy:
             return None
         addrs = [i[4][0] for i in infos]
         if not addrs or any(private_address(a) for a in addrs):
-            self.blocked.append(f"{host}:{port}")
+            self.refuse(host, port)
             return None
         return addrs[0]
 
@@ -850,7 +862,16 @@ def _undo_msys_path(p):
     return "/" + m.group(1).replace("\\", "/") if m else p
 
 
-def run(url, pages=(), wait=6.0, allow_hits=False, browser=None, public_only=False):
+def serve_proxy(listen):
+    """Run the public-only proxy until killed: --serve-proxy HOST:PORT."""
+    host, _, port = listen.rpartition(":")
+    log = lambda line: print(line, file=sys.stderr, flush=True)
+    proxy = PublicOnlyProxy(host or "0.0.0.0", int(port), log=log)
+    log(f"public-only proxy on {host or '0.0.0.0'}:{proxy.port}")
+    threading.Event().wait()
+
+
+def run(url, pages=(), wait=6.0, allow_hits=False, browser=None, public_only=False, proxy_url=None):
     browser = browser or find_browser()
     if not browser:
         raise CDPError(
@@ -860,11 +881,11 @@ def run(url, pages=(), wait=6.0, allow_hits=False, browser=None, public_only=Fal
     user_dir = tempfile.mkdtemp(prefix="fat-tag-check-")
     proc = None
     cdp = None
-    proxy = PublicOnlyProxy() if public_only else None
+    proxy = PublicOnlyProxy() if public_only and not proxy_url else None
     extra = []
-    if proxy:
+    if proxy or proxy_url:
         extra = [
-            f"--proxy-server=http://127.0.0.1:{proxy.port}",
+            f"--proxy-server={proxy_url or f'http://127.0.0.1:{proxy.port}'}",
             # route loopback through the proxy too (Chrome bypasses it by default)
             "--proxy-bypass-list=<-loopback>",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
@@ -1251,7 +1272,7 @@ def build_report(captured):
 
 def main():
     ap = argparse.ArgumentParser(description="Rendered analytics/pixel tag check")
-    ap.add_argument("--url", required=True, help="page to load (usually the home page)")
+    ap.add_argument("--url", help="page to load (usually the home page)")
     ap.add_argument(
         "--pages",
         nargs="*",
@@ -1269,13 +1290,30 @@ def main():
         action="store_true",
         help="server-side runs: refuse private/loopback addresses and ports other than 80/443",
     )
+    ap.add_argument(
+        "--proxy",
+        help="send the browser through this --serve-proxy instead of a built-in proxy",
+    )
+    ap.add_argument(
+        "--serve-proxy",
+        metavar="HOST:PORT",
+        help="run only the public-only proxy, as a service for --proxy",
+    )
     ap.add_argument("--json", action="store_true", help="emit punchlist-ready JSON")
     args = ap.parse_args()
+    if args.serve_proxy:
+        serve_proxy(args.serve_proxy)
+        return 0
+    if not args.url:
+        ap.error("--url is required")
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     try:
-        captured = run(args.url, args.pages, args.wait, args.allow_hits, public_only=args.public_only)
+        captured = run(
+            args.url, args.pages, args.wait, args.allow_hits,
+            public_only=args.public_only, proxy_url=args.proxy,
+        )
     except (CDPError, OSError) as e:
         print(f"tag_check: {e}", file=sys.stderr)
         return 2
